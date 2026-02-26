@@ -41,43 +41,6 @@ public class ProviderAbstractionTests
         Assert.Equal("Cerebras", provider.Name);
     }
 
-    [Fact]
-    public void OllamaProvider_Name_And_Model()
-    {
-        var cfg = new OllamaConfig { Model = "gpt-oss:20b" };
-        ILlmProvider p = new OllamaProvider(cfg);
-
-        Assert.Equal("Ollama",     p.Name);
-        Assert.Equal("gpt-oss:20b", p.Model);
-    }
-
-    [Fact]
-    public void CerebrasProvider_Name_And_Model()
-    {
-        var cfg = new CerebrasConfig { Model = "gpt-oss:120b-cloud" };
-        ILlmProvider p = new CerebrasProvider(cfg);
-
-        Assert.Equal("Cerebras",          p.Name);
-        Assert.Equal("gpt-oss:120b-cloud", p.Model);
-    }
-
-    [Fact]
-    public async Task OllamaProvider_CompleteAsync_ThrowsNotImplemented()
-    {
-        var cfg = new OllamaConfig();
-        ILlmProvider p = new OllamaProvider(cfg);
-
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => p.CompleteAsync([new ChatMessage(ChatRole.User, "test")]));
-    }
-
-    [Fact]
-    public async Task CerebrasProvider_CompleteAsync_ThrowsNotImplemented()
-    {
-        var cfg = new CerebrasConfig();
-        ILlmProvider p = new CerebrasProvider(cfg);
-
-        await Assert.ThrowsAsync<NotImplementedException>(
-            () => p.CompleteAsync([new ChatMessage(ChatRole.User, "test")]));
-    }
+    // Name/Model und Implementierungsdetails der Provider werden
+    // in OllamaProviderTests und CerebrasProviderTests getestet.
 }
