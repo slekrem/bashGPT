@@ -58,7 +58,7 @@ public static class BashCommandExtractor
         return results;
     }
 
-    private static (bool IsDangerous, string? Reason) CheckDanger(string command)
+    public static (bool IsDangerous, string? Reason) CheckDanger(string command)
     {
         foreach (var (pattern, reason) in DangerPatterns)
         {
