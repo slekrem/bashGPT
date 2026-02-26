@@ -1,11 +1,13 @@
 using System.CommandLine;
 using BashGPT.Cli;
 using BashGPT.Configuration;
+using BashGPT.Server;
 using BashGPT.Shell;
 
 var configService    = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
 var handler          = new PromptHandler(configService, contextCollector);
+var serverHost       = new ServerHost(handler);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,11 @@ var verboseOpt = new Option<bool>("--verbose", "-v")
     Description = "Debug-Ausgaben anzeigen"
 };
 
+var forceToolsOpt = new Option<bool>("--force-tools")
+{
+    Description = "Tool-Calls erzwingen (tool_choice=bash)"
+};
+
 // ── Prompt-Argument ───────────────────────────────────────────────────────────
 
 var promptArg = new Argument<string[]>("prompt")
@@ -70,6 +77,7 @@ rootCommand.Options.Add(autoExecOpt);
 rootCommand.Options.Add(dryRunOpt);
 rootCommand.Options.Add(noExecOpt);
 rootCommand.Options.Add(verboseOpt);
+rootCommand.Options.Add(forceToolsOpt);
 
 rootCommand.SetAction(async (parseResult, ct) =>
 {
@@ -111,7 +119,8 @@ rootCommand.SetAction(async (parseResult, ct) =>
         NoContext:  parseResult.GetValue(noContextOpt),
         IncludeDir: parseResult.GetValue(includeDirOpt),
         ExecMode:   execMode,
-        Verbose:    parseResult.GetValue(verboseOpt));
+        Verbose:    parseResult.GetValue(verboseOpt),
+        ForceTools: parseResult.GetValue(forceToolsOpt));
 
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
@@ -160,6 +169,108 @@ configCommand.Subcommands.Add(configListCommand);
 configCommand.Subcommands.Add(configGetCommand);
 configCommand.Subcommands.Add(configSetCommand);
 rootCommand.Subcommands.Add(configCommand);
+
+// ── server-Subkommando ───────────────────────────────────────────────────────
+
+var serverCommand = new Command("server", "Lokalen HTTP-Server mit Browser-UI starten");
+var serverProviderOpt = new Option<string?>("--provider", "-p")
+{
+    Description = "LLM-Provider: 'ollama' oder 'cerebras' (überschreibt Config)"
+};
+var serverModelOpt = new Option<string?>("--model", "-m")
+{
+    Description = "Modellname (überschreibt Config)"
+};
+var serverNoContextOpt = new Option<bool>("--no-context")
+{
+    Description = "Kein Shell-Kontext mitschicken"
+};
+var serverIncludeDirOpt = new Option<bool>("--include-dir")
+{
+    Description = "Verzeichnisinhalt in den Kontext aufnehmen"
+};
+var serverAutoExecOpt = new Option<bool>("--auto-exec", "-y")
+{
+    Description = "Befehle ohne Bestätigung ausführen"
+};
+var serverDryRunOpt = new Option<bool>("--dry-run")
+{
+    Description = "Befehle anzeigen, aber nie ausführen"
+};
+var serverNoExecOpt = new Option<bool>("--no-exec")
+{
+    Description = "Keine Befehle ausführen (reiner Chat-Modus)"
+};
+var serverVerboseOpt = new Option<bool>("--verbose", "-v")
+{
+    Description = "Debug-Ausgaben anzeigen"
+};
+var serverForceToolsOpt = new Option<bool>("--force-tools")
+{
+    Description = "Tool-Calls erzwingen (tool_choice=bash)"
+};
+var serverPortOpt = new Option<int>("--port")
+{
+    Description = "Port für den Server-Modus",
+    DefaultValueFactory = _ => 5050
+};
+var serverNoBrowserOpt = new Option<bool>("--no-browser")
+{
+    Description = "Browser beim Start nicht automatisch öffnen"
+};
+serverCommand.Options.Add(serverProviderOpt);
+serverCommand.Options.Add(serverModelOpt);
+serverCommand.Options.Add(serverNoContextOpt);
+serverCommand.Options.Add(serverIncludeDirOpt);
+serverCommand.Options.Add(serverAutoExecOpt);
+serverCommand.Options.Add(serverDryRunOpt);
+serverCommand.Options.Add(serverNoExecOpt);
+serverCommand.Options.Add(serverVerboseOpt);
+serverCommand.Options.Add(serverForceToolsOpt);
+serverCommand.Options.Add(serverPortOpt);
+serverCommand.Options.Add(serverNoBrowserOpt);
+
+serverCommand.SetAction(async (parseResult, ct) =>
+{
+    var providerStr = parseResult.GetValue(serverProviderOpt);
+    ProviderType? providerOverride = providerStr?.ToLowerInvariant() switch
+    {
+        "ollama"   => ProviderType.Ollama,
+        "cerebras" => ProviderType.Cerebras,
+        null       => null,
+        var v      => throw new ArgumentException($"Unbekannter Provider '{v}'. Erlaubt: ollama, cerebras")
+    };
+
+    var autoExec = parseResult.GetValue(serverAutoExecOpt);
+    var dryRun   = parseResult.GetValue(serverDryRunOpt);
+    var noExec   = parseResult.GetValue(serverNoExecOpt);
+
+    var execMode = (noExec, dryRun, autoExec) switch
+    {
+        (true, _, _) => ExecutionMode.NoExec,
+        (_, true, _) => ExecutionMode.DryRun,
+        (_, _, true) => ExecutionMode.AutoExec,
+        _            => ExecutionMode.Ask,
+    };
+
+    var serverOptions = new ServerOptions(
+        Port: parseResult.GetValue(serverPortOpt),
+        NoBrowser: parseResult.GetValue(serverNoBrowserOpt),
+        Provider: providerOverride,
+        Model: parseResult.GetValue(serverModelOpt),
+        NoContext: parseResult.GetValue(serverNoContextOpt),
+        IncludeDir: parseResult.GetValue(serverIncludeDirOpt),
+        ExecMode: execMode,
+        Verbose: parseResult.GetValue(serverVerboseOpt),
+        ForceTools: parseResult.GetValue(serverForceToolsOpt));
+
+    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+
+    await serverHost.RunAsync(serverOptions, cts.Token);
+});
+
+rootCommand.Subcommands.Add(serverCommand);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

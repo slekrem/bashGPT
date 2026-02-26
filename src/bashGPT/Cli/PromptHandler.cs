@@ -63,6 +63,7 @@ public class PromptHandler(
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
         var tools = new[] { ToolDefinitions.Bash };
+        var toolChoiceName = opts.ForceTools ? "bash" : null;
 
         // LLM-Antwort streamen
         Console.WriteLine();
@@ -70,7 +71,7 @@ public class PromptHandler(
             provider,
             messages,
             tools,
-            toolChoiceName: "bash",
+            toolChoiceName,
             ct);
         Console.WriteLine();
 
@@ -78,7 +79,7 @@ public class PromptHandler(
         {
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
-            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, ct);
+            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, toolChoiceName, ct);
             return 0;
         }
 
@@ -115,11 +116,211 @@ public class PromptHandler(
             provider,
             messages,
             tools,
-            toolChoiceName: "bash",
+            toolChoiceName,
             ct);
         Console.WriteLine();
 
         return 0;
+    }
+
+    public async Task<ServerChatResult> RunServerChatAsync(
+        ServerChatOptions opts,
+        CancellationToken ct = default)
+    {
+        var logs = new List<string>();
+        var commandResults = new List<CommandResult>();
+
+        AppConfig config;
+        try
+        {
+            config = await configService.LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new ServerChatResult(
+                Response: $"Konfigurationsfehler: {ex.Message}",
+                Commands: [],
+                Logs: [],
+                UsedToolCalls: false);
+        }
+
+        if (opts.Model is not null)
+        {
+            if (opts.Provider is ProviderType.Cerebras || config.DefaultProvider == ProviderType.Cerebras)
+                config.Cerebras.Model = opts.Model;
+            else
+                config.Ollama.Model = opts.Model;
+        }
+
+        ILlmProvider provider;
+        try
+        {
+            provider = ProviderFactory.Create(config, opts.Provider);
+        }
+        catch (Exception ex)
+        {
+            return new ServerChatResult(
+                Response: $"Provider-Fehler: {ex.Message}",
+                Commands: [],
+                Logs: [],
+                UsedToolCalls: false);
+        }
+
+        if (opts.Verbose)
+            logs.Add($"Provider: {provider.Name}, Modell: {provider.Model}");
+
+        var messages = new List<ChatMessage>();
+
+        if (!opts.NoContext)
+        {
+            var ctx = await contextCollector.CollectAsync(opts.IncludeDir);
+            var systemPrompt = contextCollector.BuildSystemPrompt(ctx);
+            messages.Add(new ChatMessage(ChatRole.System, systemPrompt));
+
+            if (opts.Verbose)
+                logs.Add($"Kontext gesammelt: {ctx.WorkingDirectory}, Git: {ctx.Git?.Branch ?? "n/a"}");
+        }
+
+        foreach (var msg in opts.History)
+            messages.Add(msg);
+
+        messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
+
+        var tools = new[] { ToolDefinitions.Bash };
+        var toolChoiceName = opts.ForceTools ? "bash" : null;
+        var usedToolCalls = false;
+
+        var firstResponse = await ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+        if (firstResponse.Error is not null)
+            return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
+
+        var currentResponse = firstResponse.Response;
+
+        if (currentResponse.ToolCalls.Count > 0)
+        {
+            usedToolCalls = true;
+            if (opts.Verbose)
+                logs.Add($"Tool-Calls empfangen: {currentResponse.ToolCalls.Count}");
+
+            var rounds = 0;
+            while (currentResponse.ToolCalls.Count > 0 && rounds < 5)
+            {
+                rounds++;
+                var toolCalls = currentResponse.ToolCalls;
+
+                if (opts.Verbose)
+                    logs.Add($"Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
+
+                var (commands, errors) = ParseToolCalls(toolCalls);
+                if (opts.Verbose)
+                {
+                    foreach (var command in commands)
+                        logs.Add($"Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
+                    foreach (var err in errors)
+                        logs.Add($"Tool-Call-Fehler ({err.ToolCall.Name}): {err.Error}");
+                }
+
+                var effectiveExecMode = opts.ExecMode;
+                if (effectiveExecMode == ExecutionMode.Ask)
+                {
+                    effectiveExecMode = ExecutionMode.DryRun;
+                    if (opts.Verbose)
+                        logs.Add("ExecMode 'ask' ist im Server-Modus nicht interaktiv, verwende 'dry-run'.");
+                }
+
+                var executor = new CommandExecutor(
+                    effectiveExecMode,
+                    output: TextWriter.Null,
+                    input: new StringReader(string.Empty));
+
+                var roundResults = commands.Count > 0
+                    ? await executor.ProcessAsync(commands.Select(c => c.Command).ToList(), ct)
+                    : [];
+
+                commandResults.AddRange(roundResults);
+                messages.Add(ChatMessage.AssistantWithToolCalls(toolCalls, currentResponse.Content));
+
+                var toolMessages = BuildToolResultMessages(toolCalls, commands, roundResults, errors);
+                foreach (var msg in toolMessages)
+                    messages.Add(msg);
+
+                var nextResponse = await ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+                if (nextResponse.Error is not null)
+                    return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
+
+                currentResponse = nextResponse.Response;
+            }
+
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+        }
+
+        var fallbackCommands = BashCommandExtractor.Extract(currentResponse.Content);
+        if (opts.Verbose && fallbackCommands.Count > 0)
+            logs.Add($"Fallback aktiv: {fallbackCommands.Count} Befehl(e) aus Text-Codeblöcken extrahiert");
+
+        if (fallbackCommands.Count == 0 || opts.ExecMode == ExecutionMode.NoExec)
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+
+        var fallbackExecMode = opts.ExecMode == ExecutionMode.Ask
+            ? ExecutionMode.DryRun
+            : opts.ExecMode;
+
+        var fallbackExecutor = new CommandExecutor(
+            fallbackExecMode,
+            output: TextWriter.Null,
+            input: new StringReader(string.Empty));
+
+        var fallbackResults = await fallbackExecutor.ProcessAsync(fallbackCommands, ct);
+        commandResults.AddRange(fallbackResults);
+
+        var executed = fallbackResults.Where(r => r.WasExecuted).ToList();
+        if (executed.Count == 0)
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+
+        var followUp = CommandExecutor.BuildFollowUpContext(fallbackResults);
+        messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
+        messages.Add(new ChatMessage(ChatRole.User, followUp));
+
+        var followUpResponse = await ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+        if (followUpResponse.Error is not null)
+            return new ServerChatResult(followUpResponse.Error, commandResults, logs, usedToolCalls);
+
+        return new ServerChatResult(followUpResponse.Response.Content, commandResults, logs, usedToolCalls);
+    }
+
+    private static async Task<(LlmChatResponse Response, string? Error)> ChatOnceAsync(
+        ILlmProvider provider,
+        List<ChatMessage> messages,
+        IReadOnlyList<ToolDefinition> tools,
+        string? toolChoiceName,
+        CancellationToken ct)
+    {
+        try
+        {
+            var tokenBuffer = new System.Text.StringBuilder();
+            var response = await provider.ChatAsync(
+                new LlmChatRequest(
+                    Messages: messages,
+                    Tools: tools,
+                    ToolChoiceName: toolChoiceName,
+                    ParallelToolCalls: false,
+                    Stream: true,
+                    OnToken: token => tokenBuffer.Append(token)),
+                ct);
+
+            if (string.IsNullOrWhiteSpace(response.Content) && tokenBuffer.Length > 0)
+                response = response with { Content = tokenBuffer.ToString() };
+
+            return (response, null);
+        }
+        catch (LlmProviderException ex)
+        {
+            return (new LlmChatResponse("", []), $"Fehler: {ex.Message}");
+        }
+        catch (OperationCanceledException)
+        {
+            return (new LlmChatResponse("", []), "Abgebrochen.");
+        }
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(
@@ -164,6 +365,7 @@ public class PromptHandler(
         LlmChatResponse initialResponse,
         IReadOnlyList<ToolDefinition> tools,
         CliOptions opts,
+        string? toolChoiceName,
         CancellationToken ct)
     {
         var response = initialResponse;
@@ -199,7 +401,7 @@ public class PromptHandler(
                 provider,
                 messages,
                 tools,
-                toolChoiceName: "bash",
+                toolChoiceName,
                 ct);
             Console.WriteLine();
 

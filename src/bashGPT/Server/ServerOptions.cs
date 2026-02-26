@@ -1,11 +1,11 @@
 using BashGPT.Configuration;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace BashGPT.Server;
 
-/// <summary>Geparste CLI-Optionen für den Hauptbefehl.</summary>
-public record CliOptions(
-    string Prompt,
+public record ServerOptions(
+    int Port,
+    bool NoBrowser,
     ProviderType? Provider,
     string? Model,
     bool NoContext,
