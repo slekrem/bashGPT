@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dompurify": "^3.2.7",
     "highlight.js": "^11.11.1",
     "lit": "^3.3.1",
     "marked": "^17.0.3"
