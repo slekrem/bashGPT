@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Cli;
@@ -70,7 +71,13 @@ public class ServerHost(PromptHandler handler)
 
             if (req.HttpMethod == "GET" && path == "/")
             {
-                await WriteHtmlAsync(ctx.Response, Html);
+                await WriteResourceAsync(ctx.Response, "bashGPT.Web.index.html", "text/html; charset=utf-8");
+                return;
+            }
+
+            if (req.HttpMethod == "GET" && path == "/bundle.js")
+            {
+                await WriteResourceAsync(ctx.Response, "bashGPT.Web.bundle.js", "application/javascript; charset=utf-8");
                 return;
             }
 
@@ -185,13 +192,20 @@ public class ServerHost(PromptHandler handler)
         response.Close();
     }
 
-    private static async Task WriteHtmlAsync(HttpListenerResponse response, string html)
+    private static async Task WriteResourceAsync(HttpListenerResponse response, string resourceName, string contentType)
     {
+        var asm = Assembly.GetExecutingAssembly();
+        using var stream = asm.GetManifestResourceStream(resourceName);
+        if (stream is null)
+        {
+            response.StatusCode = 404;
+            response.Close();
+            return;
+        }
         response.StatusCode = 200;
-        response.ContentType = "text/html; charset=utf-8";
-        var bytes = Encoding.UTF8.GetBytes(html);
-        response.ContentLength64 = bytes.Length;
-        await response.OutputStream.WriteAsync(bytes);
+        response.ContentType = contentType;
+        response.ContentLength64 = stream.Length;
+        await stream.CopyToAsync(response.OutputStream);
         response.Close();
     }
 
@@ -220,149 +234,4 @@ public class ServerHost(PromptHandler handler)
 
     private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose);
     private sealed record HistoryItem(string Role, string Content);
-
-    private const string Html = """
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>bashGPT Server</title>
-  <style>
-    :root { --bg:#0f172a; --panel:#111827; --line:#374151; --text:#e5e7eb; --muted:#9ca3af; --accent:#22c55e; --user:#1f2937; --assistant:#0b1220; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background: radial-gradient(circle at top, #1e293b, #020617); color: var(--text); }
-    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px; }
-    .head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:16px; }
-    .title { font-size: 22px; font-weight: 700; }
-    .muted { color: var(--muted); font-size: 13px; }
-    #chat { border:1px solid var(--line); border-radius:12px; min-height: 420px; background: rgba(15,23,42,0.7); padding: 14px; overflow:auto; }
-    .msg { border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; white-space:pre-wrap; }
-    .msg.user { background: var(--user); }
-    .msg.assistant { background: var(--assistant); }
-    .meta { font-size:12px; color: var(--muted); margin-bottom:6px; }
-    .cmd { border:1px solid #475569; border-radius:8px; padding:8px; margin:8px 0; background:#0b1220; }
-    .cmd code { color:#93c5fd; }
-    .row { display:flex; gap:10px; margin-top:12px; }
-    textarea { flex:1; min-height:84px; max-height:240px; resize:vertical; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; }
-    select, button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
-    button.primary { background:#14532d; border-color:#16a34a; }
-    .status { margin-top:8px; font-size:13px; color:var(--muted); }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="head">
-      <div>
-        <div class="title">bashGPT Server UI</div>
-        <div class="muted">Lokale Session mit Verlauf. Exec-Mode pro Nachricht wählbar.</div>
-      </div>
-      <div>
-        <button id="reset">Verlauf löschen</button>
-      </div>
-    </div>
-    <div id="chat"></div>
-    <div class="row">
-      <textarea id="prompt" placeholder="Nachricht eingeben..."></textarea>
-    </div>
-    <div class="row">
-      <select id="mode">
-        <option value="ask">ask</option>
-        <option value="dry-run">dry-run</option>
-        <option value="auto-exec">auto-exec</option>
-        <option value="no-exec">no-exec</option>
-      </select>
-      <button id="send" class="primary">Senden</button>
-    </div>
-    <div id="status" class="status"></div>
-  </div>
-  <script>
-    const chat = document.getElementById('chat');
-    const promptEl = document.getElementById('prompt');
-    const modeEl = document.getElementById('mode');
-    const sendBtn = document.getElementById('send');
-    const resetBtn = document.getElementById('reset');
-    const statusEl = document.getElementById('status');
-
-    function escapeHtml(s) {
-      return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    }
-
-    function addMessage(role, content) {
-      const div = document.createElement('div');
-      div.className = `msg ${role === 'user' ? 'user' : 'assistant'}`;
-      div.innerHTML = `<div class="meta">${role}</div><div>${escapeHtml(content)}</div>`;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-      return div;
-    }
-
-    function addCommands(parent, commands) {
-      if (!commands || commands.length === 0) return;
-      for (const c of commands) {
-        const div = document.createElement('div');
-        div.className = 'cmd';
-        div.innerHTML =
-          `<div><code>${escapeHtml(c.command)}</code></div>` +
-          `<div>Executed: ${c.wasExecuted ? 'yes' : 'no'} | Exit: ${c.exitCode}</div>` +
-          `<div>${escapeHtml(c.output || '(keine Ausgabe)')}</div>`;
-        parent.appendChild(div);
-      }
-    }
-
-    async function loadHistory() {
-      const res = await fetch('/api/history');
-      const data = await res.json();
-      chat.innerHTML = '';
-      for (const h of data.history || [])
-        addMessage(h.role, h.content);
-    }
-
-    async function send() {
-      const prompt = promptEl.value.trim();
-      if (!prompt) return;
-
-      sendBtn.disabled = true;
-      statusEl.textContent = 'Sende...';
-      addMessage('user', prompt);
-      promptEl.value = '';
-
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, execMode: modeEl.value })
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-          addMessage('assistant', data.error || 'Unbekannter Fehler');
-        } else {
-          const msg = addMessage('assistant', data.response || '');
-          addCommands(msg, data.commands || []);
-          const logCount = (data.logs || []).length;
-          statusEl.textContent = `Fertig. tool_calls=${data.usedToolCalls ? 'yes' : 'no'} logs=${logCount}`;
-        }
-      } catch (e) {
-        addMessage('assistant', String(e));
-        statusEl.textContent = 'Fehler.';
-      } finally {
-        sendBtn.disabled = false;
-      }
-    }
-
-    sendBtn.addEventListener('click', send);
-    promptEl.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send();
-    });
-    resetBtn.addEventListener('click', async () => {
-      await fetch('/api/reset', { method: 'POST' });
-      await loadHistory();
-      statusEl.textContent = 'Verlauf gelöscht.';
-    });
-
-    loadHistory();
-  </script>
-</body>
-</html>
-""";
 }
