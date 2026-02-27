@@ -28,6 +28,12 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
     }
 
     public async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
+        => await ChatAsyncInternal(request, ct, allowToolChoiceFallback: true);
+
+    private async Task<LlmChatResponse> ChatAsyncInternal(
+        LlmChatRequest request,
+        CancellationToken ct,
+        bool allowToolChoiceFallback)
     {
         if (string.IsNullOrWhiteSpace(config.ApiKey))
             throw new LlmProviderException(
@@ -79,6 +85,18 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
+
+            // Einige Modelle lehnen erzwungenes tool_choice in Randfällen mit 422 ab.
+            // In dem Fall versuchen wir exakt einmal den gleichen Request ohne tool_choice.
+            if (allowToolChoiceFallback &&
+                (int)response.StatusCode == 422 &&
+                request.ToolChoiceName is not null &&
+                body.Contains("wrong_api_format", StringComparison.OrdinalIgnoreCase))
+            {
+                var fallbackRequest = request with { ToolChoiceName = null };
+                return await ChatAsyncInternal(fallbackRequest, ct, allowToolChoiceFallback: false);
+            }
+
             var hint = (int)response.StatusCode switch
             {
                 401 => " → API-Key ungültig oder abgelaufen.",

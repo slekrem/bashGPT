@@ -26,6 +26,9 @@ dotnet build
 
 # Modell überschreiben
  dotnet run --project src/bashGPT -- --model llama3.2 "zeige geänderte Dateien"
+
+# Tool-Calls explizit erzwingen (optional)
+ dotnet run --project src/bashGPT -- --force-tools "analysiere dieses Verzeichnis"
 ```
 
 ## Konfiguration
@@ -72,6 +75,26 @@ Alternativ per Environment:
 # Verzeichnisinhalt mitsenden
  dotnet run --project src/bashGPT -- --include-dir "zeige wichtige Dateien"
 ```
+
+## Server-Modus (Browser UI)
+```bash
+# startet lokalen Server auf http://127.0.0.1:5050 und öffnet den Browser
+ dotnet run --project src/bashGPT -- server
+
+# eigener Port, ohne automatisches Browser-Öffnen
+ dotnet run --project src/bashGPT -- server --port 6060 --no-browser
+
+# Server mit Provider/Exec-Vorgaben
+ dotnet run --project src/bashGPT -- server --provider cerebras --auto-exec --verbose
+
+# Tool-Calls im Server explizit erzwingen (optional)
+ dotnet run --project src/bashGPT -- server --provider cerebras --force-tools
+```
+
+Hinweis:
+- Die UI bietet Chat-Verlauf, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
+- Im Server-Modus wird `ask` intern als `dry-run` behandelt (kein interaktives Terminal-Prompt im Browser-Flow).
+- `--force-tools` ist standardmäßig deaktiviert. Ohne Flag darf das Modell selbst entscheiden, ob ein Tool-Call nötig ist.
 
 ## Tests
 ```bash
