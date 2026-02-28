@@ -346,12 +346,36 @@ export class ChatApp extends LitElement {
     if (chatView) chatView.reloadHistory()
   }
 
-  private _onPromptSelected(e: CustomEvent) {
-    this._pendingPrompt = e.detail.prompt
-    this._view = 'chat'
+  private _ensureLiveSessionActive() {
+    this._chatReadOnly = false
+    this._activeSessionId = LIVE_SESSION_ID
+
+    if (this._useLocalSessionsFallback) {
+      if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID))
+        this._localSessions = upsertSession(this._localSessions, LIVE_SESSION_ID, [])
+      writeLocalSessions(this._localSessions)
+      this._sessions = this._localSessions.map(toSession)
+      return
+    }
+
+    if (!this._sessions.some(s => s.id === LIVE_SESSION_ID))
+      this._sessions = [this._currentSession(), ...this._sessions]
   }
 
-  private _onPromptEdit(e: CustomEvent) {
+  private async _onPromptSelected(e: CustomEvent<{ prompt: string }>) {
+    // Dashboard-"Ausführen" startet immer eine neue Konversation.
+    await this._onNewChat()
+    this._ensureLiveSessionActive()
+    this._view = 'chat'
+    // Re-trigger auch bei identischem Prompt-Text.
+    this._pendingPrompt = ''
+    requestAnimationFrame(() => {
+      this._pendingPrompt = e.detail.prompt
+    })
+  }
+
+  private _onPromptEdit(e: CustomEvent<{ prompt: string }>) {
+    this._ensureLiveSessionActive()
     // Set prompt in textarea without sending
     this._pendingPrompt = ''
     this._view = 'chat'
@@ -375,9 +399,15 @@ export class ChatApp extends LitElement {
 
   private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[] }>) {
     if (!this._useLocalSessionsFallback) return
-    if (!this._activeSessionId) return
     if (this._chatReadOnly) return
-    this._localSessions = upsertSession(this._localSessions, this._activeSessionId, e.detail.messages)
+
+    const targetSessionId = this._activeSessionId ?? LIVE_SESSION_ID
+    if (!this._activeSessionId) {
+      this._activeSessionId = targetSessionId
+      this._chatReadOnly = false
+    }
+
+    this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages)
     writeLocalSessions(this._localSessions)
     this._sessions = this._localSessions.map(toSession)
   }
