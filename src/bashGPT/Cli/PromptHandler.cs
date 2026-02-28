@@ -9,7 +9,7 @@ namespace BashGPT.Cli;
 /// </summary>
 public class PromptHandler(
     ConfigurationService configService,
-    ShellContextCollector contextCollector)
+    ShellContextCollector contextCollector) : IPromptHandler
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {

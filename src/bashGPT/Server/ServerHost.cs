@@ -9,7 +9,7 @@ using BashGPT.Shell;
 
 namespace BashGPT.Server;
 
-public class ServerHost(PromptHandler handler)
+public class ServerHost(IPromptHandler handler)
 {
     private readonly List<ChatMessage> _history = [];
     private readonly object _historyLock = new();
