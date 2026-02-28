@@ -67,6 +67,7 @@ export class Dashboard extends LitElement {
       transition: border-color 0.15s;
     }
     .search:focus { border-color: #4b5563; }
+    .search:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     .search::placeholder { color: #4b5563; }
 
     .section-label {
@@ -97,8 +98,10 @@ export class Dashboard extends LitElement {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-family: inherit;
     }
     .recent-chip:hover { background: #334155; color: #e2e8f0; }
+    .recent-chip:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
 
     .category-block { margin-bottom: 24px; }
 
@@ -136,6 +139,13 @@ export class Dashboard extends LitElement {
       transition: border-color 0.12s;
     }
     .card:hover { border-color: #334155; }
+
+    .empty-search {
+      padding: 32px 0;
+      text-align: center;
+      color: #475569;
+      font-size: 14px;
+    }
 
     .card-title {
       font-size: 14px;
@@ -176,6 +186,7 @@ export class Dashboard extends LitElement {
       transition: background 0.12s;
     }
     .card-actions button:hover { background: #334155; }
+    .card-actions button:focus-visible { outline: 2px solid #22c55e; outline-offset: 1px; }
     .card-actions button.run {
       background: #14532d;
       border-color: #16a34a;
@@ -238,7 +249,8 @@ export class Dashboard extends LitElement {
       <input
         class="search"
         type="search"
-        placeholder="🔍 Use-Cases durchsuchen…"
+        placeholder="Use-Cases durchsuchen…"
+        aria-label="Use-Cases durchsuchen"
         .value=${this._search}
         @input=${(e: InputEvent) => { this._search = (e.target as HTMLInputElement).value }}
       />
@@ -247,9 +259,13 @@ export class Dashboard extends LitElement {
         <div class="section-label">Zuletzt genutzt</div>
         <div class="recent-row">
           ${this._recent.map(p => html`
-            <div class="recent-chip" title=${p} @click=${() => this._dispatch(p)}>${p}</div>
+            <button class="recent-chip" title=${p} @click=${() => this._dispatch(p)}>${p}</button>
           `)}
         </div>
+      ` : ''}
+
+      ${this._filtered.length === 0 ? html`
+        <div class="empty-search">Keine Use-Cases gefunden für „${this._search}".</div>
       ` : ''}
 
       ${this._categories.map(cat => html`

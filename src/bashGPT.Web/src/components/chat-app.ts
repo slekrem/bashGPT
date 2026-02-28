@@ -96,6 +96,7 @@ export class ChatApp extends LitElement {
       font-family: inherit;
     }
     button:hover:not(:disabled) { background: #1f2937; border-color: #4b5563; }
+    button:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.primary {
       background: #14532d;
