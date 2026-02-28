@@ -7,7 +7,10 @@ using BashGPT.Shell;
 var configService    = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
 var handler          = new PromptHandler(configService, contextCollector);
-var serverHost       = new ServerHost(handler);
+var historyFile      = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+    ".config", "bashgpt", "history.json");
+var serverHost       = new ServerHost(handler, historyFile);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 
