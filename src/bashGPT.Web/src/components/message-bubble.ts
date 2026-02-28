@@ -1,6 +1,7 @@
 import { LitElement, html, css, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import hljsStyles from 'highlight.js/styles/github-dark.css?inline'
@@ -151,7 +152,11 @@ export class MessageBubble extends LitElement {
   ]
 
   private get _html() {
-    return unsafeHTML(marked.parse(this.content) as string)
+    const parsed = marked.parse(this.content) as string
+    const sanitized = DOMPurify.sanitize(parsed, {
+      FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    })
+    return unsafeHTML(sanitized)
   }
 
   private _renderCommand(cmd: CommandResult) {

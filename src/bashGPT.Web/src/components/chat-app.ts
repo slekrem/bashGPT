@@ -18,6 +18,7 @@ export class ChatApp extends LitElement {
   @state() private _messages: Message[] = []
   @state() private _loading = false
   @state() private _status = ''
+  @state() private _statusError = false
   @state() private _mode: ExecMode = 'ask'
   private _idCounter = 0
 
@@ -184,12 +185,18 @@ export class ChatApp extends LitElement {
   }
 
   private async _loadHistory() {
-    const history = await loadHistory()
-    this._messages = history.map(m => ({
-      id: this._idCounter++,
-      role: m.role,
-      content: m.content,
-    }))
+    try {
+      const history = await loadHistory()
+      this._messages = history.map(m => ({
+        id: this._idCounter++,
+        role: m.role,
+        content: m.content,
+      }))
+      this._statusError = false
+    } catch (e) {
+      this._statusError = true
+      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+    }
   }
 
   private async _send() {
@@ -204,6 +211,7 @@ export class ChatApp extends LitElement {
     ]
     this._loading = true
     this._status = ''
+    this._statusError = false
     this._scrollToBottom()
 
     try {
@@ -222,8 +230,10 @@ export class ChatApp extends LitElement {
       if (result.commands.length > 0)
         parts.push(`${result.commands.length} Befehle`)
       this._status = parts.join(' · ')
+      this._statusError = false
     } catch (e) {
       this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._statusError = true
       this._messages = [
         ...this._messages,
         { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._status}` },
@@ -235,9 +245,15 @@ export class ChatApp extends LitElement {
   }
 
   private async _reset() {
-    await resetHistory()
-    this._messages = []
-    this._status = 'Verlauf gelöscht'
+    try {
+      await resetHistory()
+      this._messages = []
+      this._status = 'Verlauf gelöscht'
+      this._statusError = false
+    } catch (e) {
+      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._statusError = true
+    }
   }
 
   private _scrollToBottom() {
@@ -312,7 +328,7 @@ export class ChatApp extends LitElement {
             <option value="auto-exec">auto-exec</option>
             <option value="no-exec">no-exec</option>
           </select>
-          <span class="status ${this._loading ? 'loading' : ''}">
+          <span class="status ${this._loading ? 'loading' : ''} ${this._statusError ? 'error' : ''}">
             ${this._loading
               ? html`<span class="spinner"></span> Denke...`
               : this._status}
