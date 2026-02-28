@@ -65,6 +65,7 @@ export class SettingsView extends LitElement {
       font-family: inherit;
     }
     input:focus, select:focus { border-color: #4b5563; }
+    input:focus-visible, select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
 
     .toggle-row {
       display: flex;
@@ -97,6 +98,7 @@ export class SettingsView extends LitElement {
       transition: background 0.12s;
     }
     button:hover:not(:disabled) { background: #334155; }
+    button:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     button.primary {
@@ -135,6 +137,24 @@ export class SettingsView extends LitElement {
       margin-top: 2px;
     }
 
+    .loading-placeholder {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 40px 0;
+      color: #475569;
+      font-size: 14px;
+    }
+    .loading-placeholder .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid #1e293b;
+      border-top-color: #22c55e;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     @media (max-width: 768px) {
       :host { padding: 16px 16px 32px; }
     }
@@ -146,7 +166,7 @@ export class SettingsView extends LitElement {
     this._settings = await getSettings()
     this._loading = false
     if (!this._settings) {
-      this._status = 'Einstellungen konnten nicht geladen werden (Backend-Endpoint noch nicht implementiert).'
+      this._status = 'Einstellungen konnten nicht geladen werden. Bitte stelle sicher, dass der Server läuft.'
       this._statusOk = false
     }
   }
@@ -193,6 +213,15 @@ export class SettingsView extends LitElement {
 
   render() {
     const s = this._settings
+
+    if (this._loading && !s) {
+      return html`
+        <h2>Einstellungen</h2>
+        <div class="loading-placeholder">
+          <div class="spinner"></div> Einstellungen werden geladen…
+        </div>
+      `
+    }
 
     return html`
       <h2>Einstellungen</h2>
@@ -295,9 +324,13 @@ export class SettingsView extends LitElement {
         </button>
       </div>
 
-      ${this._status ? html`
-        <div class="status-msg ${this._statusOk ? 'ok' : 'error'}">${this._status}</div>
-      ` : ''}
+      <div aria-live="polite" aria-atomic="true">
+        ${this._status ? html`
+          <div class="status-msg ${this._statusOk ? 'ok' : 'error'}" role=${this._statusOk ? 'status' : 'alert'}>
+            ${this._status}
+          </div>
+        ` : ''}
+      </div>
     `
   }
 }

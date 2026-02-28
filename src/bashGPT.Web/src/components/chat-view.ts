@@ -134,6 +134,7 @@ export class ChatView extends LitElement {
       transition: border-color 0.15s;
     }
     textarea:focus { border-color: #4b5563; }
+    textarea:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     textarea::placeholder { color: #4b5563; }
     textarea:disabled { opacity: 0.5; }
 
@@ -155,6 +156,7 @@ export class ChatView extends LitElement {
       cursor: pointer;
       outline: none;
     }
+    select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
 
     button {
       background: #111827;
@@ -168,6 +170,7 @@ export class ChatView extends LitElement {
       font-family: inherit;
     }
     button:hover:not(:disabled) { background: #1f2937; border-color: #4b5563; }
+    button:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     button.primary {
@@ -393,6 +396,7 @@ export class ChatView extends LitElement {
         <div class="input-row">
           <textarea
             placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
+            aria-label="Nachricht eingeben"
             @keydown=${this._onKeydown}
             ?disabled=${this._loading}
           ></textarea>
@@ -402,6 +406,7 @@ export class ChatView extends LitElement {
             .value=${this._mode}
             @change=${(e: Event) => { this._mode = (e.target as HTMLSelectElement).value as ExecMode }}
             ?disabled=${this._loading}
+            aria-label="Ausführungsmodus"
           >
             <option value="ask">ask</option>
             <option value="dry-run">dry-run</option>
@@ -414,14 +419,25 @@ export class ChatView extends LitElement {
               class="terminal-toggle ${this._terminalOpen ? 'active' : ''}"
               @click=${() => { this._terminalOpen = !this._terminalOpen }}
               title="Terminal ein-/ausblenden"
+              aria-pressed=${this._terminalOpen ? 'true' : 'false'}
+              aria-label="Terminal ein-/ausblenden"
             >⌃ Terminal</button>
           ` : ''}
 
-          <span class="status ${this._statusError ? 'error' : ''}">
+          <span
+            class="status ${this._statusError ? 'error' : ''}"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             ${this._statusText}
           </span>
 
-          <button class="primary" @click=${this._send} ?disabled=${this._loading}>
+          <button
+            class="primary"
+            @click=${this._send}
+            ?disabled=${this._loading}
+            aria-label="Nachricht senden"
+          >
             Senden
           </button>
         </div>

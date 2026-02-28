@@ -42,8 +42,17 @@ export class Sidebar extends LitElement {
       cursor: pointer;
       transition: background 0.12s;
       border: 1px solid transparent;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+      color: inherit;
     }
     .session-item:hover { background: #1e293b; }
+    .session-item:focus-visible {
+      outline: 2px solid #22c55e;
+      outline-offset: 1px;
+    }
     .session-item.active {
       background: #0f2d1a;
       border-color: #166534;
@@ -92,6 +101,7 @@ export class Sidebar extends LitElement {
       transition: background 0.12s, color 0.12s;
     }
     .nav-btn:hover { background: #1e293b; color: #e2e8f0; }
+    .nav-btn:focus-visible { outline: 2px solid #22c55e; outline-offset: 1px; }
     .nav-btn.active { background: #1e293b; color: #f1f5f9; font-weight: 600; }
     .nav-btn .icon { font-size: 15px; }
 
@@ -112,6 +122,7 @@ export class Sidebar extends LitElement {
       transition: background 0.12s;
     }
     .new-chat-btn:hover { background: #166534; }
+    .new-chat-btn:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     .new-chat-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     @media (max-width: 768px) {
@@ -150,13 +161,14 @@ export class Sidebar extends LitElement {
               this.sessions,
               s => s.id,
               s => html`
-                <div
+                <button
                   class="session-item ${s.id === this.activeSessionId ? 'active' : ''}"
                   @click=${() => this._dispatch('session-select', { id: s.id })}
+                  aria-current=${s.id === this.activeSessionId ? 'page' : 'false'}
                 >
                   <div class="session-title">${s.title}</div>
                   <div class="session-date">${this._formatDate(s.updatedAt)}</div>
-                </div>
+                </button>
               `
             )}
       </div>
