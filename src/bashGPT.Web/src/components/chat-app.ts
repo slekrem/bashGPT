@@ -376,6 +376,7 @@ export class ChatApp extends LitElement {
   private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[] }>) {
     if (!this._useLocalSessionsFallback) return
     if (!this._activeSessionId) return
+    if (this._chatReadOnly) return
     this._localSessions = upsertSession(this._localSessions, this._activeSessionId, e.detail.messages)
     writeLocalSessions(this._localSessions)
     this._sessions = this._localSessions.map(toSession)

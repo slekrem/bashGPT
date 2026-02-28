@@ -243,7 +243,6 @@ export class ChatView extends LitElement {
       ? 'Archivierte Session (nur lesen)'
       : ''
     this._statusError = false
-    this._emitMessagesChanged()
     this._scrollToBottom()
   }
 
