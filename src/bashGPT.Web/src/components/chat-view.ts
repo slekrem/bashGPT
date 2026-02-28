@@ -5,6 +5,7 @@ import './message-bubble'
 import './terminal-panel'
 import { sendChat, loadHistory, resetHistory } from '../api'
 import type { ExecMode, CommandResult, TerminalEntry } from '../types'
+import type { SnapshotMessage } from '../session-history'
 
 interface Message {
   id: number
@@ -14,8 +15,6 @@ interface Message {
   commands?: CommandResult[]
   usedToolCalls?: boolean
 }
-
-type SnapshotMessage = Pick<Message, 'role' | 'content'>
 
 @customElement('bashgpt-chat-view')
 export class ChatView extends LitElement {
