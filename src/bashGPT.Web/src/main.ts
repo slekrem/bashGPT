@@ -1,2 +1,6 @@
 import './components/chat-app'
 import './components/message-bubble'
+import './components/sidebar'
+import './components/dashboard'
+import './components/settings-view'
+import './components/chat-view'
