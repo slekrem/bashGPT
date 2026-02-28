@@ -15,6 +15,8 @@ interface Message {
   usedToolCalls?: boolean
 }
 
+type SnapshotMessage = Pick<Message, 'role' | 'content'>
+
 @customElement('bashgpt-chat-view')
 export class ChatView extends LitElement {
   /** Wird von außen gesetzt (Dashboard-Prompt) – löst sofortigen Send aus */
@@ -23,6 +25,8 @@ export class ChatView extends LitElement {
   @property({ type: Boolean }) showTerminal = false
   /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
   @property({ type: Boolean }) active = false
+  /** Readonly-Modus für archivierte Sessions ohne Server-Kontext */
+  @property({ type: Boolean }) readOnly = false
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
@@ -229,6 +233,26 @@ export class ChatView extends LitElement {
     await this._loadHistory()
   }
 
+  /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
+  loadSnapshot(messages: SnapshotMessage[]) {
+    this._messages = messages.map(m => ({
+      id: this._idCounter++,
+      role: m.role,
+      content: m.content,
+    }))
+    this._statusText = this.readOnly
+      ? 'Archivierte Session (nur lesen)'
+      : ''
+    this._statusError = false
+    this._emitMessagesChanged()
+    this._scrollToBottom()
+  }
+
+  /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
+  getSnapshot(): SnapshotMessage[] {
+    return this._messages.map(m => ({ role: m.role, content: m.content }))
+  }
+
   /** Öffentlich: Session zurücksetzen */
   async reset() {
     try {
@@ -236,6 +260,7 @@ export class ChatView extends LitElement {
       this._messages = []
       this._statusText = 'Verlauf gelöscht'
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
       this._statusError = true
@@ -251,6 +276,7 @@ export class ChatView extends LitElement {
         content: m.content,
       }))
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusError = true
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
@@ -288,6 +314,7 @@ export class ChatView extends LitElement {
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
       this._statusText = parts.join(' · ')
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
       this._statusError = true
@@ -295,6 +322,7 @@ export class ChatView extends LitElement {
         ...this._messages,
         { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._statusText}` },
       ]
+      this._emitMessagesChanged()
     } finally {
       this._loading = false
       this._scrollToBottom()
@@ -317,10 +345,19 @@ export class ChatView extends LitElement {
   }
 
   private _onKeydown(e: KeyboardEvent) {
+    if (this.readOnly) return
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       this._send()
     }
+  }
+
+  private _emitMessagesChanged() {
+    this.dispatchEvent(new CustomEvent('messages-changed', {
+      bubbles: true,
+      composed: true,
+      detail: { messages: this.getSnapshot() },
+    }))
   }
 
   /** Aggregiert alle CommandResults aus allen Nachrichten als TerminalEntries */
@@ -401,17 +438,19 @@ export class ChatView extends LitElement {
       <footer>
         <div class="input-row">
           <textarea
-            placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
+            placeholder=${this.readOnly
+              ? 'Archivierte Session (nur lesen)'
+              : 'Nachricht eingeben… (Cmd+Enter zum Senden)'}
             aria-label="Nachricht eingeben"
             @keydown=${this._onKeydown}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
           ></textarea>
         </div>
         <div class="controls">
           <select
             .value=${this._mode}
             @change=${(e: Event) => { this._mode = (e.target as HTMLSelectElement).value as ExecMode }}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
             aria-label="Ausführungsmodus"
           >
             <option value="ask">ask</option>
@@ -441,7 +480,7 @@ export class ChatView extends LitElement {
           <button
             class="primary"
             @click=${this._send}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
             aria-label="Nachricht senden"
           >
             Senden
