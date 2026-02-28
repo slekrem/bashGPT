@@ -1,5 +1,7 @@
 import type { ChatResponse, ExecMode, HistoryMessage, Session, Settings } from './types'
 
+const CHAT_TIMEOUT_MS = 120_000
+
 async function readErrorMessage(res: Response): Promise<string> {
   try {
     const data = await res.json()
@@ -18,11 +20,24 @@ async function assertOk(res: Response): Promise<void> {
 }
 
 export async function sendChat(prompt: string, execMode: ExecMode): Promise<ChatResponse> {
-  const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, execMode }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, execMode }),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError')
+      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+
   await assertOk(res)
   return res.json()
 }

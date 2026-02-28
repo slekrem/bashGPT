@@ -367,6 +367,8 @@ export class ChatApp extends LitElement {
     await this._onNewChat()
     this._ensureLiveSessionActive()
     this._view = 'chat'
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    chatView?.setExecMode?.('auto-exec')
     // Re-trigger auch bei identischem Prompt-Text.
     this._pendingPrompt = ''
     requestAnimationFrame(() => {

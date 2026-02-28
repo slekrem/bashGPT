@@ -31,7 +31,7 @@ export class ChatView extends LitElement {
   @state() private _loading = false
   @state() private _statusText = ''
   @state() private _statusError = false
-  @state() private _mode: ExecMode = 'ask'
+  @state() private _mode: ExecMode = 'auto-exec'
   @state() private _terminalOpen = true
   @state() private _shellContext: ShellContext | null = null
   private _idCounter = 0
@@ -259,6 +259,11 @@ export class ChatView extends LitElement {
   /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
   getSnapshot(): SnapshotMessage[] {
     return this._messages.map(m => ({ role: m.role, content: m.content }))
+  }
+
+  /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
+  setExecMode(mode: ExecMode) {
+    this._mode = mode
   }
 
   /** Öffentlich: Session zurücksetzen */

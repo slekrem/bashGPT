@@ -177,6 +177,9 @@ export class TerminalPanel extends LitElement {
             const badgeLabel = e.status === 'error'
               ? `exit ${e.exitCode}`
               : this._badgeLabel(e.status)
+            const outputText = e.output?.length
+              ? e.output
+              : (e.status === 'skipped' ? '(übersprungen)' : '(keine Ausgabe)')
             return html`
               <div class="entry">
                 <div class="prompt-line">
@@ -187,9 +190,7 @@ export class TerminalPanel extends LitElement {
                 </div>
                 ${e.status === 'running'
                   ? html`<div class="running-indicator"><div class="spinner"></div> läuft…</div>`
-                  : e.output
-                    ? html`<div class="output ${this._outputClass(e)}">${e.output}</div>`
-                    : ''}
+                  : html`<div class="output ${this._outputClass(e)}">${outputText}</div>`}
               </div>
             `
           }
