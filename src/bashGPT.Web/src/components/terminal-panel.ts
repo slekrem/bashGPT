@@ -146,8 +146,10 @@ export class TerminalPanel extends LitElement {
   private _promptPrefix() {
     const user = this.shellContext?.user?.trim() || 'benutzer'
     const host = this.shellContext?.host?.trim() || 'maschine'
-    const cwd = this.shellContext?.cwd?.trim() || '~'
-    return `${user}@${host} (${cwd})`
+    const cwdRaw = this.shellContext?.cwd?.trim() || '~'
+    const normalized = cwdRaw.replace(/\\/g, '/').replace(/\/+$/, '')
+    const cwd = normalized === '' ? cwdRaw : (normalized.split('/').at(-1) || cwdRaw)
+    return `${user}@${host} ${cwd}`
   }
 
   render() {
