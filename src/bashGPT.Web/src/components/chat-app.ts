@@ -235,8 +235,24 @@ export class ChatApp extends LitElement {
     super.connectedCallback()
     if (this._isV2) {
       this._sessions = await getSessions()
+      // Kein Sessions-API → History prüfen und ggf. synthetische Session erstellen
+      if (this._sessions.length === 0) {
+        try {
+          const history = await loadHistory()
+          if (history.length > 0) this._sessions = [this._currentSession()]
+        } catch { /* ignorieren */ }
+      }
     } else {
       await this._v1LoadHistory()
+    }
+  }
+
+  private _currentSession(): Session {
+    return {
+      id: 'current',
+      title: 'Aktueller Chat',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
   }
 
@@ -247,6 +263,7 @@ export class ChatApp extends LitElement {
     if (chatView) await chatView.reset()
     this._pendingPrompt = ''
     this._activeSessionId = null
+    this._sessions = this._sessions.filter(s => s.id !== 'current')
     this._view = 'chat'
     this._mobileMenuOpen = false
   }
@@ -260,6 +277,7 @@ export class ChatApp extends LitElement {
     this._activeSessionId = e.detail.id
     this._view = 'chat'
     this._mobileMenuOpen = false
+    if (e.detail.id === 'current') return  // Synthetische Session: nur navigieren, kein Reset
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
     if (chatView) chatView.reloadHistory()
   }
@@ -283,7 +301,11 @@ export class ChatApp extends LitElement {
   }
 
   private _onChatStarted() {
-    // already in chat view — no-op
+    // Synthetische Session hinzufügen, damit der Nutzer über die Sidebar zurücknavigieren kann
+    if (!this._sessions.some(s => s.id === 'current')) {
+      this._sessions = [this._currentSession(), ...this._sessions]
+    }
+    this._activeSessionId = 'current'
   }
 
   private _switchToV2() {
