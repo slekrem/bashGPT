@@ -34,6 +34,8 @@ export class ChatView extends LitElement {
   @state() private _mode: ExecMode = 'ask'
   @state() private _terminalOpen = true
   private _idCounter = 0
+  private _historyLoadSeq = 0
+  private _lastHandledPendingPrompt = ''
 
   static styles = css`
     :host {
@@ -218,7 +220,14 @@ export class ChatView extends LitElement {
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('pendingPrompt') && this.pendingPrompt) {
-      this._sendPrompt(this.pendingPrompt)
+      // Verhindert Duplikate beim gleichen String, erlaubt aber erneutes Ausführen
+      // nachdem pendingPrompt im Parent kurz auf '' zurückgesetzt wurde.
+      if (this.pendingPrompt !== this._lastHandledPendingPrompt) {
+        this._lastHandledPendingPrompt = this.pendingPrompt
+        this._sendPrompt(this.pendingPrompt)
+      }
+    } else if (changed.has('pendingPrompt') && !this.pendingPrompt) {
+      this._lastHandledPendingPrompt = ''
     }
     // History nachladen, wenn die View aktiv wird und noch keine Nachrichten vorhanden sind
     if (changed.has('active') && this.active && this._messages.length === 0) {
@@ -229,7 +238,7 @@ export class ChatView extends LitElement {
   /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
     this._messages = []
-    await this._loadHistory()
+    await this._loadHistory(true)
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
@@ -265,9 +274,15 @@ export class ChatView extends LitElement {
     }
   }
 
-  private async _loadHistory() {
+  private async _loadHistory(force = false) {
+    const loadSeq = ++this._historyLoadSeq
     try {
       const history = await loadHistory()
+      if (loadSeq !== this._historyLoadSeq) return
+      // Wenn zwischen Start und Ende bereits neue Messages entstanden sind
+      // (z. B. Dashboard-Prompt wurde gesendet), darf History diese nicht überschreiben.
+      if (!force && this._messages.length > 0) return
+
       this._messages = history.map(m => ({
         id: this._idCounter++,
         role: m.role,
@@ -284,6 +299,9 @@ export class ChatView extends LitElement {
   private async _sendPrompt(prompt: string) {
     if (!prompt.trim() || this._loading) return
 
+    // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
+    // angelegten User-Input nachträglich überschreibt.
+    this._historyLoadSeq++
     const execMode = this._mode
     this._messages = [
       ...this._messages,
