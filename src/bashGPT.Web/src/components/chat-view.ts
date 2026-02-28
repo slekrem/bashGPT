@@ -21,6 +21,8 @@ export class ChatView extends LitElement {
   @property() pendingPrompt = ''
   /** v2-Modus: zeigt Terminal-Panel links neben dem Chat */
   @property({ type: Boolean }) showTerminal = false
+  /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
+  @property({ type: Boolean }) active = false
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
@@ -46,17 +48,19 @@ export class ChatView extends LitElement {
     }
 
     bashgpt-terminal-panel {
-      width: 280px;
-      flex-shrink: 0;
-      transition: width 0.2s ease;
+      flex: 1;
+      min-width: 0;
+      transition: flex 0.2s ease, opacity 0.2s ease;
     }
     bashgpt-terminal-panel.collapsed {
-      width: 0;
+      flex: 0;
       overflow: hidden;
+      opacity: 0;
     }
 
     .chat-column {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -199,7 +203,7 @@ export class ChatView extends LitElement {
 
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      bashgpt-terminal-panel { width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
+      bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
       .split-wrapper { flex-direction: column; }
     }
   `
@@ -212,6 +216,10 @@ export class ChatView extends LitElement {
   updated(changed: Map<string, unknown>) {
     if (changed.has('pendingPrompt') && this.pendingPrompt) {
       this._sendPrompt(this.pendingPrompt)
+    }
+    // History nachladen, wenn die View aktiv wird und noch keine Nachrichten vorhanden sind
+    if (changed.has('active') && this.active && this._messages.length === 0) {
+      this._loadHistory()
     }
   }
 
@@ -376,8 +384,6 @@ export class ChatView extends LitElement {
                       role=${m.role}
                       content=${m.content}
                       execMode=${m.execMode ?? ''}
-                      .commands=${m.commands ?? []}
-                      ?usedToolCalls=${m.usedToolCalls ?? false}
                     ></bashgpt-message>
                   `
                 )}

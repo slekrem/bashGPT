@@ -422,6 +422,7 @@ export class ChatApp extends LitElement {
             style="display: ${this._view === 'chat' ? 'flex' : 'none'}; flex-direction: column; height: 100%;"
             pendingPrompt=${this._pendingPrompt}
             ?showTerminal=${true}
+            ?active=${this._view === 'chat'}
             @chat-started=${this._onChatStarted}
           ></bashgpt-chat-view>
         </div>

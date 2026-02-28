@@ -95,8 +95,6 @@ export class TerminalPanel extends LitElement {
       white-space: pre-wrap;
       word-break: break-all;
       margin-left: 16px;
-      max-height: 180px;
-      overflow-y: auto;
       line-height: 1.5;
     }
     .output.error { color: #f87171; }
