@@ -44,7 +44,7 @@ export class TerminalPanel extends LitElement {
 
     .entries {
       flex: 1;
-      overflow-y: auto;
+      overflow: auto;
       padding: 10px 0 16px;
     }
 
@@ -58,6 +58,7 @@ export class TerminalPanel extends LitElement {
     .entry {
       padding: 6px 12px 10px;
       border-bottom: 1px solid #0f172a;
+      min-width: max-content;
     }
     .entry:last-child { border-bottom: none; }
 
@@ -66,7 +67,6 @@ export class TerminalPanel extends LitElement {
       align-items: center;
       gap: 6px;
       margin-bottom: 4px;
-      flex-wrap: wrap;
     }
     .prompt-prefix {
       color: #93c5fd;
@@ -79,7 +79,9 @@ export class TerminalPanel extends LitElement {
     }
     .cmd-text {
       color: #f1f5f9;
-      word-break: break-all;
+      white-space: pre;
+      word-break: normal;
+      min-width: max-content;
     }
 
     .status-badge {
@@ -98,8 +100,8 @@ export class TerminalPanel extends LitElement {
 
     .output {
       color: #94a3b8;
-      white-space: pre-wrap;
-      word-break: break-all;
+      white-space: pre;
+      word-break: normal;
       margin-left: 16px;
       line-height: 1.5;
     }
