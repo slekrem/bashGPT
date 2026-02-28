@@ -127,6 +127,52 @@ public class CommandExecutorTests
         Assert.Contains("gekürzt", results[0].Output);
     }
 
+    [Fact]
+    public async Task ProcessAsync_AutoExec_TimesOutLongRunningCommand()
+    {
+        var output = new StringWriter();
+        var exec = new CommandExecutor(
+            ExecutionMode.AutoExec,
+            output,
+            Console.In,
+            maxOutputChars: 10_000,
+            commandTimeoutSeconds: 1);
+
+        var cmds = new[] { new ExtractedCommand("sleep 2", false, null) };
+        var results = await exec.ProcessAsync(cmds);
+
+        Assert.Single(results);
+        Assert.True(results[0].WasExecuted);
+        Assert.Equal(-1, results[0].ExitCode);
+        Assert.Contains("abgebrochen", results[0].Output);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AutoExec_SkipsInteractiveTopCommand()
+    {
+        var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
+        var cmds = new[] { new ExtractedCommand("top", false, null) };
+
+        var results = await exec.ProcessAsync(cmds);
+
+        Assert.Single(results);
+        Assert.False(results[0].WasExecuted);
+        Assert.Equal(-1, results[0].ExitCode);
+        Assert.Contains("Interaktiver 'top'-Aufruf", results[0].Output);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AutoExec_AllowsTopOneShotMode()
+    {
+        var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
+        var cmds = new[] { new ExtractedCommand("top -l 1 | head -n 5", false, null) };
+
+        var results = await exec.ProcessAsync(cmds);
+
+        Assert.Single(results);
+        Assert.True(results[0].WasExecuted);
+    }
+
     // ── Kein Befehl ──────────────────────────────────────────────────────────
 
     [Fact]
