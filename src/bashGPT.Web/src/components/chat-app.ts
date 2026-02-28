@@ -6,6 +6,7 @@ import './sidebar'
 import './dashboard'
 import './settings-view'
 import './chat-view'
+import './terminal-panel'
 import { sendChat, loadHistory, resetHistory, getSessions } from '../api'
 import type { AppView, ExecMode, CommandResult, Session } from '../types'
 
@@ -419,6 +420,7 @@ export class ChatApp extends LitElement {
           <bashgpt-chat-view
             style="display: ${this._view === 'chat' ? 'flex' : 'none'}; flex-direction: column; height: 100%;"
             pendingPrompt=${this._pendingPrompt}
+            ?showTerminal=${true}
             @chat-started=${this._onChatStarted}
           ></bashgpt-chat-view>
         </div>

@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import hljsStyles from 'highlight.js/styles/github-dark.css?inline'
-import type { CommandResult } from '../types'
+import type { CommandResult, ExecMode } from '../types'
 
 marked.setOptions({
   async: false,
@@ -23,6 +23,7 @@ marked.use({ renderer })
 export class MessageBubble extends LitElement {
   @property() role: 'user' | 'assistant' = 'user'
   @property() content = ''
+  @property() execMode: ExecMode | '' = ''
   @property({ type: Array }) commands: CommandResult[] = []
   @property({ type: Boolean }) usedToolCalls = false
   @property({ type: Array }) logs: string[] = []
@@ -148,6 +149,25 @@ export class MessageBubble extends LitElement {
         color: #a78bfa;
         margin-top: 6px;
       }
+
+      /* Exec-mode badge */
+      .meta-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .exec-badge {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 1px 7px;
+        border-radius: 999px;
+        letter-spacing: 0.03em;
+      }
+      .exec-ask       { background: #1e3a5f; color: #60a5fa; }
+      .exec-dry-run   { background: #3b2f00; color: #fcd34d; }
+      .exec-auto-exec { background: #14532d; color: #86efac; }
+      .exec-no-exec   { background: #1e293b; color: #64748b; }
     `,
   ]
 
@@ -175,10 +195,22 @@ export class MessageBubble extends LitElement {
     `
   }
 
+  private _execBadge() {
+    if (this.role !== 'user' || !this.execMode) return ''
+    const label: Record<string, string> = {
+      'ask': 'ask', 'dry-run': 'dry-run', 'auto-exec': 'auto-exec', 'no-exec': 'no-exec',
+    }
+    const cls = `exec-${this.execMode}`
+    return html`<span class="exec-badge ${cls}">${label[this.execMode]}</span>`
+  }
+
   render() {
     return html`
       <div class="bubble ${this.role}">
-        <div class="meta">${this.role === 'user' ? 'Du' : 'bashGPT'}</div>
+        <div class="meta-row">
+          <span class="meta">${this.role === 'user' ? 'Du' : 'bashGPT'}</span>
+          ${this._execBadge()}
+        </div>
         <div class="content">${this._html}</div>
         ${this.usedToolCalls
           ? html`<div class="tool-badge">⚡ Tool-Calls verwendet</div>`

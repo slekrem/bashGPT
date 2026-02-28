@@ -2,13 +2,15 @@ import { LitElement, html, css } from 'lit'
 import { customElement, state, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
+import './terminal-panel'
 import { sendChat, loadHistory, resetHistory } from '../api'
-import type { ExecMode, CommandResult } from '../types'
+import type { ExecMode, CommandResult, TerminalEntry } from '../types'
 
 interface Message {
   id: number
   role: 'user' | 'assistant'
   content: string
+  execMode?: ExecMode
   commands?: CommandResult[]
   usedToolCalls?: boolean
 }
@@ -17,12 +19,15 @@ interface Message {
 export class ChatView extends LitElement {
   /** Wird von außen gesetzt (Dashboard-Prompt) – löst sofortigen Send aus */
   @property() pendingPrompt = ''
+  /** v2-Modus: zeigt Terminal-Panel links neben dem Chat */
+  @property({ type: Boolean }) showTerminal = false
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
-  @state() private _status = ''
+  @state() private _statusText = ''
   @state() private _statusError = false
   @state() private _mode: ExecMode = 'ask'
+  @state() private _terminalOpen = true
   private _idCounter = 0
 
   static styles = css`
@@ -33,6 +38,31 @@ export class ChatView extends LitElement {
       overflow: hidden;
     }
 
+    /* ── Split layout ───────────────────────────────────────────────────── */
+    .split-wrapper {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    bashgpt-terminal-panel {
+      width: 280px;
+      flex-shrink: 0;
+      transition: width 0.2s ease;
+    }
+    bashgpt-terminal-panel.collapsed {
+      width: 0;
+      overflow: hidden;
+    }
+
+    .chat-column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Chat area ──────────────────────────────────────────────────────── */
     #chat {
       flex: 1;
       overflow-y: auto;
@@ -55,6 +85,28 @@ export class ChatView extends LitElement {
     .empty-state .icon { font-size: 40px; }
     .empty-state p { font-size: 15px; }
 
+    /* ── Working indicator bar ──────────────────────────────────────────── */
+    .working-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 20px;
+      background: #0b1a2e;
+      border-top: 1px solid #1e3a5f;
+      font-size: 12px;
+      color: #60a5fa;
+      flex-shrink: 0;
+    }
+    .working-bar .spinner {
+      width: 12px; height: 12px;
+      border: 1.5px solid #1e3a5f;
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ─────────────────────────────────────────────────────────── */
     footer {
       padding: 10px 16px 16px;
       border-top: 1px solid #1e293b;
@@ -63,11 +115,7 @@ export class ChatView extends LitElement {
       flex-shrink: 0;
     }
 
-    .input-row {
-      display: flex;
-      gap: 8px;
-      align-items: flex-end;
-    }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
 
     textarea {
       flex: 1;
@@ -87,12 +135,14 @@ export class ChatView extends LitElement {
     }
     textarea:focus { border-color: #4b5563; }
     textarea::placeholder { color: #4b5563; }
+    textarea:disabled { opacity: 0.5; }
 
     .controls {
       display: flex;
       gap: 8px;
       margin-top: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     select {
@@ -115,6 +165,7 @@ export class ChatView extends LitElement {
       font-size: 13px;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
+      font-family: inherit;
     }
     button:hover:not(:disabled) { background: #1f2937; border-color: #4b5563; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -128,6 +179,13 @@ export class ChatView extends LitElement {
     }
     button.primary:hover:not(:disabled) { background: #166534; }
 
+    button.terminal-toggle {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    button.terminal-toggle.active { color: #22c55e; border-color: #166534; }
+
     .status {
       font-size: 12px;
       color: #4b5563;
@@ -136,18 +194,11 @@ export class ChatView extends LitElement {
     }
     .status.error { color: #ef4444; }
 
-    .spinner {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 2px solid #374151;
-      border-top-color: #22c55e;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 4px;
+    /* ── Mobile ─────────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      bashgpt-terminal-panel { width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
+      .split-wrapper { flex-direction: column; }
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
   `
 
   async connectedCallback() {
@@ -161,10 +212,23 @@ export class ChatView extends LitElement {
     }
   }
 
-  /** Öffentliche Methode für Shell: History neu laden (nach Session-Wechsel) */
+  /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
     this._messages = []
     await this._loadHistory()
+  }
+
+  /** Öffentlich: Session zurücksetzen */
+  async reset() {
+    try {
+      await resetHistory()
+      this._messages = []
+      this._statusText = 'Verlauf gelöscht'
+      this._statusError = false
+    } catch (e) {
+      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._statusError = true
+    }
   }
 
   private async _loadHistory() {
@@ -178,26 +242,26 @@ export class ChatView extends LitElement {
       this._statusError = false
     } catch (e) {
       this._statusError = true
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
     }
   }
 
   private async _sendPrompt(prompt: string) {
     if (!prompt.trim() || this._loading) return
 
+    const execMode = this._mode
     this._messages = [
       ...this._messages,
-      { id: this._idCounter++, role: 'user', content: prompt },
+      { id: this._idCounter++, role: 'user', content: prompt, execMode },
     ]
     this._loading = true
-    this._status = ''
+    this._statusText = ''
     this._statusError = false
     this._scrollToBottom()
-    // Signal nach oben, damit Shell zum Chat-View wechselt
     this.dispatchEvent(new CustomEvent('chat-started', { bubbles: true, composed: true }))
 
     try {
-      const result = await sendChat(prompt, this._mode)
+      const result = await sendChat(prompt, execMode)
       this._messages = [
         ...this._messages,
         {
@@ -210,15 +274,15 @@ export class ChatView extends LitElement {
       ]
       const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
       if (result.commands.length > 0)
-        parts.push(`${result.commands.length} Befehle`)
-      this._status = parts.join(' · ')
+        parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
+      this._statusText = parts.join(' · ')
       this._statusError = false
     } catch (e) {
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
       this._statusError = true
       this._messages = [
         ...this._messages,
-        { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._status}` },
+        { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._statusText}` },
       ]
     } finally {
       this._loading = false
@@ -232,18 +296,6 @@ export class ChatView extends LitElement {
     if (!prompt) return
     textarea.value = ''
     await this._sendPrompt(prompt)
-  }
-
-  async reset() {
-    try {
-      await resetHistory()
-      this._messages = []
-      this._status = 'Verlauf gelöscht'
-      this._statusError = false
-    } catch (e) {
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      this._statusError = true
-    }
   }
 
   private _scrollToBottom() {
@@ -260,30 +312,81 @@ export class ChatView extends LitElement {
     }
   }
 
+  /** Aggregiert alle CommandResults aus allen Nachrichten als TerminalEntries */
+  private get _terminalEntries(): TerminalEntry[] {
+    const entries: TerminalEntry[] = []
+    for (const msg of this._messages) {
+      if (msg.role !== 'assistant' || !msg.commands?.length) continue
+      for (const cmd of msg.commands) {
+        let status: TerminalEntry['status']
+        if (!cmd.wasExecuted) status = 'skipped'
+        else if (cmd.exitCode === 0) status = 'success'
+        else status = 'error'
+        entries.push({
+          command: cmd.command,
+          output: cmd.output,
+          exitCode: cmd.exitCode,
+          wasExecuted: cmd.wasExecuted,
+          status,
+        })
+      }
+    }
+    return entries
+  }
+
+  private _workingText() {
+    if (!this._loading) return ''
+    const last = this._messages.at(-1)
+    // Wenn letzter Eintrag vom User kommt, sind wir noch in der LLM-Phase
+    return last?.role === 'user' ? 'Denke…' : 'Verarbeite Tool-Ergebnis…'
+  }
+
   render() {
     const isEmpty = this._messages.length === 0
+    const workingText = this._workingText()
+    const showPanel = this.showTerminal && this._terminalOpen
 
     return html`
-      <div id="chat">
-        ${isEmpty
-          ? html`
-              <div class="empty-state">
-                <div class="icon">⌨️</div>
-                <p>Stell mir eine Frage oder wähle einen Use-Case.</p>
-              </div>
-            `
-          : repeat(
-              this._messages,
-              m => m.id,
-              m => html`
-                <bashgpt-message
-                  role=${m.role}
-                  content=${m.content}
-                  .commands=${m.commands ?? []}
-                  ?usedToolCalls=${m.usedToolCalls ?? false}
-                ></bashgpt-message>
-              `
-            )}
+      <div class="split-wrapper">
+        ${this.showTerminal ? html`
+          <bashgpt-terminal-panel
+            class="${showPanel ? '' : 'collapsed'}"
+            .entries=${this._terminalEntries}
+            ?loading=${this._loading}
+          ></bashgpt-terminal-panel>
+        ` : ''}
+
+        <div class="chat-column">
+          <div id="chat">
+            ${isEmpty
+              ? html`
+                  <div class="empty-state">
+                    <div class="icon">⌨️</div>
+                    <p>Stell mir eine Frage oder wähle einen Use-Case.</p>
+                  </div>
+                `
+              : repeat(
+                  this._messages,
+                  m => m.id,
+                  m => html`
+                    <bashgpt-message
+                      role=${m.role}
+                      content=${m.content}
+                      execMode=${m.execMode ?? ''}
+                      .commands=${m.commands ?? []}
+                      ?usedToolCalls=${m.usedToolCalls ?? false}
+                    ></bashgpt-message>
+                  `
+                )}
+          </div>
+
+          ${this._loading ? html`
+            <div class="working-bar">
+              <div class="spinner"></div>
+              ${workingText}
+            </div>
+          ` : ''}
+        </div>
       </div>
 
       <footer>
@@ -305,11 +408,19 @@ export class ChatView extends LitElement {
             <option value="auto-exec">auto-exec</option>
             <option value="no-exec">no-exec</option>
           </select>
+
+          ${this.showTerminal ? html`
+            <button
+              class="terminal-toggle ${this._terminalOpen ? 'active' : ''}"
+              @click=${() => { this._terminalOpen = !this._terminalOpen }}
+              title="Terminal ein-/ausblenden"
+            >⌃ Terminal</button>
+          ` : ''}
+
           <span class="status ${this._statusError ? 'error' : ''}">
-            ${this._loading
-              ? html`<span class="spinner"></span> Denke…`
-              : this._status}
+            ${this._statusText}
           </span>
+
           <button class="primary" @click=${this._send} ?disabled=${this._loading}>
             Senden
           </button>
