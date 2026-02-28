@@ -4,7 +4,7 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
 import { sendChat, loadHistory, resetHistory } from '../api'
-import type { ExecMode, CommandResult, TerminalEntry } from '../types'
+import type { ExecMode, CommandResult, TerminalEntry, ShellContext } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -33,6 +33,7 @@ export class ChatView extends LitElement {
   @state() private _statusError = false
   @state() private _mode: ExecMode = 'ask'
   @state() private _terminalOpen = true
+  @state() private _shellContext: ShellContext | null = null
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -315,6 +316,8 @@ export class ChatView extends LitElement {
 
     try {
       const result = await sendChat(prompt, execMode)
+      if (result.shellContext)
+        this._shellContext = result.shellContext
       this._messages = [
         ...this._messages,
         {
@@ -405,6 +408,14 @@ export class ChatView extends LitElement {
     return last?.role === 'user' ? 'Denke…' : 'Verarbeite Tool-Ergebnis…'
   }
 
+  private _fallbackShellContext(): ShellContext {
+    return {
+      user: 'benutzer',
+      host: window.location.hostname || 'maschine',
+      cwd: '~',
+    }
+  }
+
   render() {
     const isEmpty = this._messages.length === 0
     const workingText = this._workingText()
@@ -416,6 +427,7 @@ export class ChatView extends LitElement {
           <bashgpt-terminal-panel
             class="${showPanel ? '' : 'collapsed'}"
             .entries=${this._terminalEntries}
+            .shellContext=${this._shellContext ?? this._fallbackShellContext()}
             ?loading=${this._loading}
           ></bashgpt-terminal-panel>
         ` : ''}

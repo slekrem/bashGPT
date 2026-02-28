@@ -9,7 +9,14 @@ export interface ChatResponse {
   response: string
   usedToolCalls: boolean
   logs: string[]
+  shellContext?: ShellContext
   commands: CommandResult[]
+}
+
+export interface ShellContext {
+  user: string
+  host: string
+  cwd: string
 }
 
 export interface HistoryMessage {

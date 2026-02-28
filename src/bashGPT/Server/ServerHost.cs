@@ -139,6 +139,12 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
                     response = result.Response,
                     usedToolCalls = result.UsedToolCalls,
                     logs = result.Logs,
+                    shellContext = new
+                    {
+                        user = Environment.UserName,
+                        host = Environment.MachineName,
+                        cwd  = Environment.CurrentDirectory
+                    },
                     commands = result.Commands.Select(c => new
                     {
                         command = c.Command,

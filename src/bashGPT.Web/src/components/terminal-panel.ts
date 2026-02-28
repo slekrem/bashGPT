@@ -1,12 +1,13 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
-import type { TerminalEntry } from '../types'
+import type { TerminalEntry, ShellContext } from '../types'
 
 @customElement('bashgpt-terminal-panel')
 export class TerminalPanel extends LitElement {
   @property({ type: Array }) entries: TerminalEntry[] = []
   @property({ type: Boolean }) loading = false
+  @property({ type: Object }) shellContext: ShellContext | null = null
 
   static styles = css`
     :host {
@@ -65,6 +66,11 @@ export class TerminalPanel extends LitElement {
       align-items: center;
       gap: 6px;
       margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .prompt-prefix {
+      color: #93c5fd;
+      white-space: nowrap;
     }
     .prompt-sign {
       color: #22c55e;
@@ -137,6 +143,13 @@ export class TerminalPanel extends LitElement {
     return ''
   }
 
+  private _promptPrefix() {
+    const user = this.shellContext?.user?.trim() || 'benutzer'
+    const host = this.shellContext?.host?.trim() || 'maschine'
+    const cwd = this.shellContext?.cwd?.trim() || '~'
+    return `${user}@${host} (${cwd})`
+  }
+
   render() {
     const hasEntries = this.entries.length > 0 || this.loading
 
@@ -163,6 +176,7 @@ export class TerminalPanel extends LitElement {
             return html`
               <div class="entry">
                 <div class="prompt-line">
+                  <span class="prompt-prefix">${this._promptPrefix()}</span>
                   <span class="prompt-sign">$</span>
                   <span class="cmd-text">${e.command}</span>
                   <span class="status-badge ${this._badgeClass(e.status)}">${badgeLabel}</span>
