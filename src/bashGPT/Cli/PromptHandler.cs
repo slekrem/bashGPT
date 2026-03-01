@@ -25,13 +25,7 @@ public class PromptHandler(
         }
 
         // CLI-Overrides anwenden
-        if (opts.Model is not null)
-        {
-            if (opts.Provider is ProviderType.Cerebras || config.DefaultProvider == ProviderType.Cerebras)
-                config.Cerebras.Model = opts.Model;
-            else
-                config.Ollama.Model = opts.Model;
-        }
+        ApplyModelOverride(config, opts.Provider, opts.Model);
 
         ILlmProvider provider;
         try
@@ -146,13 +140,7 @@ public class PromptHandler(
                 UsedToolCalls: false);
         }
 
-        if (opts.Model is not null)
-        {
-            if (opts.Provider is ProviderType.Cerebras || config.DefaultProvider == ProviderType.Cerebras)
-                config.Cerebras.Model = opts.Model;
-            else
-                config.Ollama.Model = opts.Model;
-        }
+        ApplyModelOverride(config, opts.Provider, opts.Model);
 
         ILlmProvider provider;
         try
@@ -239,16 +227,10 @@ public class PromptHandler(
                     output: TextWriter.Null,
                     input: new StringReader(string.Empty));
 
-                var roundResults = commands.Count > 0
-                    ? await executor.ProcessAsync(commands.Select(c => c.Command).ToList(), ct)
-                    : [];
+                var roundResults = await ExecuteToolCallRoundAsync(
+                    toolCalls, commands, errors, currentResponse.Content, messages, executor, ct);
 
                 commandResults.AddRange(roundResults);
-                messages.Add(ChatMessage.AssistantWithToolCalls(toolCalls, currentResponse.Content));
-
-                var toolMessages = BuildToolResultMessages(toolCalls, commands, roundResults, errors);
-                foreach (var msg in toolMessages)
-                    messages.Add(msg);
 
                 var nextResponse = await ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
                 if (nextResponse.Error is not null)
@@ -413,15 +395,7 @@ public class PromptHandler(
             }
 
             var executor = new CommandExecutor(opts.ExecMode);
-            var results = commands.Count > 0
-                ? await executor.ProcessAsync(commands.Select(c => c.Command).ToList(), ct)
-                : [];
-
-            messages.Add(ChatMessage.AssistantWithToolCalls(toolCalls, response.Content));
-
-            var toolMessages = BuildToolResultMessages(toolCalls, commands, results, errors);
-            foreach (var msg in toolMessages)
-                messages.Add(msg);
+            await ExecuteToolCallRoundAsync(toolCalls, commands, errors, response.Content, messages, executor, ct);
 
             Console.WriteLine();
             response = await StreamAndCollectAsync(
@@ -434,6 +408,44 @@ public class PromptHandler(
 
             rounds++;
         }
+    }
+
+    /// <summary>
+    /// Überschreibt das Modell in der Config, wenn <paramref name="modelOverride"/> gesetzt ist.
+    /// </summary>
+    private static void ApplyModelOverride(AppConfig config, ProviderType? providerOverride, string? modelOverride)
+    {
+        if (modelOverride is null) return;
+        if (providerOverride is ProviderType.Cerebras || config.DefaultProvider == ProviderType.Cerebras)
+            config.Cerebras.Model = modelOverride;
+        else
+            config.Ollama.Model = modelOverride;
+    }
+
+    /// <summary>
+    /// Führt eine Tool-Call-Runde aus: Befehle ausführen, Assistant-Nachricht und Tool-Ergebnisse
+    /// an <paramref name="messages"/> anhängen. Gemeinsam von CLI- und Server-Pfad genutzt.
+    /// </summary>
+    private static async Task<IReadOnlyList<CommandResult>> ExecuteToolCallRoundAsync(
+        IReadOnlyList<ToolCall> toolCalls,
+        IReadOnlyList<ParsedToolCommand> commands,
+        IReadOnlyList<ToolCallError> errors,
+        string currentContent,
+        List<ChatMessage> messages,
+        CommandExecutor executor,
+        CancellationToken ct)
+    {
+        var results = commands.Count > 0
+            ? await executor.ProcessAsync(commands.Select(c => c.Command).ToList(), ct)
+            : [];
+
+        messages.Add(ChatMessage.AssistantWithToolCalls(toolCalls, currentContent));
+
+        var toolMessages = BuildToolResultMessages(toolCalls, commands, results, errors);
+        foreach (var msg in toolMessages)
+            messages.Add(msg);
+
+        return results;
     }
 
     private sealed record ParsedToolCommand(ToolCall ToolCall, ExtractedCommand Command);
