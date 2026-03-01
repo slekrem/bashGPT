@@ -472,7 +472,11 @@ public class ServerHost(
                     _history.RemoveRange(0, _history.Count - 40);
             }
         }
-        catch { /* beschädigte Datei ignorieren – Neustart mit leerem Verlauf */ }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            // beschädigte Datei ignorieren – Neustart mit leerem Verlauf
+            _ = ex;
+        }
     }
 
     private async Task PersistHistoryAsync()
@@ -488,7 +492,11 @@ public class ServerHost(
             var serialized = JsonSerializer.Serialize(items, JsonDefaults.Options);
             await File.WriteAllTextAsync(historyFile, serialized);
         }
-        catch { /* Schreibfehler ignorieren */ }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Schreibfehler ignorieren
+            _ = ex;
+        }
     }
 
     private IReadOnlyList<ChatMessage> GetHistorySnapshot()
@@ -565,9 +573,11 @@ public class ServerHost(
             var payload = await JsonSerializer.DeserializeAsync<CerebrasModelMetadata>(stream, JsonDefaults.Options, ct);
             resolved = payload?.ContextLength;
         }
-        catch
+        catch (Exception ex) when (ex is HttpRequestException or JsonException
+                                      or TaskCanceledException or OperationCanceledException)
         {
             // Kein Hard-Fail: Settings-Endpoint bleibt nutzbar.
+            _ = ex;
         }
 
         lock (ContextWindowCacheLock)
@@ -633,9 +643,12 @@ public class ServerHost(
             if (OperatingSystem.IsLinux())
                 Process.Start("xdg-open", url);
         }
-        catch
+        catch (Exception ex) when (ex is InvalidOperationException
+                                      or System.ComponentModel.Win32Exception
+                                      or IOException)
         {
             // Kein Hard-Fail, UI bleibt über URL erreichbar.
+            _ = ex;
         }
     }
 

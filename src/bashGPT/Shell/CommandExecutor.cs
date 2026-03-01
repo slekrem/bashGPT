@@ -183,9 +183,9 @@ public class CommandExecutor(
                 if (!process.HasExited)
                     process.Kill(entireProcessTree: true);
             }
-            catch
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                // Ignorieren; wir geben trotzdem einen Timeout-Fehler zurück.
+                // Ignorieren; Prozess bereits beendet oder Kill nicht möglich – Timeout-Fehler wird trotzdem zurückgegeben.
             }
 
             return (-1, $"ERROR: Befehl nach {commandTimeoutSeconds}s abgebrochen.");
