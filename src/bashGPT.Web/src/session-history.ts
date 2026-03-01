@@ -1,4 +1,4 @@
-import type { HistoryMessage, Session } from './types'
+import type { CommandResult, ExecMode, HistoryMessage, Session } from './types'
 
 export const LIVE_SESSION_ID = 'current'
 const LOCAL_SESSIONS_KEY = 'bashgpt_sessions_v2'
@@ -7,6 +7,8 @@ const MAX_LOCAL_SESSIONS = 20
 export interface SnapshotMessage {
   role: 'user' | 'assistant'
   content: string
+  commands?: CommandResult[]
+  execMode?: ExecMode
 }
 
 export interface LocalSession extends Session {

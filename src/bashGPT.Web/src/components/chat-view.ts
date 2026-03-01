@@ -248,6 +248,8 @@ export class ChatView extends LitElement {
       id: this._idCounter++,
       role: m.role,
       content: m.content,
+      commands: m.commands,
+      execMode: m.execMode,
     }))
     this._statusText = this.readOnly
       ? 'Archivierte Session (nur lesen)'
@@ -258,7 +260,12 @@ export class ChatView extends LitElement {
 
   /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
   getSnapshot(): SnapshotMessage[] {
-    return this._messages.map(m => ({ role: m.role, content: m.content }))
+    return this._messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      ...(m.commands?.length ? { commands: m.commands } : {}),
+      ...(m.execMode ? { execMode: m.execMode } : {}),
+    }))
   }
 
   /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
