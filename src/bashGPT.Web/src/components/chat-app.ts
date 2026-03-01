@@ -271,7 +271,7 @@ export class ChatApp extends LitElement {
         this._sessions = this._localSessions.map(toSession)
         if (this._sessions.length > 0) {
           this._activeSessionId = this._sessions[0].id
-          this._chatReadOnly = this._activeSessionId !== LIVE_SESSION_ID
+          this._chatReadOnly = false
         }
         writeLocalSessions(this._localSessions)
 
@@ -284,8 +284,18 @@ export class ChatApp extends LitElement {
         if (initialSession && initialSession.messages.length > 0) {
           const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
           if (chatView) {
-            chatView.readOnly = this._chatReadOnly
-            chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext)
+            chatView.readOnly = false
+            if (initialId !== LIVE_SESSION_ID) {
+              const archivedId = initialId
+              chatView.beforeSend = async () => {
+                chatView.beforeSend = undefined
+                await this._activateArchivedSession(archivedId)
+              }
+              chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext,
+                'Archivierte Session – Nachricht senden, um fortzufahren')
+            } else {
+              chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext)
+            }
           }
         }
       }
