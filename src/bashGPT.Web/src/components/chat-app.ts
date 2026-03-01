@@ -393,14 +393,21 @@ export class ChatApp extends LitElement {
   private async _activateArchivedSession(archivedId: string) {
     await resetHistory()
 
-    const idx = this._localSessions.findIndex(s => s.id === archivedId)
-    if (idx < 0) return
+    if (!this._localSessions.some(s => s.id === archivedId)) return
 
-    this._localSessions[idx] = {
-      ...this._localSessions[idx],
-      id: LIVE_SESSION_ID,
-      isLive: true,
+    // Bestehende Live-Session behandeln: leere entfernen, belegte archivieren –
+    // verhindert doppelten 'current'-Eintrag in der Sidebar.
+    const existingLive = this._localSessions.find(s => s.id === LIVE_SESSION_ID)
+    let sessions = this._localSessions.filter(s => s.id !== LIVE_SESSION_ID)
+    if (existingLive && existingLive.messages.length > 0) {
+      sessions = [...sessions, { ...existingLive, id: `s-${Date.now()}`, isLive: false }]
     }
+
+    // Archivierten Eintrag zur Live-Session promoten und an die Spitze sortieren.
+    const now = new Date().toISOString()
+    this._localSessions = sessions
+      .map(s => s.id === archivedId ? { ...s, id: LIVE_SESSION_ID, isLive: true, updatedAt: now } : s)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
     writeLocalSessions(this._localSessions)
     this._sessions = this._localSessions.map(toSession)
