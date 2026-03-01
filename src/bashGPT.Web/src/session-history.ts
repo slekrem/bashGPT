@@ -1,4 +1,4 @@
-import type { CommandResult, ExecMode, HistoryMessage, Session } from './types'
+import type { CommandResult, ExecMode, HistoryMessage, Session, ShellContext } from './types'
 
 export const LIVE_SESSION_ID = 'current'
 const LOCAL_SESSIONS_KEY = 'bashgpt_sessions_v2'
@@ -13,6 +13,7 @@ export interface SnapshotMessage {
 
 export interface LocalSession extends Session {
   messages: SnapshotMessage[]
+  shellContext?: ShellContext
   isLive?: boolean
 }
 
@@ -67,6 +68,7 @@ export function upsertSession(
   sessions: LocalSession[],
   id: string,
   messages: SnapshotMessage[],
+  shellContext?: ShellContext | null,
 ): LocalSession[] {
   const now = new Date().toISOString()
   const idx = sessions.findIndex(s => s.id === id)
@@ -79,6 +81,9 @@ export function upsertSession(
       updatedAt: now,
       messages,
       isLive: id === LIVE_SESSION_ID,
+      // undefined = nicht übergeben → vorhandenen Wert behalten
+      // null/ShellContext → aktualisieren
+      ...(shellContext !== undefined ? { shellContext: shellContext ?? undefined } : {}),
     }
   } else {
     sessions.unshift({
@@ -88,6 +93,7 @@ export function upsertSession(
       updatedAt: now,
       messages,
       isLive: id === LIVE_SESSION_ID,
+      ...(shellContext ? { shellContext } : {}),
     })
   }
 

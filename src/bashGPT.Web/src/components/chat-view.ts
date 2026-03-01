@@ -243,7 +243,10 @@ export class ChatView extends LitElement {
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
-  loadSnapshot(messages: SnapshotMessage[]) {
+  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
+    // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
+    // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
+    this._historyLoadSeq++
     this._messages = messages.map(m => ({
       id: this._idCounter++,
       role: m.role,
@@ -251,6 +254,7 @@ export class ChatView extends LitElement {
       commands: m.commands,
       execMode: m.execMode,
     }))
+    if (shellContext !== undefined) this._shellContext = shellContext ?? null
     this._statusText = this.readOnly
       ? 'Archivierte Session (nur lesen)'
       : ''
@@ -387,7 +391,7 @@ export class ChatView extends LitElement {
     this.dispatchEvent(new CustomEvent('messages-changed', {
       bubbles: true,
       composed: true,
-      detail: { messages: this.getSnapshot() },
+      detail: { messages: this.getSnapshot(), shellContext: this._shellContext },
     }))
   }
 
