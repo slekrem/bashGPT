@@ -10,7 +10,7 @@ var handler          = new PromptHandler(configService, contextCollector);
 var historyFile      = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
     ".config", "bashgpt", "history.json");
-var serverHost       = new ServerHost(handler, historyFile);
+var serverHost       = new ServerHost(handler, configService, historyFile);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 
