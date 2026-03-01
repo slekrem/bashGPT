@@ -275,6 +275,8 @@ public class ServerHost(
                             {
                                 InputTokens = result.Usage.InputTokens,
                                 OutputTokens = result.Usage.OutputTokens,
+                                TotalTokens = result.Usage.TotalTokens,
+                                CachedInputTokens = result.Usage.CachedInputTokens,
                             },
                             Commands = result.Commands.Count > 0
                                 ? result.Commands.Select(c => new SessionCommand
@@ -319,6 +321,8 @@ public class ServerHost(
                     {
                         inputTokens  = result.Usage.InputTokens,
                         outputTokens = result.Usage.OutputTokens,
+                        totalTokens = result.Usage.TotalTokens,
+                        cachedInputTokens = result.Usage.CachedInputTokens,
                     },
                     commands = result.Commands.Select(c => new
                     {

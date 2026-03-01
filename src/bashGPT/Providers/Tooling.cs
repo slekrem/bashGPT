@@ -34,7 +34,11 @@ public record LlmChatRequest(
     bool Stream = true,
     Action<string>? OnToken = null);
 
-public record TokenUsage(int InputTokens, int OutputTokens);
+public record TokenUsage(
+    int InputTokens,
+    int OutputTokens,
+    int? TotalTokens = null,
+    int? CachedInputTokens = null);
 
 public record LlmChatResponse(
     string Content,

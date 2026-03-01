@@ -172,6 +172,26 @@ export class ChatInfoPanel extends LitElement {
     return normalized.split('/').at(-1) || path
   }
 
+  private _resolveContextWindow(model: string | undefined): number | null {
+    if (!model) return null
+    const normalized = model.trim().toLowerCase()
+    if (!normalized) return null
+
+    if (normalized.includes('gpt-oss:20b') || normalized.includes('gpt-oss-20b'))
+      return 131072
+    if (normalized.includes('gpt-oss:120b') || normalized.includes('gpt-oss-120b'))
+      return 131072
+
+    const kMatch = normalized.match(/(?:^|[-_:])(\d{1,4})k(?:$|[-_:])/)
+    if (kMatch) {
+      const k = Number(kMatch[1])
+      if (Number.isFinite(k) && k > 0)
+        return k * 1024
+    }
+
+    return null
+  }
+
   render() {
     if (this.loading) {
       return html`
@@ -192,6 +212,15 @@ export class ChatInfoPanel extends LitElement {
 
     const ctx = this.context
     const stats = this.commandStats
+    const inputTokens = this.tokenUsage?.inputTokens ?? 0
+    const outputTokens = this.tokenUsage?.outputTokens ?? 0
+    const totalTokens = this.tokenUsage?.totalTokens ?? (inputTokens + outputTokens)
+    const cachedInputTokens = this.tokenUsage?.cachedInputTokens ?? 0
+    const usedTokens = totalTokens
+    const contextWindow = this._resolveContextWindow(this.settings?.model)
+    const contextUsagePct = contextWindow && usedTokens > 0
+      ? Math.min(100, Math.round((usedTokens / contextWindow) * 100))
+      : null
 
     return html`
       <div class="panel-header">
@@ -264,6 +293,14 @@ export class ChatInfoPanel extends LitElement {
               <span class="label">Modell</span>
               <span class="value mono">${this.settings.model}</span>
             </div>
+            <div class="row">
+              <span class="label">Kontext</span>
+              <span class="value mono">
+                ${contextWindow
+                  ? `${contextWindow.toLocaleString()} Tokens`
+                  : html`<span style="color:#334155;font-style:italic">Unbekannt</span>`}
+              </span>
+            </div>
           ` : html`
             <div class="row"><span class="value" style="color:#334155;font-style:italic">Nicht verfügbar</span></div>
           `}
@@ -306,19 +343,33 @@ export class ChatInfoPanel extends LitElement {
               <span class="value" style="color:#334155;font-style:italic">keine</span>
             </div>
           `}
-          ${this.tokenUsage && (this.tokenUsage.inputTokens > 0 || this.tokenUsage.outputTokens > 0) ? html`
+          ${this.tokenUsage && (inputTokens > 0 || outputTokens > 0) ? html`
             <div class="row">
               <span class="label">Tokens</span>
               <div class="stats-row">
                 <span class="stat" title="Input-Tokens">
                   <span style="color:#475569">↑</span>
-                  <span class="count">${this.tokenUsage.inputTokens.toLocaleString()}</span>
+                  <span class="count">${inputTokens.toLocaleString()}</span>
                 </span>
                 <span class="stat" title="Output-Tokens">
                   <span style="color:#475569">↓</span>
-                  <span class="count">${this.tokenUsage.outputTokens.toLocaleString()}</span>
+                  <span class="count">${outputTokens.toLocaleString()}</span>
                 </span>
+                ${cachedInputTokens > 0 ? html`
+                  <span class="stat" title="Cached Input-Tokens">
+                    <span style="color:#475569">↺</span>
+                    <span class="count">${cachedInputTokens.toLocaleString()}</span>
+                  </span>
+                ` : ''}
               </div>
+            </div>
+            <div class="row">
+              <span class="label">Kontext</span>
+              <span class="value mono">
+                ${usedTokens.toLocaleString()}${contextWindow
+                  ? ` / ${contextWindow.toLocaleString()} (${contextUsagePct}%)`
+                  : ' Tokens genutzt'}
+              </span>
             </div>
           ` : ''}
         </div>

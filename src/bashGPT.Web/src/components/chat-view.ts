@@ -45,7 +45,7 @@ export class ChatView extends LitElement {
   @state() private _settings: Settings | null = null
   @state() private _contextLoaded = false
   @state() private _contextLoading = false
-  @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 }
+  @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -313,7 +313,7 @@ export class ChatView extends LitElement {
     try {
       await resetHistory()
       this._messages = []
-      this._tokenUsage = { inputTokens: 0, outputTokens: 0 }
+      this._tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
       this._statusText = 'Verlauf gelöscht'
       this._statusError = false
       this._emitMessagesChanged()
@@ -468,12 +468,14 @@ export class ChatView extends LitElement {
   private _sumTokenUsage(messages: Message[]): TokenUsage {
     let inputTokens = 0
     let outputTokens = 0
+    let cachedInputTokens = 0
     for (const message of messages) {
       if (!message.usage) continue
       inputTokens += message.usage.inputTokens
       outputTokens += message.usage.outputTokens
+      cachedInputTokens += message.usage.cachedInputTokens ?? 0
     }
-    return { inputTokens, outputTokens }
+    return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens }
   }
 
   private get _commandStats() {

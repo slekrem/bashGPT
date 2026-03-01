@@ -72,7 +72,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
             if (!string.IsNullOrEmpty(content))
                 request.OnToken?.Invoke(content);
             var nonStreamUsage = full?.PromptEvalCount is int p && full?.EvalCount is int o
-                ? new TokenUsage(p, o)
+                ? new TokenUsage(p, o, p + o)
                 : null;
             return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
@@ -136,7 +136,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
             .ToList();
 
         var usage = promptTokens.HasValue && outputTokens.HasValue
-            ? new TokenUsage(promptTokens.Value, outputTokens.Value)
+            ? new TokenUsage(promptTokens.Value, outputTokens.Value, promptTokens.Value + outputTokens.Value)
             : null;
 
         return new LlmChatResponse(contentBuilder.ToString(), ordered, usage);

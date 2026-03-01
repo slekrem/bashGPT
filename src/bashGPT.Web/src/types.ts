@@ -8,6 +8,8 @@ export interface CommandResult {
 export interface TokenUsage {
   inputTokens: number
   outputTokens: number
+  totalTokens?: number
+  cachedInputTokens?: number
 }
 
 export interface ChatResponse {

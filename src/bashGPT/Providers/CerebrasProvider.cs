@@ -134,7 +134,11 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             if (!string.IsNullOrEmpty(content))
                 request.OnToken?.Invoke(content);
             var nonStreamUsage = full?.Usage is { } u
-                ? new TokenUsage(u.PromptTokens, u.CompletionTokens)
+                ? new TokenUsage(
+                    u.PromptTokens,
+                    u.CompletionTokens,
+                    u.TotalTokens,
+                    u.PromptTokensDetails?.CachedTokens)
                 : null;
             return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
@@ -190,7 +194,11 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             .ToList();
 
         var usage = streamUsage is not null
-            ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens)
+            ? new TokenUsage(
+                streamUsage.PromptTokens,
+                streamUsage.CompletionTokens,
+                streamUsage.TotalTokens,
+                streamUsage.PromptTokensDetails?.CachedTokens)
             : null;
 
         return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
@@ -355,6 +363,13 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
     {
         [JsonPropertyName("prompt_tokens")] public int PromptTokens { get; set; }
         [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
+        [JsonPropertyName("total_tokens")] public int? TotalTokens { get; set; }
+        [JsonPropertyName("prompt_tokens_details")] public OpenAiPromptTokensDetails? PromptTokensDetails { get; set; }
+    }
+
+    private sealed class OpenAiPromptTokensDetails
+    {
+        [JsonPropertyName("cached_tokens")] public int? CachedTokens { get; set; }
     }
 
     private sealed class OpenAiChatChoice
