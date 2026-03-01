@@ -101,4 +101,72 @@ public class OllamaProviderTests
         Assert.Equal("Ollama",      provider.Name);
         Assert.Equal("gpt-oss:20b", provider.Model);
     }
+
+    // ── ChatAsync ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ChatAsync_NonStream_ReturnsTextContent()
+    {
+        var json = """{"message":{"role":"assistant","content":"Hallo Welt","tool_calls":null},"done":true}""";
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new OllamaProvider(
+            new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.Equal("Hallo Welt", result.Content);
+        Assert.Empty(result.ToolCalls);
+    }
+
+    [Fact]
+    public async Task ChatAsync_NonStream_ReturnsToolCall()
+    {
+        var json = """
+            {"message":{"role":"assistant","content":"",
+             "tool_calls":[{"type":"function","function":{"name":"bash","arguments":{"command":"ls -la"}}}]},
+             "done":true}
+            """;
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new OllamaProvider(
+            new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
+                Tools: [ToolDefinitions.Bash], Stream: false));
+
+        Assert.Single(result.ToolCalls);
+        Assert.Equal("bash", result.ToolCalls[0].Name);
+        Assert.Contains("ls -la", result.ToolCalls[0].ArgumentsJson);
+    }
+
+    [Fact]
+    public async Task ChatAsync_Stream_ReturnsTextContent()
+    {
+        var ndjson = """
+            {"message":{"role":"assistant","content":"foo"},"done":false}
+            {"message":{"role":"assistant","content":"bar"},"done":true}
+            """;
+        var tokens = new List<string>();
+        var provider = CreateProvider(ndjson);
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")],
+                Stream: true, OnToken: t => tokens.Add(t)));
+
+        Assert.Equal(["foo", "bar"], tokens);
+        Assert.Equal("foobar", result.Content);
+    }
+
+    [Fact]
+    public async Task ChatAsync_ThrowsLlmProviderException_OnHttpError()
+    {
+        var provider = CreateProvider("Internal Server Error", HttpStatusCode.InternalServerError);
+
+        await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(
+                new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false)));
+    }
 }
