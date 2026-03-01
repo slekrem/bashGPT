@@ -26,6 +26,8 @@ export class ChatView extends LitElement {
   @property({ type: Boolean }) active = false
   /** Readonly-Modus für archivierte Sessions ohne Server-Kontext */
   @property({ type: Boolean }) readOnly = false
+  /** One-shot Hook: wird vor dem ersten sendChat() der Session aufgerufen */
+  @property({ attribute: false }) beforeSend?: () => Promise<void>
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
@@ -243,7 +245,7 @@ export class ChatView extends LitElement {
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
-  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
+  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string) {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
@@ -255,9 +257,7 @@ export class ChatView extends LitElement {
       execMode: m.execMode,
     }))
     if (shellContext !== undefined) this._shellContext = shellContext ?? null
-    this._statusText = this.readOnly
-      ? 'Archivierte Session (nur lesen)'
-      : ''
+    this._statusText = hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : '')
     this._statusError = false
     this._scrollToBottom()
   }
@@ -331,6 +331,7 @@ export class ChatView extends LitElement {
     this.dispatchEvent(new CustomEvent('chat-started', { bubbles: true, composed: true }))
 
     try {
+      if (this.beforeSend) await this.beforeSend()
       const result = await sendChat(prompt, execMode)
       if (result.shellContext)
         this._shellContext = result.shellContext

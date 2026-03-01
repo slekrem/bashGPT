@@ -307,6 +307,7 @@ export class ChatApp extends LitElement {
 
   private async _onNewChat() {
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    if (chatView) chatView.beforeSend = undefined
 
     if (this._useLocalSessionsFallback && chatView) {
       const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
@@ -346,12 +347,23 @@ export class ChatApp extends LitElement {
     this._mobileMenuOpen = false
 
     if (this._useLocalSessionsFallback) {
-      this._chatReadOnly = e.detail.id !== LIVE_SESSION_ID
+      this._chatReadOnly = false
       const selected = this._localSessions.find(s => s.id === e.detail.id)
       const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
       if (selected && chatView) {
-        chatView.readOnly = this._chatReadOnly
-        chatView.loadSnapshot?.(selected.messages ?? [], selected.shellContext)
+        chatView.readOnly = false
+        if (e.detail.id !== LIVE_SESSION_ID) {
+          const archivedId = e.detail.id
+          chatView.beforeSend = async () => {
+            chatView.beforeSend = undefined
+            await this._activateArchivedSession(archivedId)
+          }
+          chatView.loadSnapshot?.(selected.messages ?? [], selected.shellContext,
+            'Archivierte Session – Nachricht senden, um fortzufahren')
+        } else {
+          chatView.beforeSend = undefined
+          chatView.loadSnapshot?.(selected.messages ?? [], selected.shellContext)
+        }
       }
       return
     }
@@ -376,6 +388,23 @@ export class ChatApp extends LitElement {
 
     if (!this._sessions.some(s => s.id === LIVE_SESSION_ID))
       this._sessions = [this._currentSession(), ...this._sessions]
+  }
+
+  private async _activateArchivedSession(archivedId: string) {
+    await resetHistory()
+
+    const idx = this._localSessions.findIndex(s => s.id === archivedId)
+    if (idx < 0) return
+
+    this._localSessions[idx] = {
+      ...this._localSessions[idx],
+      id: LIVE_SESSION_ID,
+      isLive: true,
+    }
+
+    writeLocalSessions(this._localSessions)
+    this._sessions = this._localSessions.map(toSession)
+    this._activeSessionId = LIVE_SESSION_ID
   }
 
   private async _onPromptSelected(e: CustomEvent<{ prompt: string }>) {
