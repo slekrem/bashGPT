@@ -452,6 +452,16 @@ export class ChatApp extends LitElement {
     })
   }
 
+  private async _onClearHistory() {
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    if (chatView) chatView.beforeSend = undefined
+    if (chatView) await chatView.reset()
+    this._localSessions = []
+    writeLocalSessions(this._localSessions)
+    this._sessions = []
+    this._activeSessionId = null
+  }
+
   private _onChatStarted() {
     this._chatReadOnly = false
     // Synthetische Session hinzufügen, damit der Nutzer über die Sidebar zurücknavigieren kann
@@ -599,7 +609,9 @@ export class ChatApp extends LitElement {
           ` : ''}
 
           ${this._view === 'settings' ? html`
-            <bashgpt-settings-view></bashgpt-settings-view>
+            <bashgpt-settings-view
+              @clear-history=${this._onClearHistory}
+            ></bashgpt-settings-view>
           ` : ''}
 
           <bashgpt-chat-view
