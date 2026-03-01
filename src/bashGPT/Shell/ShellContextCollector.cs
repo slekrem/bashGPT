@@ -145,7 +145,9 @@ public class ShellContextCollector
             await process.WaitForExitAsync();
             return process.ExitCode == 0 ? output.Trim() : null;
         }
-        catch
+        catch (Exception ex) when (ex is InvalidOperationException
+                                      or IOException
+                                      or System.ComponentModel.Win32Exception)
         {
             return null;
         }
@@ -160,7 +162,7 @@ public class ShellContextCollector
                 .OrderBy(e => e)
                 .ToList();
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return [];
         }

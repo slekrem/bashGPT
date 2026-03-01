@@ -137,7 +137,7 @@ public class SessionStore
             var json = await File.ReadAllTextAsync(_sessionsFile);
             return JsonSerializer.Deserialize<SessionsFile>(json, JsonOptions) ?? new SessionsFile();
         }
-        catch
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
             return new SessionsFile();
         }
@@ -201,7 +201,7 @@ public class SessionStore
             await WriteFileInternalAsync(file);
             return file;
         }
-        catch
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
             return new SessionsFile();
         }
