@@ -129,6 +129,8 @@ public class PromptHandler(
     {
         var logs = new List<string>();
         var commandResults = new List<CommandResult>();
+        var totalInputTokens = 0;
+        var totalOutputTokens = 0;
 
         AppConfig config;
         try
@@ -194,6 +196,9 @@ public class PromptHandler(
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
+        totalInputTokens  += firstResponse.Response.Usage?.InputTokens  ?? 0;
+        totalOutputTokens += firstResponse.Response.Usage?.OutputTokens ?? 0;
+
         var currentResponse = firstResponse.Response;
 
         if (currentResponse.ToolCalls.Count > 0)
@@ -249,6 +254,8 @@ public class PromptHandler(
                 if (nextResponse.Error is not null)
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
+                totalInputTokens  += nextResponse.Response.Usage?.InputTokens  ?? 0;
+                totalOutputTokens += nextResponse.Response.Usage?.OutputTokens ?? 0;
                 currentResponse = nextResponse.Response;
             }
 
@@ -262,10 +269,10 @@ public class PromptHandler(
                 var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
                     ? loopGuardMessage
                     : currentResponse.Content;
-                return new ServerChatResult(responseText, commandResults, logs, usedToolCalls);
+                return new ServerChatResult(responseText, commandResults, logs, usedToolCalls, BuildUsage());
             }
 
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
         }
 
         var fallbackCommands = BashCommandExtractor.Extract(currentResponse.Content);
@@ -273,7 +280,7 @@ public class PromptHandler(
             logs.Add($"Fallback aktiv: {fallbackCommands.Count} Befehl(e) aus Text-Codeblöcken extrahiert");
 
         if (fallbackCommands.Count == 0 || opts.ExecMode == ExecutionMode.NoExec)
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
 
         var fallbackExecMode = opts.ExecMode == ExecutionMode.Ask
             ? ExecutionMode.DryRun
@@ -289,7 +296,7 @@ public class PromptHandler(
 
         var executed = fallbackResults.Where(r => r.WasExecuted).ToList();
         if (executed.Count == 0)
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);
+            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
 
         var followUp = CommandExecutor.BuildFollowUpContext(fallbackResults);
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
@@ -297,9 +304,15 @@ public class PromptHandler(
 
         var followUpResponse = await ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
         if (followUpResponse.Error is not null)
-            return new ServerChatResult(followUpResponse.Error, commandResults, logs, usedToolCalls);
+            return new ServerChatResult(followUpResponse.Error, commandResults, logs, usedToolCalls, BuildUsage());
 
-        return new ServerChatResult(followUpResponse.Response.Content, commandResults, logs, usedToolCalls);
+        totalInputTokens  += followUpResponse.Response.Usage?.InputTokens  ?? 0;
+        totalOutputTokens += followUpResponse.Response.Usage?.OutputTokens ?? 0;
+        return new ServerChatResult(followUpResponse.Response.Content, commandResults, logs, usedToolCalls, BuildUsage());
+
+        TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
+            ? new TokenUsage(totalInputTokens, totalOutputTokens)
+            : null;
     }
 
     private static async Task<(LlmChatResponse Response, string? Error)> ChatOnceAsync(

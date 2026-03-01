@@ -310,6 +310,11 @@ public class ServerHost(
                     usedToolCalls = result.UsedToolCalls,
                     logs = result.Logs,
                     shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
+                    usage = result.Usage == null ? null : (object)new
+                    {
+                        inputTokens  = result.Usage.InputTokens,
+                        outputTokens = result.Usage.OutputTokens,
+                    },
                     commands = result.Commands.Select(c => new
                     {
                         command = c.Command,

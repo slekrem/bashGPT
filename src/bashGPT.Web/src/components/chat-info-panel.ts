@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import type { ExecMode, FullShellContext, Settings } from '../types'
+import type { ExecMode, FullShellContext, Settings, TokenUsage } from '../types'
 
 interface CommandStats {
   total: number
@@ -16,6 +16,7 @@ export class ChatInfoPanel extends LitElement {
   @property() execMode: ExecMode = 'ask'
   @property({ type: Number }) messageCount = 0
   @property({ type: Object }) commandStats: CommandStats = { total: 0, success: 0, error: 0, skipped: 0 }
+  @property({ type: Object }) tokenUsage: TokenUsage | null = null
   @property({ type: Boolean }) loading = false
 
   static styles = css`
@@ -305,6 +306,21 @@ export class ChatInfoPanel extends LitElement {
               <span class="value" style="color:#334155;font-style:italic">keine</span>
             </div>
           `}
+          ${this.tokenUsage && (this.tokenUsage.inputTokens > 0 || this.tokenUsage.outputTokens > 0) ? html`
+            <div class="row">
+              <span class="label">Tokens</span>
+              <div class="stats-row">
+                <span class="stat" title="Input-Tokens">
+                  <span style="color:#475569">↑</span>
+                  <span class="count">${this.tokenUsage.inputTokens.toLocaleString()}</span>
+                </span>
+                <span class="stat" title="Output-Tokens">
+                  <span style="color:#475569">↓</span>
+                  <span class="count">${this.tokenUsage.outputTokens.toLocaleString()}</span>
+                </span>
+              </div>
+            </div>
+          ` : ''}
         </div>
       </div>
     `

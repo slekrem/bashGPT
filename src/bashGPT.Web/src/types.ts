@@ -5,12 +5,18 @@ export interface CommandResult {
   wasExecuted: boolean
 }
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+}
+
 export interface ChatResponse {
   response: string
   usedToolCalls: boolean
   logs: string[]
   shellContext?: ShellContext
   commands: CommandResult[]
+  usage?: TokenUsage | null
 }
 
 export interface ShellContext {

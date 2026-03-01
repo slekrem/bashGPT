@@ -56,6 +56,10 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
                 openAiRequest.ToolChoice = OpenAiToolChoice.ForFunction(request.ToolChoiceName!);
         }
 
+        // Bei Streaming: Usage-Daten anfordern
+        if (request.Stream)
+            openAiRequest.StreamOptions = new OpenAiStreamOptions();
+
         // Serialisierung einmalig außerhalb der Retry-Schleife
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
         var url = $"{config.BaseUrl.TrimEnd('/')}/chat/completions";
@@ -129,11 +133,15 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             var toolCalls = message?.ToolCalls?.Select(MapToolCall).ToList() ?? [];
             if (!string.IsNullOrEmpty(content))
                 request.OnToken?.Invoke(content);
-            return new LlmChatResponse(content, toolCalls);
+            var nonStreamUsage = full?.Usage is { } u
+                ? new TokenUsage(u.PromptTokens, u.CompletionTokens)
+                : null;
+            return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
 
         var contentBuilder = new StringBuilder();
         var toolBuilder = new Dictionary<int, ToolCallBuilder>();
+        OpenAiUsage? streamUsage = null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new System.IO.StreamReader(stream);
@@ -171,6 +179,9 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
                 foreach (var toolDelta in delta.ToolCalls)
                     ApplyToolDelta(toolBuilder, toolDelta);
             }
+
+            if (chunk?.Usage is not null)
+                streamUsage = chunk.Usage;
         }
 
         var toolCallsFinal = toolBuilder
@@ -178,7 +189,11 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             .Select(kvp => kvp.Value.ToToolCall())
             .ToList();
 
-        return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal);
+        var usage = streamUsage is not null
+            ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens)
+            : null;
+
+        return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
     }
 
     public async Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
@@ -282,6 +297,9 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         [JsonPropertyName("model")]    public string Model    { get; set; } = "";
         [JsonPropertyName("messages")] public List<OpenAiMessage> Messages { get; set; } = [];
         [JsonPropertyName("stream")]   public bool   Stream   { get; set; } = true;
+        [JsonPropertyName("stream_options")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public OpenAiStreamOptions? StreamOptions { get; set; }
         [JsonPropertyName("tools")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<OpenAiTool>? Tools { get; set; }
@@ -291,6 +309,11 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         [JsonPropertyName("parallel_tool_calls")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public bool? ParallelToolCalls { get; set; }
+    }
+
+    private sealed class OpenAiStreamOptions
+    {
+        [JsonPropertyName("include_usage")] public bool IncludeUsage { get; set; } = true;
     }
 
     private sealed class OpenAiMessage
@@ -308,6 +331,7 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
     private sealed class OpenAiStreamChunk
     {
         [JsonPropertyName("choices")] public List<OpenAiChoice>? Choices { get; set; }
+        [JsonPropertyName("usage")] public OpenAiUsage? Usage { get; set; }
     }
 
     private sealed class OpenAiChoice
@@ -324,6 +348,13 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
     private sealed class OpenAiChatResponse
     {
         [JsonPropertyName("choices")] public List<OpenAiChatChoice>? Choices { get; set; }
+        [JsonPropertyName("usage")] public OpenAiUsage? Usage { get; set; }
+    }
+
+    private sealed class OpenAiUsage
+    {
+        [JsonPropertyName("prompt_tokens")] public int PromptTokens { get; set; }
+        [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
     }
 
     private sealed class OpenAiChatChoice

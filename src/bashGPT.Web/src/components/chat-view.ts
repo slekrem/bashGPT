@@ -5,7 +5,7 @@ import './message-bubble'
 import './terminal-panel'
 import './chat-info-panel'
 import { sendChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
-import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext } from '../types'
+import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -43,6 +43,7 @@ export class ChatView extends LitElement {
   @state() private _context: FullShellContext | null = null
   @state() private _settings: Settings | null = null
   @state() private _contextLoaded = false
+  @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 }
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -359,6 +360,12 @@ export class ChatView extends LitElement {
       const result = await sendChat(prompt, execMode, this.sessionId || undefined)
       if (result.shellContext)
         this._shellContext = result.shellContext
+      if (result.usage) {
+        this._tokenUsage = {
+          inputTokens:  this._tokenUsage.inputTokens  + result.usage.inputTokens,
+          outputTokens: this._tokenUsage.outputTokens + result.usage.outputTokens,
+        }
+      }
       this._messages = [
         ...this._messages,
         {
@@ -531,6 +538,7 @@ export class ChatView extends LitElement {
           execMode=${this._mode}
           messageCount=${this._messages.length}
           .commandStats=${this._commandStats}
+          .tokenUsage=${this._tokenUsage}
           ?loading=${!this._contextLoaded && this._infoOpen}
         ></bashgpt-chat-info-panel>
       </div>

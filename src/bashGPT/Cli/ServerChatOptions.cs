@@ -20,5 +20,6 @@ public record ServerChatResult(
     string Response,
     IReadOnlyList<CommandResult> Commands,
     IReadOnlyList<string> Logs,
-    bool UsedToolCalls
+    bool UsedToolCalls,
+    TokenUsage? Usage = null
 );
