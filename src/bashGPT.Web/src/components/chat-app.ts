@@ -9,6 +9,17 @@ import './chat-view'
 import './terminal-panel'
 import { sendChat, loadHistory, resetHistory, getSessions } from '../api'
 import type { AppView, ExecMode, CommandResult, Session } from '../types'
+import {
+  LIVE_SESSION_ID,
+  createLiveSession,
+  historyToSnapshot,
+  readLocalSessions,
+  upsertSession,
+  writeLocalSessions,
+  toSession,
+  type LocalSession,
+  type SnapshotMessage,
+} from '../session-history'
 
 // ── v1 message type (used in v1 layout) ─────────────────────────────────────
 interface Message {
@@ -32,6 +43,7 @@ export class ChatApp extends LitElement {
   @state() private _activeSessionId: string | null = null
   @state() private _pendingPrompt = ''
   @state() private _mobileMenuOpen = false
+  @state() private _chatReadOnly = false
 
   // ── v1 state ──────────────────────────────────────────────────────────────
   @state() private _messages: Message[] = []
@@ -40,6 +52,8 @@ export class ChatApp extends LitElement {
   @state() private _statusError = false
   @state() private _mode: ExecMode = 'ask'
   private _idCounter = 0
+  private _localSessions: LocalSession[] = []
+  private _useLocalSessionsFallback = false
 
   static styles = css`
     /* ── CSS custom properties (cascade to all child components) ─────────── */
@@ -234,9 +248,44 @@ export class ChatApp extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
     if (this._isV2) {
-      this._sessions = await getSessions()
+      const serverSessions = await getSessions()
+      this._useLocalSessionsFallback = serverSessions.length === 0
+
+      if (!this._useLocalSessionsFallback) {
+        this._sessions = serverSessions
+      } else {
+        this._localSessions = readLocalSessions()
+
+        // First run fallback: import existing global server history once.
+        if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID)) {
+          try {
+            const history = await loadHistory()
+            if (history.length > 0) {
+              this._localSessions.unshift(createLiveSession(historyToSnapshot(history)))
+            }
+          } catch {
+            // Ignore API error; UI still works in empty state.
+          }
+        }
+
+        this._sessions = this._localSessions.map(toSession)
+        if (this._sessions.length > 0) {
+          this._activeSessionId = this._sessions[0].id
+          this._chatReadOnly = this._activeSessionId !== LIVE_SESSION_ID
+        }
+        writeLocalSessions(this._localSessions)
+      }
     } else {
       await this._v1LoadHistory()
+    }
+  }
+
+  private _currentSession(): Session {
+    return {
+      id: LIVE_SESSION_ID,
+      title: 'Aktueller Chat',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
   }
 
@@ -244,9 +293,28 @@ export class ChatApp extends LitElement {
 
   private async _onNewChat() {
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+
+    if (this._useLocalSessionsFallback && chatView) {
+      const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
+      if (snapshot && snapshot.length > 0 && this._activeSessionId === LIVE_SESSION_ID) {
+        const archivedId = `s-${Date.now()}`
+        this._localSessions = upsertSession(this._localSessions, archivedId, snapshot)
+      }
+    }
+
     if (chatView) await chatView.reset()
     this._pendingPrompt = ''
-    this._activeSessionId = null
+    this._activeSessionId = LIVE_SESSION_ID
+    this._chatReadOnly = false
+
+    if (this._useLocalSessionsFallback) {
+      this._localSessions = upsertSession(this._localSessions, LIVE_SESSION_ID, [])
+      writeLocalSessions(this._localSessions)
+      this._sessions = this._localSessions.map(toSession)
+    } else {
+      this._sessions = this._sessions.filter(s => s.id !== LIVE_SESSION_ID)
+    }
+
     this._view = 'chat'
     this._mobileMenuOpen = false
   }
@@ -256,20 +324,60 @@ export class ChatApp extends LitElement {
     this._mobileMenuOpen = false
   }
 
-  private _onSessionSelect(e: CustomEvent) {
+  private _onSessionSelect(e: CustomEvent<{ id: string }>) {
     this._activeSessionId = e.detail.id
     this._view = 'chat'
     this._mobileMenuOpen = false
+
+    if (this._useLocalSessionsFallback) {
+      this._chatReadOnly = e.detail.id !== LIVE_SESSION_ID
+      const selected = this._localSessions.find(s => s.id === e.detail.id)
+      const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+      if (selected && chatView) {
+        chatView.readOnly = this._chatReadOnly
+        chatView.loadSnapshot?.(selected.messages ?? [])
+      }
+      return
+    }
+
+    if (e.detail.id === LIVE_SESSION_ID) return
+
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
     if (chatView) chatView.reloadHistory()
   }
 
-  private _onPromptSelected(e: CustomEvent) {
-    this._pendingPrompt = e.detail.prompt
-    this._view = 'chat'
+  private _ensureLiveSessionActive() {
+    this._chatReadOnly = false
+    this._activeSessionId = LIVE_SESSION_ID
+
+    if (this._useLocalSessionsFallback) {
+      if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID))
+        this._localSessions = upsertSession(this._localSessions, LIVE_SESSION_ID, [])
+      writeLocalSessions(this._localSessions)
+      this._sessions = this._localSessions.map(toSession)
+      return
+    }
+
+    if (!this._sessions.some(s => s.id === LIVE_SESSION_ID))
+      this._sessions = [this._currentSession(), ...this._sessions]
   }
 
-  private _onPromptEdit(e: CustomEvent) {
+  private async _onPromptSelected(e: CustomEvent<{ prompt: string }>) {
+    // Dashboard-"Ausführen" startet immer eine neue Konversation.
+    await this._onNewChat()
+    this._ensureLiveSessionActive()
+    this._view = 'chat'
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    chatView?.setExecMode?.('auto-exec')
+    // Re-trigger auch bei identischem Prompt-Text.
+    this._pendingPrompt = ''
+    requestAnimationFrame(() => {
+      this._pendingPrompt = e.detail.prompt
+    })
+  }
+
+  private _onPromptEdit(e: CustomEvent<{ prompt: string }>) {
+    this._ensureLiveSessionActive()
     // Set prompt in textarea without sending
     this._pendingPrompt = ''
     this._view = 'chat'
@@ -283,7 +391,27 @@ export class ChatApp extends LitElement {
   }
 
   private _onChatStarted() {
-    // already in chat view — no-op
+    this._chatReadOnly = false
+    // Synthetische Session hinzufügen, damit der Nutzer über die Sidebar zurücknavigieren kann
+    if (!this._sessions.some(s => s.id === LIVE_SESSION_ID)) {
+      this._sessions = [this._currentSession(), ...this._sessions]
+    }
+    this._activeSessionId = LIVE_SESSION_ID
+  }
+
+  private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[] }>) {
+    if (!this._useLocalSessionsFallback) return
+    if (this._chatReadOnly) return
+
+    const targetSessionId = this._activeSessionId ?? LIVE_SESSION_ID
+    if (!this._activeSessionId) {
+      this._activeSessionId = targetSessionId
+      this._chatReadOnly = false
+    }
+
+    this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages)
+    writeLocalSessions(this._localSessions)
+    this._sessions = this._localSessions.map(toSession)
   }
 
   private _switchToV2() {
@@ -422,7 +550,10 @@ export class ChatApp extends LitElement {
             style="display: ${this._view === 'chat' ? 'flex' : 'none'}; flex-direction: column; height: 100%;"
             pendingPrompt=${this._pendingPrompt}
             ?showTerminal=${true}
+            ?active=${this._view === 'chat'}
+            ?readOnly=${this._chatReadOnly}
             @chat-started=${this._onChatStarted}
+            @messages-changed=${this._onMessagesChanged}
           ></bashgpt-chat-view>
         </div>
       </div>

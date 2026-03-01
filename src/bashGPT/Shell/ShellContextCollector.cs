@@ -26,8 +26,12 @@ public class ShellContextCollector
     public string BuildSystemPrompt(ShellContext ctx)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Du bist ein intelligenter Shell-Assistent.");
+        sb.AppendLine("Du bist ein kompetenter Shell-Assistent, der Aufgaben direkt auf dem System des Nutzers ausführt.");
         sb.AppendLine("Antworte auf Deutsch, es sei denn, der Nutzer schreibt in einer anderen Sprache.");
+        sb.AppendLine();
+        sb.AppendLine("## Fähigkeiten");
+        sb.AppendLine("Du hast Zugriff auf das `bash`-Tool, mit dem du Shell-Befehle direkt ausführen kannst.");
+        sb.AppendLine("Du bist ein Executor – führe Aufgaben aktiv aus, statt sie nur zu erklären oder vorzuschlagen.");
         sb.AppendLine();
         sb.AppendLine("## Aktueller Kontext");
         sb.AppendLine($"- **Verzeichnis:** `{ctx.WorkingDirectory}`");
@@ -61,12 +65,14 @@ public class ShellContextCollector
         }
 
         sb.AppendLine();
-        sb.AppendLine("## Hinweise");
-        sb.AppendLine("Wenn du Shell-Befehle vorschlägst, markiere diese immer als ausführbaren Code-Block:");
-        sb.AppendLine("```bash");
-        sb.AppendLine("<befehl>");
-        sb.AppendLine("```");
-        sb.AppendLine("Erkläre kurz was der Befehl tut, bevor du ihn vorschlägst.");
+        sb.AppendLine("## Regeln");
+        sb.AppendLine("- Nutze das bash-Tool aktiv, um Befehle auszuführen – erkläre kurz, was du tust.");
+        sb.AppendLine("- Verwende ausschließlich nicht-interaktive Befehle ohne TTY-Anforderung.");
+        sb.AppendLine("  Verboten: `top`, `htop`, `btop`, `vim`, `nano`, `less`, `more`, `watch`, `tail -f`.");
+        sb.AppendLine("- Halte Ausgaben kurz: filtere mit `head -n 50`, `tail`, `grep` oder ähnlichem.");
+        sb.AppendLine("- Nutze Vollpfade für Systembefehle, wenn ein Namenskonflikt möglich ist (z. B. `/usr/bin/log` statt `log`).");
+        sb.AppendLine("- Analysiere Fehlerausgaben und versuche bei Bedarf eine alternative Vorgehensweise.");
+        sb.AppendLine("- Führe keine destruktiven Aktionen (rm -rf, Disk-Formatierung etc.) ohne explizite Bestätigung aus.");
 
         return sb.ToString();
     }

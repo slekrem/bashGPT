@@ -202,8 +202,9 @@ public class PromptHandler(
             if (opts.Verbose)
                 logs.Add($"Tool-Calls empfangen: {currentResponse.ToolCalls.Count}");
 
+            const int maxToolRounds = 3;
             var rounds = 0;
-            while (currentResponse.ToolCalls.Count > 0 && rounds < 5)
+            while (currentResponse.ToolCalls.Count > 0 && rounds < maxToolRounds)
             {
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
@@ -249,6 +250,19 @@ public class PromptHandler(
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
                 currentResponse = nextResponse.Response;
+            }
+
+            if (currentResponse.ToolCalls.Count > 0)
+            {
+                var loopGuardMessage =
+                    "Tool-Call-Schleife erkannt und beendet. " +
+                    "Bitte nutze nicht-interaktive Befehle (z. B. 'ps aux --sort=-%cpu | head' statt 'top').";
+                if (opts.Verbose)
+                    logs.Add($"Maximale Tool-Call-Runden erreicht ({maxToolRounds}).");
+                var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
+                    ? loopGuardMessage
+                    : currentResponse.Content;
+                return new ServerChatResult(responseText, commandResults, logs, usedToolCalls);
             }
 
             return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls);

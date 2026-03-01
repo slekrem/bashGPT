@@ -9,7 +9,7 @@ using BashGPT.Shell;
 
 namespace BashGPT.Server;
 
-public class ServerHost(IPromptHandler handler)
+public class ServerHost(IPromptHandler handler, string? historyFile = null)
 {
     private readonly List<ChatMessage> _history = [];
     private readonly object _historyLock = new();
@@ -32,6 +32,9 @@ public class ServerHost(IPromptHandler handler)
 
         Console.WriteLine($"bashGPT Server läuft auf {prefix}");
         Console.WriteLine("Beenden mit Ctrl+C");
+
+        if (historyFile is not null)
+            await LoadHistoryFromFileAsync(historyFile);
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);
@@ -94,6 +97,7 @@ public class ServerHost(IPromptHandler handler)
             {
                 lock (_historyLock)
                     _history.Clear();
+                await PersistHistoryAsync();
                 await WriteJsonAsync(ctx.Response, new { ok = true });
                 return;
             }
@@ -128,12 +132,19 @@ public class ServerHost(IPromptHandler handler)
 
                 AppendToHistory(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
                 AppendToHistory(new ChatMessage(ChatRole.Assistant, result.Response));
+                await PersistHistoryAsync();
 
                 await WriteJsonAsync(ctx.Response, new
                 {
                     response = result.Response,
                     usedToolCalls = result.UsedToolCalls,
                     logs = result.Logs,
+                    shellContext = new
+                    {
+                        user = Environment.UserName,
+                        host = Environment.MachineName,
+                        cwd  = Environment.CurrentDirectory
+                    },
                     commands = result.Commands.Select(c => new
                     {
                         command = c.Command,
@@ -151,6 +162,50 @@ public class ServerHost(IPromptHandler handler)
         {
             await WriteJsonAsync(ctx.Response, new { error = ex.Message }, statusCode: 500);
         }
+    }
+
+    private async Task LoadHistoryFromFileAsync(string path)
+    {
+        if (!File.Exists(path)) return;
+        try
+        {
+            var json = await File.ReadAllTextAsync(path);
+            var items = JsonSerializer.Deserialize<List<HistoryItem>>(json, JsonDefaults.Options) ?? [];
+            var messages = items
+                .Select(item => item.Role switch
+                {
+                    "user"      => new ChatMessage(ChatRole.User,      item.Content),
+                    "assistant" => new ChatMessage(ChatRole.Assistant,  item.Content),
+                    _           => (ChatMessage?)null
+                })
+                .Where(m => m is not null)
+                .Select(m => m!)
+                .ToList();
+            lock (_historyLock)
+            {
+                _history.Clear();
+                _history.AddRange(messages);
+                if (_history.Count > 40)
+                    _history.RemoveRange(0, _history.Count - 40);
+            }
+        }
+        catch { /* beschädigte Datei ignorieren – Neustart mit leerem Verlauf */ }
+    }
+
+    private async Task PersistHistoryAsync()
+    {
+        if (historyFile is null) return;
+        try
+        {
+            List<HistoryItem> items;
+            lock (_historyLock)
+                items = _history.Select(ToHistoryItem).ToList();
+            var dir = Path.GetDirectoryName(historyFile)!;
+            Directory.CreateDirectory(dir);
+            var serialized = JsonSerializer.Serialize(items, JsonDefaults.Options);
+            await File.WriteAllTextAsync(historyFile, serialized);
+        }
+        catch { /* Schreibfehler ignorieren */ }
     }
 
     private IReadOnlyList<ChatMessage> GetHistorySnapshot()

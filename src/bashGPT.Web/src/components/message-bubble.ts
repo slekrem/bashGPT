@@ -24,6 +24,7 @@ export class MessageBubble extends LitElement {
   @property() role: 'user' | 'assistant' = 'user'
   @property() content = ''
   @property() execMode: ExecMode | '' = ''
+  // Behalten für Rückwärtskompatibilität (v1), werden in v2 nicht mehr gerendert
   @property({ type: Array }) commands: CommandResult[] = []
   @property({ type: Boolean }) usedToolCalls = false
   @property({ type: Array }) logs: string[] = []
@@ -97,59 +98,6 @@ export class MessageBubble extends LitElement {
       }
       .content th { background: #1e293b; }
 
-      /* Commands */
-      .commands { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-
-      .cmd-card {
-        border: 1px solid #1e3a5f;
-        border-radius: 8px;
-        background: #020617;
-        overflow: hidden;
-      }
-      .cmd-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        background: #0c1a2e;
-        font-size: 12px;
-        color: #94a3b8;
-      }
-      .cmd-code {
-        font-family: ui-monospace, monospace;
-        color: #93c5fd;
-        font-size: 13px;
-        flex: 1;
-      }
-      .badge {
-        border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 11px;
-        font-weight: 600;
-      }
-      .badge.ok { background: #14532d; color: #86efac; }
-      .badge.fail { background: #7f1d1d; color: #fca5a5; }
-      .badge.skip { background: #1e293b; color: #94a3b8; }
-      .cmd-output {
-        padding: 8px 10px;
-        font-family: ui-monospace, monospace;
-        font-size: 12px;
-        color: #cbd5e1;
-        white-space: pre-wrap;
-        max-height: 200px;
-        overflow-y: auto;
-      }
-
-      /* Tool-call badge */
-      .tool-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 11px;
-        color: #a78bfa;
-        margin-top: 6px;
-      }
-
       /* Exec-mode badge */
       .meta-row {
         display: flex;
@@ -172,27 +120,15 @@ export class MessageBubble extends LitElement {
   ]
 
   private get _html() {
-    const parsed = marked.parse(this.content) as string
+    // Thinking-Blöcke (<thinking>…</thinking>) aus dem Content entfernen
+    const clean = this.content
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .trim()
+    const parsed = marked.parse(clean) as string
     const sanitized = DOMPurify.sanitize(parsed, {
       FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
     })
     return unsafeHTML(sanitized)
-  }
-
-  private _renderCommand(cmd: CommandResult) {
-    const badgeClass = !cmd.wasExecuted ? 'skip' : cmd.exitCode === 0 ? 'ok' : 'fail'
-    const badgeText = !cmd.wasExecuted ? 'übersprungen' : `exit ${cmd.exitCode}`
-    return html`
-      <div class="cmd-card">
-        <div class="cmd-header">
-          <span class="cmd-code">$ ${cmd.command}</span>
-          <span class="badge ${badgeClass}">${badgeText}</span>
-        </div>
-        ${cmd.wasExecuted && cmd.output
-          ? html`<div class="cmd-output">${cmd.output}</div>`
-          : ''}
-      </div>
-    `
   }
 
   private _execBadge() {
@@ -212,14 +148,6 @@ export class MessageBubble extends LitElement {
           ${this._execBadge()}
         </div>
         <div class="content">${this._html}</div>
-        ${this.usedToolCalls
-          ? html`<div class="tool-badge">⚡ Tool-Calls verwendet</div>`
-          : ''}
-        ${this.commands.length > 0
-          ? html`<div class="commands">
-              ${this.commands.map(c => this._renderCommand(c))}
-            </div>`
-          : ''}
       </div>
     `
   }

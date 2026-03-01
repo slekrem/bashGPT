@@ -1,12 +1,13 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
-import type { TerminalEntry } from '../types'
+import type { TerminalEntry, ShellContext } from '../types'
 
 @customElement('bashgpt-terminal-panel')
 export class TerminalPanel extends LitElement {
   @property({ type: Array }) entries: TerminalEntry[] = []
   @property({ type: Boolean }) loading = false
+  @property({ type: Object }) shellContext: ShellContext | null = null
 
   static styles = css`
     :host {
@@ -43,7 +44,7 @@ export class TerminalPanel extends LitElement {
 
     .entries {
       flex: 1;
-      overflow-y: auto;
+      overflow: auto;
       padding: 10px 0 16px;
     }
 
@@ -57,6 +58,7 @@ export class TerminalPanel extends LitElement {
     .entry {
       padding: 6px 12px 10px;
       border-bottom: 1px solid #0f172a;
+      min-width: max-content;
     }
     .entry:last-child { border-bottom: none; }
 
@@ -66,6 +68,10 @@ export class TerminalPanel extends LitElement {
       gap: 6px;
       margin-bottom: 4px;
     }
+    .prompt-prefix {
+      color: #93c5fd;
+      white-space: nowrap;
+    }
     .prompt-sign {
       color: #22c55e;
       font-weight: 700;
@@ -73,7 +79,9 @@ export class TerminalPanel extends LitElement {
     }
     .cmd-text {
       color: #f1f5f9;
-      word-break: break-all;
+      white-space: pre;
+      word-break: normal;
+      min-width: max-content;
     }
 
     .status-badge {
@@ -92,11 +100,9 @@ export class TerminalPanel extends LitElement {
 
     .output {
       color: #94a3b8;
-      white-space: pre-wrap;
-      word-break: break-all;
+      white-space: pre;
+      word-break: normal;
       margin-left: 16px;
-      max-height: 180px;
-      overflow-y: auto;
       line-height: 1.5;
     }
     .output.error { color: #f87171; }
@@ -139,6 +145,15 @@ export class TerminalPanel extends LitElement {
     return ''
   }
 
+  private _promptPrefix() {
+    const user = this.shellContext?.user?.trim() || 'benutzer'
+    const host = this.shellContext?.host?.trim() || 'maschine'
+    const cwdRaw = this.shellContext?.cwd?.trim() || '~'
+    const normalized = cwdRaw.replace(/\\/g, '/').replace(/\/+$/, '')
+    const cwd = normalized === '' ? cwdRaw : (normalized.split('/').at(-1) || cwdRaw)
+    return `${user}@${host} ${cwd}`
+  }
+
   render() {
     const hasEntries = this.entries.length > 0 || this.loading
 
@@ -162,18 +177,20 @@ export class TerminalPanel extends LitElement {
             const badgeLabel = e.status === 'error'
               ? `exit ${e.exitCode}`
               : this._badgeLabel(e.status)
+            const outputText = e.output?.length
+              ? e.output
+              : (e.status === 'skipped' ? '(übersprungen)' : '(keine Ausgabe)')
             return html`
               <div class="entry">
                 <div class="prompt-line">
+                  <span class="prompt-prefix">${this._promptPrefix()}</span>
                   <span class="prompt-sign">$</span>
                   <span class="cmd-text">${e.command}</span>
                   <span class="status-badge ${this._badgeClass(e.status)}">${badgeLabel}</span>
                 </div>
                 ${e.status === 'running'
                   ? html`<div class="running-indicator"><div class="spinner"></div> läuft…</div>`
-                  : e.output
-                    ? html`<div class="output ${this._outputClass(e)}">${e.output}</div>`
-                    : ''}
+                  : html`<div class="output ${this._outputClass(e)}">${outputText}</div>`}
               </div>
             `
           }

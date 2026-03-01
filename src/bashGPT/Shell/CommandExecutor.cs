@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace BashGPT.Shell;
 
@@ -9,8 +10,25 @@ public class CommandExecutor(
     ExecutionMode mode = ExecutionMode.Ask,
     TextWriter? output = null,
     TextReader? input = null,
-    int maxOutputChars = 10_000)
+    int maxOutputChars = 10_000,
+    int commandTimeoutSeconds = 30)
 {
+    private static readonly Regex InteractiveAlwaysPattern = new(
+        @"^\s*(htop|btop|watch|less|more|man|vim|vi|nano|emacs)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex TopPattern = new(
+        @"^\s*top\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex TailFollowPattern = new(
+        @"^\s*tail\b.*\s(-f|--follow(?:=[^\s]+)?)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex PingPattern = new(
+        @"^\s*ping\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly TextWriter _out   = output ?? Console.Out;
     private readonly TextReader _in    = input  ?? Console.In;
 
@@ -92,6 +110,16 @@ public class CommandExecutor(
             return new CommandResult(cmd.Command, -1, string.Empty, WasExecuted: false);
         }
 
+        if (TryGetInteractiveReason(cmd.Command, out var interactiveReason))
+        {
+            _out.WriteLine($"     Übersprungen: {interactiveReason}");
+            return new CommandResult(
+                cmd.Command,
+                -1,
+                $"ERROR: {interactiveReason}",
+                WasExecuted: false);
+        }
+
         // Bestätigung einholen (außer bei AutoExec)
         if (mode == ExecutionMode.Ask)
         {
@@ -141,7 +169,27 @@ public class CommandExecutor(
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        await process.WaitForExitAsync(ct);
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(commandTimeoutSeconds));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(linkedCts.Token);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Ignorieren; wir geben trotzdem einen Timeout-Fehler zurück.
+            }
+
+            return (-1, $"ERROR: Befehl nach {commandTimeoutSeconds}s abgebrochen.");
+        }
 
         var raw = sb.ToString();
         var truncated = raw.Length > maxOutputChars
@@ -153,4 +201,45 @@ public class CommandExecutor(
 
     private static string EscapeForShell(string command) =>
         command.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static bool TryGetInteractiveReason(string command, out string reason)
+    {
+        var trimmed = command.Trim();
+
+        if (InteractiveAlwaysPattern.IsMatch(trimmed))
+        {
+            reason = "Interaktiver Befehl blockiert ohne TTY. Bitte nutze eine nicht-interaktive Alternative.";
+            return true;
+        }
+
+        if (TopPattern.IsMatch(trimmed) && !IsTopOneShot(trimmed))
+        {
+            reason = "Interaktiver 'top'-Aufruf erkannt. Nutze z. B. 'top -l 1' (macOS) oder 'ps aux --sort=-%cpu | head'.";
+            return true;
+        }
+
+        if (TailFollowPattern.IsMatch(trimmed))
+        {
+            reason = "Fortlaufender 'tail -f/--follow'-Aufruf erkannt. Bitte ohne Follow-Option ausführen.";
+            return true;
+        }
+
+        if (PingPattern.IsMatch(trimmed) && !trimmed.Contains(" -c ", StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "Dauerlauf bei 'ping' erkannt. Bitte mit Paketlimit ausführen, z. B. 'ping -c 4 <host>'.";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool IsTopOneShot(string command)
+    {
+        // macOS: top -l 1
+        // Linux: top -b -n 1
+        return Regex.IsMatch(command, @"(^|\s)-l(\s*\d+)?(\s|$)", RegexOptions.IgnoreCase)
+            || Regex.IsMatch(command, @"(^|\s)-b(\s|$)", RegexOptions.IgnoreCase)
+            || Regex.IsMatch(command, @"(^|\s)-n(\s*\d+)?(\s|$)", RegexOptions.IgnoreCase);
+    }
 }

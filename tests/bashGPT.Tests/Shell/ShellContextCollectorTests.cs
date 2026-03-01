@@ -117,7 +117,8 @@ public class ShellContextCollectorTests
         Assert.Contains("Verzeichnis",        prompt);
         Assert.Contains("OS",                 prompt);
         Assert.Contains("Shell",              prompt);
-        Assert.Contains("```bash",            prompt);
+        Assert.Contains("bash-Tool",          prompt);
+        Assert.Contains("Regeln",             prompt);
     }
 
     [Fact]

@@ -4,7 +4,8 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
 import { sendChat, loadHistory, resetHistory } from '../api'
-import type { ExecMode, CommandResult, TerminalEntry } from '../types'
+import type { ExecMode, CommandResult, TerminalEntry, ShellContext } from '../types'
+import type { SnapshotMessage } from '../session-history'
 
 interface Message {
   id: number
@@ -21,14 +22,21 @@ export class ChatView extends LitElement {
   @property() pendingPrompt = ''
   /** v2-Modus: zeigt Terminal-Panel links neben dem Chat */
   @property({ type: Boolean }) showTerminal = false
+  /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
+  @property({ type: Boolean }) active = false
+  /** Readonly-Modus für archivierte Sessions ohne Server-Kontext */
+  @property({ type: Boolean }) readOnly = false
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
   @state() private _statusText = ''
   @state() private _statusError = false
-  @state() private _mode: ExecMode = 'ask'
+  @state() private _mode: ExecMode = 'auto-exec'
   @state() private _terminalOpen = true
+  @state() private _shellContext: ShellContext | null = null
   private _idCounter = 0
+  private _historyLoadSeq = 0
+  private _lastHandledPendingPrompt = ''
 
   static styles = css`
     :host {
@@ -46,17 +54,19 @@ export class ChatView extends LitElement {
     }
 
     bashgpt-terminal-panel {
-      width: 280px;
-      flex-shrink: 0;
-      transition: width 0.2s ease;
+      flex: 1;
+      min-width: 0;
+      transition: flex 0.2s ease, opacity 0.2s ease;
     }
     bashgpt-terminal-panel.collapsed {
-      width: 0;
+      flex: 0;
       overflow: hidden;
+      opacity: 0;
     }
 
     .chat-column {
       flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -199,7 +209,7 @@ export class ChatView extends LitElement {
 
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      bashgpt-terminal-panel { width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
+      bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
       .split-wrapper { flex-direction: column; }
     }
   `
@@ -211,14 +221,49 @@ export class ChatView extends LitElement {
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('pendingPrompt') && this.pendingPrompt) {
-      this._sendPrompt(this.pendingPrompt)
+      // Verhindert Duplikate beim gleichen String, erlaubt aber erneutes Ausführen
+      // nachdem pendingPrompt im Parent kurz auf '' zurückgesetzt wurde.
+      if (this.pendingPrompt !== this._lastHandledPendingPrompt) {
+        this._lastHandledPendingPrompt = this.pendingPrompt
+        this._sendPrompt(this.pendingPrompt)
+      }
+    } else if (changed.has('pendingPrompt') && !this.pendingPrompt) {
+      this._lastHandledPendingPrompt = ''
+    }
+    // History nachladen, wenn die View aktiv wird und noch keine Nachrichten vorhanden sind
+    if (changed.has('active') && this.active && this._messages.length === 0) {
+      this._loadHistory()
     }
   }
 
   /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
     this._messages = []
-    await this._loadHistory()
+    await this._loadHistory(true)
+  }
+
+  /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
+  loadSnapshot(messages: SnapshotMessage[]) {
+    this._messages = messages.map(m => ({
+      id: this._idCounter++,
+      role: m.role,
+      content: m.content,
+    }))
+    this._statusText = this.readOnly
+      ? 'Archivierte Session (nur lesen)'
+      : ''
+    this._statusError = false
+    this._scrollToBottom()
+  }
+
+  /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
+  getSnapshot(): SnapshotMessage[] {
+    return this._messages.map(m => ({ role: m.role, content: m.content }))
+  }
+
+  /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
+  setExecMode(mode: ExecMode) {
+    this._mode = mode
   }
 
   /** Öffentlich: Session zurücksetzen */
@@ -228,21 +273,29 @@ export class ChatView extends LitElement {
       this._messages = []
       this._statusText = 'Verlauf gelöscht'
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
       this._statusError = true
     }
   }
 
-  private async _loadHistory() {
+  private async _loadHistory(force = false) {
+    const loadSeq = ++this._historyLoadSeq
     try {
       const history = await loadHistory()
+      if (loadSeq !== this._historyLoadSeq) return
+      // Wenn zwischen Start und Ende bereits neue Messages entstanden sind
+      // (z. B. Dashboard-Prompt wurde gesendet), darf History diese nicht überschreiben.
+      if (!force && this._messages.length > 0) return
+
       this._messages = history.map(m => ({
         id: this._idCounter++,
         role: m.role,
         content: m.content,
       }))
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusError = true
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
@@ -252,6 +305,9 @@ export class ChatView extends LitElement {
   private async _sendPrompt(prompt: string) {
     if (!prompt.trim() || this._loading) return
 
+    // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
+    // angelegten User-Input nachträglich überschreibt.
+    this._historyLoadSeq++
     const execMode = this._mode
     this._messages = [
       ...this._messages,
@@ -265,6 +321,8 @@ export class ChatView extends LitElement {
 
     try {
       const result = await sendChat(prompt, execMode)
+      if (result.shellContext)
+        this._shellContext = result.shellContext
       this._messages = [
         ...this._messages,
         {
@@ -280,6 +338,7 @@ export class ChatView extends LitElement {
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
       this._statusText = parts.join(' · ')
       this._statusError = false
+      this._emitMessagesChanged()
     } catch (e) {
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
       this._statusError = true
@@ -287,6 +346,7 @@ export class ChatView extends LitElement {
         ...this._messages,
         { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._statusText}` },
       ]
+      this._emitMessagesChanged()
     } finally {
       this._loading = false
       this._scrollToBottom()
@@ -309,10 +369,19 @@ export class ChatView extends LitElement {
   }
 
   private _onKeydown(e: KeyboardEvent) {
+    if (this.readOnly) return
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       this._send()
     }
+  }
+
+  private _emitMessagesChanged() {
+    this.dispatchEvent(new CustomEvent('messages-changed', {
+      bubbles: true,
+      composed: true,
+      detail: { messages: this.getSnapshot() },
+    }))
   }
 
   /** Aggregiert alle CommandResults aus allen Nachrichten als TerminalEntries */
@@ -344,6 +413,14 @@ export class ChatView extends LitElement {
     return last?.role === 'user' ? 'Denke…' : 'Verarbeite Tool-Ergebnis…'
   }
 
+  private _fallbackShellContext(): ShellContext {
+    return {
+      user: 'benutzer',
+      host: window.location.hostname || 'maschine',
+      cwd: '~',
+    }
+  }
+
   render() {
     const isEmpty = this._messages.length === 0
     const workingText = this._workingText()
@@ -355,6 +432,7 @@ export class ChatView extends LitElement {
           <bashgpt-terminal-panel
             class="${showPanel ? '' : 'collapsed'}"
             .entries=${this._terminalEntries}
+            .shellContext=${this._shellContext ?? this._fallbackShellContext()}
             ?loading=${this._loading}
           ></bashgpt-terminal-panel>
         ` : ''}
@@ -376,8 +454,6 @@ export class ChatView extends LitElement {
                       role=${m.role}
                       content=${m.content}
                       execMode=${m.execMode ?? ''}
-                      .commands=${m.commands ?? []}
-                      ?usedToolCalls=${m.usedToolCalls ?? false}
                     ></bashgpt-message>
                   `
                 )}
@@ -395,17 +471,19 @@ export class ChatView extends LitElement {
       <footer>
         <div class="input-row">
           <textarea
-            placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
+            placeholder=${this.readOnly
+              ? 'Archivierte Session (nur lesen)'
+              : 'Nachricht eingeben… (Cmd+Enter zum Senden)'}
             aria-label="Nachricht eingeben"
             @keydown=${this._onKeydown}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
           ></textarea>
         </div>
         <div class="controls">
           <select
             .value=${this._mode}
             @change=${(e: Event) => { this._mode = (e.target as HTMLSelectElement).value as ExecMode }}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
             aria-label="Ausführungsmodus"
           >
             <option value="ask">ask</option>
@@ -435,7 +513,7 @@ export class ChatView extends LitElement {
           <button
             class="primary"
             @click=${this._send}
-            ?disabled=${this._loading}
+            ?disabled=${this._loading || this.readOnly}
             aria-label="Nachricht senden"
           >
             Senden
