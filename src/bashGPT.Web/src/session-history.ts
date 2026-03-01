@@ -98,6 +98,9 @@ export function upsertSession(
   }
 
   return sessions
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .sort((a, b) => {
+      const c = b.updatedAt.localeCompare(a.updatedAt)
+      return c !== 0 ? c : b.createdAt.localeCompare(a.createdAt)
+    })
     .slice(0, MAX_LOCAL_SESSIONS)
 }

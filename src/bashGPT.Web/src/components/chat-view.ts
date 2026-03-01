@@ -28,6 +28,8 @@ export class ChatView extends LitElement {
   @property({ type: Boolean }) readOnly = false
   /** One-shot Hook: wird vor dem ersten sendChat() der Session aufgerufen */
   @property({ attribute: false }) beforeSend?: () => Promise<void>
+  /** Session-ID für server-seitige Persistenz (optional) */
+  @property() sessionId = ''
 
   @state() private _messages: Message[] = []
   @state() private _loading = false
@@ -306,7 +308,6 @@ export class ChatView extends LitElement {
         content: m.content,
       }))
       this._statusError = false
-      this._emitMessagesChanged()
     } catch (e) {
       this._statusError = true
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
@@ -332,7 +333,7 @@ export class ChatView extends LitElement {
 
     try {
       if (this.beforeSend) await this.beforeSend()
-      const result = await sendChat(prompt, execMode)
+      const result = await sendChat(prompt, execMode, this.sessionId || undefined)
       if (result.shellContext)
         this._shellContext = result.shellContext
       this._messages = [

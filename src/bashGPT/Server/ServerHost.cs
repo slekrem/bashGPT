@@ -7,13 +7,15 @@ using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
+using BashGPT.Storage;
 
 namespace BashGPT.Server;
 
 public class ServerHost(
     IPromptHandler handler,
     ConfigurationService? configService = null,
-    string? historyFile = null)
+    string? historyFile = null,
+    SessionStore? sessionStore = null)
 {
     private readonly List<ChatMessage> _history = [];
     private readonly object _historyLock = new();
@@ -203,7 +205,23 @@ public class ServerHost(
                     return;
                 }
 
-                var historySnapshot = GetHistorySnapshot();
+                // Session-basierte History laden, falls sessionId übergeben und SessionStore verfügbar
+                IReadOnlyList<ChatMessage> historySnapshot;
+                if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+                {
+                    var session = await sessionStore.LoadAsync(body.SessionId);
+                    historySnapshot = session?.Messages
+                        .Where(m => m.Role is "user" or "assistant")
+                        .Select(m => new ChatMessage(
+                            m.Role == "user" ? ChatRole.User : ChatRole.Assistant,
+                            m.Content))
+                        .ToList() ?? [];
+                }
+                else
+                {
+                    historySnapshot = GetHistorySnapshot();
+                }
+
                 var requestedMode = ParseExecMode(body.ExecMode) ?? _execMode;
                 var chatOpts = new ServerChatOptions(
                     Prompt: body.Prompt.Trim(),
@@ -218,21 +236,60 @@ public class ServerHost(
 
                 var result = await handler.RunServerChatAsync(chatOpts, ct);
 
-                AppendToHistory(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
-                AppendToHistory(new ChatMessage(ChatRole.Assistant, result.Response));
-                await PersistHistoryAsync();
+                var shellCtx = new SessionShellContext
+                {
+                    User = Environment.UserName,
+                    Host = Environment.MachineName,
+                    Cwd  = Environment.CurrentDirectory,
+                };
+
+                // Session-basiertes Persistieren
+                if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+                {
+                    var session = await sessionStore.LoadAsync(body.SessionId);
+                    var newMessages = new List<SessionMessage>
+                    {
+                        new() { Role = "user",      Content = body.Prompt.Trim(), ExecMode = body.ExecMode },
+                        new() { Role = "assistant",  Content = result.Response,
+                            Commands = result.Commands.Count > 0
+                                ? result.Commands.Select(c => new SessionCommand
+                                {
+                                    Command = c.Command, ExitCode = c.ExitCode,
+                                    Output = c.Output, WasExecuted = c.WasExecuted,
+                                }).ToList()
+                                : null },
+                    };
+
+                    var existingMessages = session?.Messages ?? [];
+                    var allMessages = existingMessages.Concat(newMessages).ToList();
+                    var title = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
+                    if (title.Length > 40) title = title[..40] + "…";
+
+                    var now = DateTime.UtcNow.ToString("o");
+                    await sessionStore.UpsertAsync(new SessionRecord
+                    {
+                        Id           = body.SessionId,
+                        Title        = title,
+                        CreatedAt    = session?.CreatedAt ?? now,
+                        UpdatedAt    = now,
+                        Messages     = allMessages,
+                        ShellContext = shellCtx,
+                    });
+                }
+                else
+                {
+                    // Fallback: globale In-Memory-History (legacy)
+                    AppendToHistory(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
+                    AppendToHistory(new ChatMessage(ChatRole.Assistant, result.Response));
+                    await PersistHistoryAsync();
+                }
 
                 await WriteJsonAsync(ctx.Response, new
                 {
                     response = result.Response,
                     usedToolCalls = result.UsedToolCalls,
                     logs = result.Logs,
-                    shellContext = new
-                    {
-                        user = Environment.UserName,
-                        host = Environment.MachineName,
-                        cwd  = Environment.CurrentDirectory
-                    },
+                    shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
                     commands = result.Commands.Select(c => new
                     {
                         command = c.Command,
@@ -241,6 +298,98 @@ public class ServerHost(
                         wasExecuted = c.WasExecuted
                     })
                 });
+                return;
+            }
+
+            // ── Session-API ───────────────────────────────────────────────────
+
+            if (sessionStore is not null && req.HttpMethod == "GET" && path == "/api/sessions")
+            {
+                var sessions = await sessionStore.LoadAllAsync();
+                await WriteJsonAsync(ctx.Response, new
+                {
+                    sessions = sessions.Select(s => new
+                    {
+                        id = s.Id, title = s.Title,
+                        createdAt = s.CreatedAt, updatedAt = s.UpdatedAt,
+                    })
+                });
+                return;
+            }
+
+            if (sessionStore is not null && req.HttpMethod == "POST" && path == "/api/sessions")
+            {
+                var now = DateTime.UtcNow.ToString("o");
+                var newSession = new SessionRecord
+                {
+                    Id = $"s-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", Title = "Neuer Chat",
+                    CreatedAt = now, UpdatedAt = now,
+                };
+                await sessionStore.UpsertAsync(newSession);
+                await WriteJsonAsync(ctx.Response, new
+                {
+                    id = newSession.Id, title = newSession.Title,
+                    createdAt = newSession.CreatedAt, updatedAt = newSession.UpdatedAt,
+                });
+                return;
+            }
+
+            if (sessionStore is not null && req.HttpMethod == "POST" && path == "/api/sessions/clear")
+            {
+                await sessionStore.ClearAsync();
+                lock (_historyLock) _history.Clear();
+                await PersistHistoryAsync();
+                await WriteJsonAsync(ctx.Response, new { ok = true });
+                return;
+            }
+
+            if (sessionStore is not null && req.HttpMethod == "GET"
+                && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+            {
+                var id = path["/api/sessions/".Length..];
+                var session = await sessionStore.LoadAsync(id);
+                if (session is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Session nicht gefunden." }, statusCode: 404);
+                    return;
+                }
+                await WriteJsonAsync(ctx.Response, session);
+                return;
+            }
+
+            if (sessionStore is not null && req.HttpMethod == "PUT"
+                && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+            {
+                var id = path["/api/sessions/".Length..];
+                var body = await JsonSerializer.DeserializeAsync<SessionRecord>(
+                    req.InputStream, JsonDefaults.Options, ct);
+                if (body is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Ungültiger Body." }, statusCode: 400);
+                    return;
+                }
+                body.Id = id;
+                body.UpdatedAt = DateTime.UtcNow.ToString("o");
+                // Fehlende Felder aus der bestehenden Session übernehmen (verhindert Datenverlust)
+                if (string.IsNullOrEmpty(body.CreatedAt) || string.IsNullOrEmpty(body.Title))
+                {
+                    var existing = await sessionStore.LoadAsync(id);
+                    if (string.IsNullOrEmpty(body.CreatedAt))
+                        body.CreatedAt = existing?.CreatedAt ?? body.UpdatedAt;
+                    if (string.IsNullOrEmpty(body.Title))
+                        body.Title = existing?.Title ?? "Chat";
+                }
+                await sessionStore.UpsertAsync(body);
+                await WriteJsonAsync(ctx.Response, new { ok = true });
+                return;
+            }
+
+            if (sessionStore is not null && req.HttpMethod == "DELETE"
+                && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+            {
+                var id = path["/api/sessions/".Length..];
+                await sessionStore.DeleteAsync(id);
+                await WriteJsonAsync(ctx.Response, new { ok = true });
                 return;
             }
 
@@ -397,6 +546,6 @@ public class ServerHost(
         string? Provider, string? Model, string? ApiKey,
         string? OllamaHost, string? ExecMode, bool? ForceTools);
 
-    private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose);
+    private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose, string? SessionId);
     private sealed record HistoryItem(string Role, string Content);
 }
