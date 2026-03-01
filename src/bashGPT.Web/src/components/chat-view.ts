@@ -15,6 +15,7 @@ interface Message {
   execMode?: ExecMode
   commands?: CommandResult[]
   usedToolCalls?: boolean
+  usage?: TokenUsage
 }
 
 @customElement('bashgpt-chat-view')
@@ -43,6 +44,7 @@ export class ChatView extends LitElement {
   @state() private _context: FullShellContext | null = null
   @state() private _settings: Settings | null = null
   @state() private _contextLoaded = false
+  @state() private _contextLoading = false
   @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 }
   private _idCounter = 0
   private _historyLoadSeq = 0
@@ -281,7 +283,9 @@ export class ChatView extends LitElement {
       content: m.content,
       commands: m.commands,
       execMode: m.execMode,
+      usage: m.usage,
     }))
+    this._tokenUsage = this._sumTokenUsage(this._messages)
     if (shellContext !== undefined) this._shellContext = shellContext ?? null
     this._statusText = hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : '')
     this._statusError = false
@@ -295,6 +299,7 @@ export class ChatView extends LitElement {
       content: m.content,
       ...(m.commands?.length ? { commands: m.commands } : {}),
       ...(m.execMode ? { execMode: m.execMode } : {}),
+      ...(m.usage ? { usage: m.usage } : {}),
     }))
   }
 
@@ -308,6 +313,7 @@ export class ChatView extends LitElement {
     try {
       await resetHistory()
       this._messages = []
+      this._tokenUsage = { inputTokens: 0, outputTokens: 0 }
       this._statusText = 'Verlauf gelöscht'
       this._statusError = false
       this._emitMessagesChanged()
@@ -331,6 +337,7 @@ export class ChatView extends LitElement {
         role: m.role,
         content: m.content,
       }))
+      this._tokenUsage = this._sumTokenUsage(this._messages)
       this._statusError = false
     } catch (e) {
       this._statusError = true
@@ -360,12 +367,6 @@ export class ChatView extends LitElement {
       const result = await sendChat(prompt, execMode, this.sessionId || undefined)
       if (result.shellContext)
         this._shellContext = result.shellContext
-      if (result.usage) {
-        this._tokenUsage = {
-          inputTokens:  this._tokenUsage.inputTokens  + result.usage.inputTokens,
-          outputTokens: this._tokenUsage.outputTokens + result.usage.outputTokens,
-        }
-      }
       this._messages = [
         ...this._messages,
         {
@@ -374,8 +375,10 @@ export class ChatView extends LitElement {
           content: result.response,
           commands: result.commands,
           usedToolCalls: result.usedToolCalls,
+          usage: result.usage ?? undefined,
         },
       ]
+      this._tokenUsage = this._sumTokenUsage(this._messages)
       const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
       if (result.commands.length > 0)
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
@@ -453,8 +456,24 @@ export class ChatView extends LitElement {
     this._infoOpen = !this._infoOpen
     if (this._infoOpen && !this._contextLoaded) {
       this._contextLoaded = true
-      ;[this._context, this._settings] = await Promise.all([getContext(), getSettings()])
+      this._contextLoading = true
+      try {
+        ;[this._context, this._settings] = await Promise.all([getContext(), getSettings()])
+      } finally {
+        this._contextLoading = false
+      }
     }
+  }
+
+  private _sumTokenUsage(messages: Message[]): TokenUsage {
+    let inputTokens = 0
+    let outputTokens = 0
+    for (const message of messages) {
+      if (!message.usage) continue
+      inputTokens += message.usage.inputTokens
+      outputTokens += message.usage.outputTokens
+    }
+    return { inputTokens, outputTokens }
   }
 
   private get _commandStats() {
@@ -539,7 +558,7 @@ export class ChatView extends LitElement {
           messageCount=${this._messages.length}
           .commandStats=${this._commandStats}
           .tokenUsage=${this._tokenUsage}
-          ?loading=${!this._contextLoaded && this._infoOpen}
+          ?loading=${this._contextLoading}
         ></bashgpt-chat-info-panel>
       </div>
 

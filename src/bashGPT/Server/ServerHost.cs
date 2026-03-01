@@ -271,6 +271,11 @@ public class ServerHost(
                     {
                         new() { Role = "user",      Content = body.Prompt.Trim(), ExecMode = body.ExecMode },
                         new() { Role = "assistant",  Content = result.Response,
+                            Usage = result.Usage is null ? null : new SessionTokenUsage
+                            {
+                                InputTokens = result.Usage.InputTokens,
+                                OutputTokens = result.Usage.OutputTokens,
+                            },
                             Commands = result.Commands.Count > 0
                                 ? result.Commands.Select(c => new SessionCommand
                                 {
