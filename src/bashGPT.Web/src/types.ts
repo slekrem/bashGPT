@@ -42,6 +42,21 @@ export interface Settings {
   forceTools: boolean
 }
 
+export interface GitContext {
+  branch: string
+  lastCommit: string | null
+  changedFilesCount: number
+}
+
+export interface FullShellContext {
+  user: string
+  host: string
+  cwd: string
+  os: string
+  shell: string
+  git?: GitContext | null
+}
+
 export type AppView = 'dashboard' | 'chat' | 'settings'
 
 export type ChatStatus = 'idle' | 'loading' | 'error'

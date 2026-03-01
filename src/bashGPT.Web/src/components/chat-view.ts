@@ -3,8 +3,9 @@ import { customElement, state, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory } from '../api'
-import type { ExecMode, CommandResult, TerminalEntry, ShellContext } from '../types'
+import './chat-info-panel'
+import { sendChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
+import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -38,6 +39,10 @@ export class ChatView extends LitElement {
   @state() private _mode: ExecMode = 'auto-exec'
   @state() private _terminalOpen = true
   @state() private _shellContext: ShellContext | null = null
+  @state() private _infoOpen = false
+  @state() private _context: FullShellContext | null = null
+  @state() private _settings: Settings | null = null
+  @state() private _contextLoaded = false
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -211,10 +216,28 @@ export class ChatView extends LitElement {
     }
     .status.error { color: #ef4444; }
 
+    /* ── Info Panel ─────────────────────────────────────────────────────── */
+    bashgpt-chat-info-panel {
+      width: 280px;
+      flex-shrink: 0;
+      overflow: hidden;
+      border-left: 1px solid #1e293b;
+      transition: width 0.2s ease, opacity 0.2s ease;
+    }
+    bashgpt-chat-info-panel.collapsed {
+      width: 0;
+      opacity: 0;
+    }
+
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
       .split-wrapper { flex-direction: column; }
+      bashgpt-chat-info-panel {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #1e293b;
+      }
     }
   `
 
@@ -419,6 +442,26 @@ export class ChatView extends LitElement {
     return entries
   }
 
+  private async _toggleInfo() {
+    this._infoOpen = !this._infoOpen
+    if (this._infoOpen && !this._contextLoaded) {
+      this._contextLoaded = true
+      ;[this._context, this._settings] = await Promise.all([getContext(), getSettings()])
+    }
+  }
+
+  private get _commandStats() {
+    let total = 0, success = 0, error = 0, skipped = 0
+    for (const m of this._messages)
+      for (const c of m.commands ?? []) {
+        total++
+        if (!c.wasExecuted) skipped++
+        else if (c.exitCode === 0) success++
+        else error++
+      }
+    return { total, success, error, skipped }
+  }
+
   private _workingText() {
     if (!this._loading) return ''
     const last = this._messages.at(-1)
@@ -452,6 +495,7 @@ export class ChatView extends LitElement {
 
         <div class="chat-column">
           <div id="chat">
+
             ${isEmpty
               ? html`
                   <div class="empty-state">
@@ -479,6 +523,16 @@ export class ChatView extends LitElement {
             </div>
           ` : ''}
         </div>
+
+        <bashgpt-chat-info-panel
+          class="${this._infoOpen ? '' : 'collapsed'}"
+          .context=${this._context}
+          .settings=${this._settings}
+          execMode=${this._mode}
+          messageCount=${this._messages.length}
+          .commandStats=${this._commandStats}
+          ?loading=${!this._contextLoaded && this._infoOpen}
+        ></bashgpt-chat-info-panel>
       </div>
 
       <footer>
@@ -514,6 +568,13 @@ export class ChatView extends LitElement {
               aria-label="Terminal ein-/ausblenden"
             >⌃ Terminal</button>
           ` : ''}
+
+          <button
+            class="terminal-toggle ${this._infoOpen ? 'active' : ''}"
+            @click=${this._toggleInfo}
+            title="Info-Panel ein-/ausblenden"
+            aria-pressed=${this._infoOpen ? 'true' : 'false'}
+          >ℹ Info</button>
 
           <span
             class="status ${this._statusError ? 'error' : ''}"
