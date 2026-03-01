@@ -56,34 +56,39 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
                 openAiRequest.ToolChoice = OpenAiToolChoice.ForFunction(request.ToolChoiceName!);
         }
 
-        using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{config.BaseUrl.TrimEnd('/')}/chat/completions")
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options),
-                Encoding.UTF8, "application/json")
-        };
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
+        // Serialisierung einmalig außerhalb der Retry-Schleife
+        var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
+        var url = $"{config.BaseUrl.TrimEnd('/')}/chat/completions";
 
-        HttpResponseMessage response;
-        try
-        {
-            response = await _http.SendAsync(httpRequest,
-                HttpCompletionOption.ResponseHeadersRead, ct);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new LlmProviderException(
-                $"Cerebras API nicht erreichbar ({config.BaseUrl}): {ex.Message}", ex);
-        }
-        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
-        {
-            throw new LlmProviderException("Timeout beim Verbinden mit Cerebras API.", ex);
-        }
+        const int maxRetries = 3;
+        HttpResponseMessage response = null!;
 
-        if (!response.IsSuccessStatusCode)
+        for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(serialized, Encoding.UTF8, "application/json")
+            };
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
+
+            try
+            {
+                response = await _http.SendAsync(httpRequest,
+                    HttpCompletionOption.ResponseHeadersRead, ct);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new LlmProviderException(
+                    $"Cerebras API nicht erreichbar ({config.BaseUrl}): {ex.Message}", ex);
+            }
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
+            {
+                throw new LlmProviderException("Timeout beim Verbinden mit Cerebras API.", ex);
+            }
+
+            if (response.IsSuccessStatusCode)
+                break;
+
             var body = await response.Content.ReadAsStringAsync(ct);
 
             // Einige Modelle lehnen erzwungenes tool_choice in Randfällen mit 422 ab.
@@ -97,10 +102,18 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
                 return await ChatAsyncInternal(fallbackRequest, ct, allowToolChoiceFallback: false);
             }
 
+            // Bei 429 automatisch wiederholen (bis maxRetries erschöpft sind)
+            if ((int)response.StatusCode == 429 && attempt < maxRetries)
+            {
+                var delay = GetRetryDelay(response, attempt);
+                await Task.Delay(delay, ct);
+                continue;
+            }
+
             var hint = (int)response.StatusCode switch
             {
                 401 => " → API-Key ungültig oder abgelaufen.",
-                429 => " → Rate-Limit erreicht. Bitte warte kurz.",
+                429 => $" → Rate-Limit nach {maxRetries} Versuchen weiterhin aktiv.",
                 _   => ""
             };
             throw new LlmProviderException(
@@ -421,6 +434,17 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
 
     private static ToolCall MapToolCall(OpenAiToolCall call) =>
         new(call.Id, call.Function.Name ?? "", call.Function.Arguments ?? "", null);
+
+    /// Liest den Retry-After-Header (Sekunden) aus der 429-Antwort.
+    /// Fallback: exponentielles Backoff (2s, 4s, 8s), maximal 10s.
+    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    {
+        if (response.Headers.RetryAfter?.Delta is { } delta)
+            return delta < TimeSpan.FromSeconds(30) ? delta : TimeSpan.FromSeconds(30);
+
+        var seconds = Math.Min(Math.Pow(2, attempt + 1), 10);
+        return TimeSpan.FromSeconds(seconds);
+    }
 
     private static void ApplyToolDelta(
         Dictionary<int, ToolCallBuilder> builder,
