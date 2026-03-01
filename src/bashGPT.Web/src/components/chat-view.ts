@@ -243,12 +243,18 @@ export class ChatView extends LitElement {
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
-  loadSnapshot(messages: SnapshotMessage[]) {
+  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
+    // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
+    // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
+    this._historyLoadSeq++
     this._messages = messages.map(m => ({
       id: this._idCounter++,
       role: m.role,
       content: m.content,
+      commands: m.commands,
+      execMode: m.execMode,
     }))
+    if (shellContext !== undefined) this._shellContext = shellContext ?? null
     this._statusText = this.readOnly
       ? 'Archivierte Session (nur lesen)'
       : ''
@@ -258,7 +264,12 @@ export class ChatView extends LitElement {
 
   /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
   getSnapshot(): SnapshotMessage[] {
-    return this._messages.map(m => ({ role: m.role, content: m.content }))
+    return this._messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      ...(m.commands?.length ? { commands: m.commands } : {}),
+      ...(m.execMode ? { execMode: m.execMode } : {}),
+    }))
   }
 
   /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
@@ -380,7 +391,7 @@ export class ChatView extends LitElement {
     this.dispatchEvent(new CustomEvent('messages-changed', {
       bubbles: true,
       composed: true,
-      detail: { messages: this.getSnapshot() },
+      detail: { messages: this.getSnapshot(), shellContext: this._shellContext },
     }))
   }
 

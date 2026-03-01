@@ -8,7 +8,7 @@ import './settings-view'
 import './chat-view'
 import './terminal-panel'
 import { sendChat, loadHistory, resetHistory, getSessions } from '../api'
-import type { AppView, ExecMode, CommandResult, Session } from '../types'
+import type { AppView, ExecMode, CommandResult, Session, ShellContext } from '../types'
 import {
   LIVE_SESSION_ID,
   createLiveSession,
@@ -274,6 +274,20 @@ export class ChatApp extends LitElement {
           this._chatReadOnly = this._activeSessionId !== LIVE_SESSION_ID
         }
         writeLocalSessions(this._localSessions)
+
+        // Initiale Session sofort in die chat-view laden, damit commands nach
+        // einem Reload sichtbar sind – noch bevor _loadHistory() vom Server
+        // zurückkommt (der keine commands kennt).
+        await this.updateComplete
+        const initialId = this._activeSessionId ?? LIVE_SESSION_ID
+        const initialSession = this._localSessions.find(s => s.id === initialId)
+        if (initialSession && initialSession.messages.length > 0) {
+          const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+          if (chatView) {
+            chatView.readOnly = this._chatReadOnly
+            chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext)
+          }
+        }
       }
     } else {
       await this._v1LoadHistory()
@@ -298,7 +312,9 @@ export class ChatApp extends LitElement {
       const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
       if (snapshot && snapshot.length > 0 && this._activeSessionId === LIVE_SESSION_ID) {
         const archivedId = `s-${Date.now()}`
-        this._localSessions = upsertSession(this._localSessions, archivedId, snapshot)
+        // ShellContext der Live-Session beim Archivieren mitübernehmen
+        const liveShellContext = this._localSessions.find(s => s.id === LIVE_SESSION_ID)?.shellContext
+        this._localSessions = upsertSession(this._localSessions, archivedId, snapshot, liveShellContext)
       }
     }
 
@@ -335,7 +351,7 @@ export class ChatApp extends LitElement {
       const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
       if (selected && chatView) {
         chatView.readOnly = this._chatReadOnly
-        chatView.loadSnapshot?.(selected.messages ?? [])
+        chatView.loadSnapshot?.(selected.messages ?? [], selected.shellContext)
       }
       return
     }
@@ -399,7 +415,7 @@ export class ChatApp extends LitElement {
     this._activeSessionId = LIVE_SESSION_ID
   }
 
-  private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[] }>) {
+  private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
     if (!this._useLocalSessionsFallback) return
     if (this._chatReadOnly) return
 
@@ -409,7 +425,7 @@ export class ChatApp extends LitElement {
       this._chatReadOnly = false
     }
 
-    this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages)
+    this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages, e.detail.shellContext)
     writeLocalSessions(this._localSessions)
     this._sessions = this._localSessions.map(toSession)
   }
