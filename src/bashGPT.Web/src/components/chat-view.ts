@@ -3,8 +3,9 @@ import { customElement, state, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory } from '../api'
-import type { ExecMode, CommandResult, TerminalEntry, ShellContext } from '../types'
+import './chat-info-panel'
+import { sendChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
+import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -14,6 +15,7 @@ interface Message {
   execMode?: ExecMode
   commands?: CommandResult[]
   usedToolCalls?: boolean
+  usage?: TokenUsage
 }
 
 @customElement('bashgpt-chat-view')
@@ -38,6 +40,12 @@ export class ChatView extends LitElement {
   @state() private _mode: ExecMode = 'auto-exec'
   @state() private _terminalOpen = true
   @state() private _shellContext: ShellContext | null = null
+  @state() private _infoOpen = false
+  @state() private _context: FullShellContext | null = null
+  @state() private _settings: Settings | null = null
+  @state() private _contextLoaded = false
+  @state() private _contextLoading = false
+  @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -211,10 +219,28 @@ export class ChatView extends LitElement {
     }
     .status.error { color: #ef4444; }
 
+    /* ── Info Panel ─────────────────────────────────────────────────────── */
+    bashgpt-chat-info-panel {
+      width: 280px;
+      flex-shrink: 0;
+      overflow: hidden;
+      border-left: 1px solid #1e293b;
+      transition: width 0.2s ease, opacity 0.2s ease;
+    }
+    bashgpt-chat-info-panel.collapsed {
+      width: 0;
+      opacity: 0;
+    }
+
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
       .split-wrapper { flex-direction: column; }
+      bashgpt-chat-info-panel {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #1e293b;
+      }
     }
   `
 
@@ -257,7 +283,9 @@ export class ChatView extends LitElement {
       content: m.content,
       commands: m.commands,
       execMode: m.execMode,
+      usage: m.usage,
     }))
+    this._tokenUsage = this._sumTokenUsage(this._messages)
     if (shellContext !== undefined) this._shellContext = shellContext ?? null
     this._statusText = hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : '')
     this._statusError = false
@@ -271,6 +299,7 @@ export class ChatView extends LitElement {
       content: m.content,
       ...(m.commands?.length ? { commands: m.commands } : {}),
       ...(m.execMode ? { execMode: m.execMode } : {}),
+      ...(m.usage ? { usage: m.usage } : {}),
     }))
   }
 
@@ -284,6 +313,7 @@ export class ChatView extends LitElement {
     try {
       await resetHistory()
       this._messages = []
+      this._tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
       this._statusText = 'Verlauf gelöscht'
       this._statusError = false
       this._emitMessagesChanged()
@@ -307,6 +337,7 @@ export class ChatView extends LitElement {
         role: m.role,
         content: m.content,
       }))
+      this._tokenUsage = this._sumTokenUsage(this._messages)
       this._statusError = false
     } catch (e) {
       this._statusError = true
@@ -344,8 +375,10 @@ export class ChatView extends LitElement {
           content: result.response,
           commands: result.commands,
           usedToolCalls: result.usedToolCalls,
+          usage: result.usage ?? undefined,
         },
       ]
+      this._tokenUsage = this._sumTokenUsage(this._messages)
       const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
       if (result.commands.length > 0)
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
@@ -419,6 +452,44 @@ export class ChatView extends LitElement {
     return entries
   }
 
+  private async _toggleInfo() {
+    this._infoOpen = !this._infoOpen
+    if (this._infoOpen && !this._contextLoaded) {
+      this._contextLoaded = true
+      this._contextLoading = true
+      try {
+        ;[this._context, this._settings] = await Promise.all([getContext(), getSettings()])
+      } finally {
+        this._contextLoading = false
+      }
+    }
+  }
+
+  private _sumTokenUsage(messages: Message[]): TokenUsage {
+    let inputTokens = 0
+    let outputTokens = 0
+    let cachedInputTokens = 0
+    for (const message of messages) {
+      if (!message.usage) continue
+      inputTokens += message.usage.inputTokens
+      outputTokens += message.usage.outputTokens
+      cachedInputTokens += message.usage.cachedInputTokens ?? 0
+    }
+    return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens }
+  }
+
+  private get _commandStats() {
+    let total = 0, success = 0, error = 0, skipped = 0
+    for (const m of this._messages)
+      for (const c of m.commands ?? []) {
+        total++
+        if (!c.wasExecuted) skipped++
+        else if (c.exitCode === 0) success++
+        else error++
+      }
+    return { total, success, error, skipped }
+  }
+
   private _workingText() {
     if (!this._loading) return ''
     const last = this._messages.at(-1)
@@ -452,6 +523,7 @@ export class ChatView extends LitElement {
 
         <div class="chat-column">
           <div id="chat">
+
             ${isEmpty
               ? html`
                   <div class="empty-state">
@@ -479,6 +551,17 @@ export class ChatView extends LitElement {
             </div>
           ` : ''}
         </div>
+
+        <bashgpt-chat-info-panel
+          class="${this._infoOpen ? '' : 'collapsed'}"
+          .context=${this._context}
+          .settings=${this._settings}
+          execMode=${this._mode}
+          messageCount=${this._messages.length}
+          .commandStats=${this._commandStats}
+          .tokenUsage=${this._tokenUsage}
+          ?loading=${this._contextLoading}
+        ></bashgpt-chat-info-panel>
       </div>
 
       <footer>
@@ -514,6 +597,13 @@ export class ChatView extends LitElement {
               aria-label="Terminal ein-/ausblenden"
             >⌃ Terminal</button>
           ` : ''}
+
+          <button
+            class="terminal-toggle ${this._infoOpen ? 'active' : ''}"
+            @click=${this._toggleInfo}
+            title="Info-Panel ein-/ausblenden"
+            aria-pressed=${this._infoOpen ? 'true' : 'false'}
+          >ℹ Info</button>
 
           <span
             class="status ${this._statusError ? 'error' : ''}"

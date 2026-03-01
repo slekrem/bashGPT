@@ -17,6 +17,14 @@ public class ServerHost(
     string? historyFile = null,
     SessionStore? sessionStore = null)
 {
+    private static readonly HttpClient MetadataHttp = new()
+    {
+        Timeout = TimeSpan.FromSeconds(5)
+    };
+    private static readonly TimeSpan ContextWindowCacheTtl = TimeSpan.FromMinutes(10);
+    private static readonly Dictionary<string, (DateTime fetchedAtUtc, int? value)> ContextWindowCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object ContextWindowCacheLock = new();
+
     private readonly List<ChatMessage> _history = [];
     private readonly object _historyLock = new();
     private volatile ExecutionMode _execMode = ExecutionMode.Ask;
@@ -113,6 +121,26 @@ public class ServerHost(
                 return;
             }
 
+            if (req.HttpMethod == "GET" && path == "/api/context")
+            {
+                var shellCtx = await new ShellContextCollector().CollectAsync(includeDirectoryListing: false);
+                await WriteJsonAsync(ctx.Response, new
+                {
+                    user = Environment.UserName,
+                    host = Environment.MachineName,
+                    cwd = shellCtx.WorkingDirectory,
+                    os = shellCtx.OperatingSystem,
+                    shell = shellCtx.Shell,
+                    git = shellCtx.Git == null ? null : (object)new
+                    {
+                        branch = shellCtx.Git.Branch,
+                        lastCommit = shellCtx.Git.LastCommit,
+                        changedFilesCount = shellCtx.Git.ChangedFiles.Count,
+                    },
+                });
+                return;
+            }
+
             if (req.HttpMethod == "GET" && path == "/api/settings")
             {
                 if (configService is null)
@@ -124,10 +152,14 @@ public class ServerHost(
                 var activeModel = config.DefaultProvider == ProviderType.Cerebras
                     ? config.Cerebras.Model
                     : config.Ollama.Model;
+                var contextWindowTokens = config.DefaultProvider == ProviderType.Cerebras
+                    ? await TryResolveCerebrasContextWindowAsync(config, activeModel, ct)
+                    : null;
                 await WriteJsonAsync(ctx.Response, new
                 {
                     provider = config.DefaultProvider.ToString().ToLower(),
                     model = activeModel,
+                    contextWindowTokens,
                     hasApiKey = config.Cerebras.ApiKey is not null,
                     ollamaHost = config.Ollama.BaseUrl,
                     execMode = ExecModeToString(_execMode),
@@ -251,6 +283,13 @@ public class ServerHost(
                     {
                         new() { Role = "user",      Content = body.Prompt.Trim(), ExecMode = body.ExecMode },
                         new() { Role = "assistant",  Content = result.Response,
+                            Usage = result.Usage is null ? null : new SessionTokenUsage
+                            {
+                                InputTokens = result.Usage.InputTokens,
+                                OutputTokens = result.Usage.OutputTokens,
+                                TotalTokens = result.Usage.TotalTokens,
+                                CachedInputTokens = result.Usage.CachedInputTokens,
+                            },
                             Commands = result.Commands.Count > 0
                                 ? result.Commands.Select(c => new SessionCommand
                                 {
@@ -290,6 +329,13 @@ public class ServerHost(
                     usedToolCalls = result.UsedToolCalls,
                     logs = result.Logs,
                     shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
+                    usage = result.Usage == null ? null : (object)new
+                    {
+                        inputTokens  = result.Usage.InputTokens,
+                        outputTokens = result.Usage.OutputTokens,
+                        totalTokens = result.Usage.TotalTokens,
+                        cachedInputTokens = result.Usage.CachedInputTokens,
+                    },
                     commands = result.Commands.Select(c => new
                     {
                         command = c.Command,
@@ -489,6 +535,57 @@ public class ServerHost(
             _           => null
         };
 
+    private static async Task<int?> TryResolveCerebrasContextWindowAsync(AppConfig config, string model, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            return null;
+
+        lock (ContextWindowCacheLock)
+        {
+            if (ContextWindowCache.TryGetValue(model, out var cached)
+                && DateTime.UtcNow - cached.fetchedAtUtc <= ContextWindowCacheTtl)
+                return cached.value;
+        }
+
+        int? resolved = null;
+        try
+        {
+            var baseUri = TryGetCerebrasApiRoot(config.Cerebras.BaseUrl);
+            var modelId = Uri.EscapeDataString(model);
+            var url = $"{baseUri}/public/v1/models/{modelId}?format=huggingface";
+            using var response = await MetadataHttp.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                lock (ContextWindowCacheLock)
+                    ContextWindowCache[model] = (DateTime.UtcNow, null);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var payload = await JsonSerializer.DeserializeAsync<CerebrasModelMetadata>(stream, JsonDefaults.Options, ct);
+            resolved = payload?.ContextLength;
+        }
+        catch
+        {
+            // Kein Hard-Fail: Settings-Endpoint bleibt nutzbar.
+        }
+
+        lock (ContextWindowCacheLock)
+            ContextWindowCache[model] = (DateTime.UtcNow, resolved);
+        return resolved;
+    }
+
+    private static string TryGetCerebrasApiRoot(string? configuredBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(configuredBaseUrl))
+            return "https://api.cerebras.ai";
+
+        if (Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var uri))
+            return $"{uri.Scheme}://{uri.Authority}";
+
+        return "https://api.cerebras.ai";
+    }
+
     private static HistoryItem ToHistoryItem(ChatMessage message) =>
         new(message.RoleString, message.Content);
 
@@ -545,6 +642,12 @@ public class ServerHost(
     private sealed record SettingsRequest(
         string? Provider, string? Model, string? ApiKey,
         string? OllamaHost, string? ExecMode, bool? ForceTools);
+
+    private sealed class CerebrasModelMetadata
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("context_length")]
+        public int? ContextLength { get; set; }
+    }
 
     private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose, string? SessionId);
     private sealed record HistoryItem(string Role, string Content);

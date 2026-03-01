@@ -71,12 +71,16 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
             var toolCalls = full?.Message?.ToolCalls?.Select(MapToolCall).ToList() ?? [];
             if (!string.IsNullOrEmpty(content))
                 request.OnToken?.Invoke(content);
-            return new LlmChatResponse(content, toolCalls);
+            var nonStreamUsage = full?.PromptEvalCount is int p && full?.EvalCount is int o
+                ? new TokenUsage(p, o, p + o)
+                : null;
+            return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
 
         var contentBuilder = new System.Text.StringBuilder();
         var toolCallsByIndex = new Dictionary<int, ToolCall>();
         var toolCallsNoIndex = new List<ToolCall>();
+        int? promptTokens = null, outputTokens = null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new System.IO.StreamReader(stream);
@@ -117,7 +121,12 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
                 }
             }
 
-            if (chunk.Done) break;
+            if (chunk.Done)
+            {
+                if (chunk.PromptEvalCount is int p) promptTokens = p;
+                if (chunk.EvalCount is int o) outputTokens = o;
+                break;
+            }
         }
 
         var ordered = toolCallsByIndex
@@ -126,7 +135,11 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
             .Concat(toolCallsNoIndex)
             .ToList();
 
-        return new LlmChatResponse(contentBuilder.ToString(), ordered);
+        var usage = promptTokens.HasValue && outputTokens.HasValue
+            ? new TokenUsage(promptTokens.Value, outputTokens.Value, promptTokens.Value + outputTokens.Value)
+            : null;
+
+        return new LlmChatResponse(contentBuilder.ToString(), ordered, usage);
     }
 
     public async Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
@@ -227,8 +240,10 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
 
     private sealed class OllamaChatResponse
     {
-        [JsonPropertyName("message")] public OllamaMessage? Message { get; set; }
-        [JsonPropertyName("done")]    public bool Done               { get; set; }
+        [JsonPropertyName("message")]           public OllamaMessage? Message        { get; set; }
+        [JsonPropertyName("done")]              public bool           Done            { get; set; }
+        [JsonPropertyName("prompt_eval_count")] public int?           PromptEvalCount { get; set; }
+        [JsonPropertyName("eval_count")]        public int?           EvalCount       { get; set; }
     }
 
     private sealed class OllamaTool

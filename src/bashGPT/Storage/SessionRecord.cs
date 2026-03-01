@@ -28,6 +28,7 @@ public sealed class SessionMessage
     public string   Content  { get; set; } = string.Empty;
     public string?  ExecMode { get; set; }
     public List<SessionCommand>? Commands { get; set; }
+    public SessionTokenUsage? Usage { get; set; }
 }
 
 public sealed class SessionCommand
@@ -43,4 +44,12 @@ public sealed class SessionShellContext
     public string User { get; set; } = string.Empty;
     public string Host { get; set; } = string.Empty;
     public string Cwd  { get; set; } = string.Empty;
+}
+
+public sealed class SessionTokenUsage
+{
+    public int InputTokens { get; set; }
+    public int OutputTokens { get; set; }
+    public int? TotalTokens { get; set; }
+    public int? CachedInputTokens { get; set; }
 }

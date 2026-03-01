@@ -1,4 +1,4 @@
-import type { ChatResponse, ExecMode, HistoryMessage, Session, Settings } from './types'
+import type { ChatResponse, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
 
 const CHAT_TIMEOUT_MS = 120_000
 
@@ -114,6 +114,16 @@ export async function clearSessions(): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+// ── Context API ───────────────────────────────────────────────────────────────
+
+export async function getContext(): Promise<FullShellContext | null> {
+  try {
+    const res = await fetch('/api/context')
+    if (!res.ok) return null
+    return res.json()
+  } catch { return null }
 }
 
 // ── Settings (v2 API – graceful fallback if not yet implemented) ────────────
