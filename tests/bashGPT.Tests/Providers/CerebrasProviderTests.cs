@@ -149,4 +149,127 @@ public class CerebrasProviderTests
         Assert.Equal("Bearer my-secret-key",
             handler.LastRequest?.Headers.Authorization?.ToString());
     }
+
+    // ── ChatAsync ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ChatAsync_NonStream_ReturnsTextContent()
+    {
+        var json = """{"choices":[{"message":{"content":"Hallo Welt","tool_calls":null}}]}""";
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.Equal("Hallo Welt", result.Content);
+        Assert.Empty(result.ToolCalls);
+    }
+
+    [Fact]
+    public async Task ChatAsync_NonStream_ReturnsToolCall()
+    {
+        var json = """
+            {"choices":[{"message":{"content":null,"tool_calls":[
+              {"id":"call_1","type":"function","function":{"name":"bash","arguments":"{\"command\":\"ls -la\"}"}}
+            ]}}]}
+            """;
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
+                Tools: [ToolDefinitions.Bash], Stream: false));
+
+        Assert.Single(result.ToolCalls);
+        Assert.Equal("bash", result.ToolCalls[0].Name);
+        Assert.Contains("ls -la", result.ToolCalls[0].ArgumentsJson);
+    }
+
+    [Fact]
+    public async Task ChatAsync_Stream_ReturnsTextContent()
+    {
+        var sse = """
+            data: {"choices":[{"delta":{"content":"foo"}}]}
+            data: {"choices":[{"delta":{"content":"bar"}}]}
+            data: [DONE]
+            """;
+        var tokens = new List<string>();
+        var provider = CreateProvider(sse);
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")],
+                Stream: true, OnToken: t => tokens.Add(t)));
+
+        Assert.Equal(["foo", "bar"], tokens);
+        Assert.Equal("foobar", result.Content);
+    }
+
+    // ── 429 Retry-Logik ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ChatAsync_Retries_On429_ThenSucceeds()
+    {
+        // Retry-After: 0 → kein Warten im Test
+        var successBody = """{"choices":[{"message":{"content":"OK","tool_calls":null}}]}""";
+        var handler = new SequentialHttpMessageHandler(
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.Ok(successBody));
+
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.Equal(2, handler.CallCount);  // einmal 429, einmal 200
+        Assert.Equal("OK", result.Content);
+    }
+
+    [Fact]
+    public async Task ChatAsync_RetriesTwice_ThenSucceeds()
+    {
+        var successBody = """{"choices":[{"message":{"content":"Erfolg","tool_calls":null}}]}""";
+        var handler = new SequentialHttpMessageHandler(
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.Ok(successBody));
+
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.Equal(3, handler.CallCount);
+        Assert.Equal("Erfolg", result.Content);
+    }
+
+    [Fact]
+    public async Task ChatAsync_ThrowsAfterMaxRetries()
+    {
+        // 4 × 429 überschreitet das Limit von 3 Retries (= 4 Gesamtversuche)
+        var handler = new SequentialHttpMessageHandler(
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.TooManyRequests(),
+            SequentialHttpMessageHandler.TooManyRequests());
+
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(
+                new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false)));
+
+        Assert.Equal(4, handler.CallCount);
+        Assert.Contains("Rate-Limit", ex.Message);
+    }
 }

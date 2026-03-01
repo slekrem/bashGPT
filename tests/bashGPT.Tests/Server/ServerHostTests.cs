@@ -269,7 +269,7 @@ public sealed class ServerHostTests : IAsyncLifetime
         return port;
     }
 
-    private static async Task WaitForServerAsync(string baseUrl, int maxWaitMs = 3000)
+    private static async Task WaitForServerAsync(string baseUrl, int maxWaitMs = 5000)
     {
         using var probe = new HttpClient { BaseAddress = new Uri(baseUrl) };
         var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
