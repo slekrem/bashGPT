@@ -4,18 +4,27 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Cli;
+using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 
 namespace BashGPT.Server;
 
-public class ServerHost(IPromptHandler handler, string? historyFile = null)
+public class ServerHost(
+    IPromptHandler handler,
+    ConfigurationService? configService = null,
+    string? historyFile = null)
 {
     private readonly List<ChatMessage> _history = [];
     private readonly object _historyLock = new();
+    private volatile ExecutionMode _execMode = ExecutionMode.Ask;
+    private volatile bool _forceTools = false;
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
     {
+        _execMode = options.ExecMode;
+        _forceTools = options.ForceTools;
+
         var prefix = $"http://127.0.0.1:{options.Port}/";
         using var listener = new HttpListener();
         listener.Prefixes.Add(prefix);
@@ -102,6 +111,85 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
                 return;
             }
 
+            if (req.HttpMethod == "GET" && path == "/api/settings")
+            {
+                if (configService is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+                    return;
+                }
+                var config = await configService.LoadAsync();
+                var activeModel = config.DefaultProvider == ProviderType.Cerebras
+                    ? config.Cerebras.Model
+                    : config.Ollama.Model;
+                await WriteJsonAsync(ctx.Response, new
+                {
+                    provider = config.DefaultProvider.ToString().ToLower(),
+                    model = activeModel,
+                    hasApiKey = config.Cerebras.ApiKey is not null,
+                    ollamaHost = config.Ollama.BaseUrl,
+                    execMode = ExecModeToString(_execMode),
+                    forceTools = _forceTools
+                });
+                return;
+            }
+
+            if (req.HttpMethod == "PUT" && path == "/api/settings")
+            {
+                if (configService is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+                    return;
+                }
+                var body = await JsonSerializer.DeserializeAsync<SettingsRequest>(
+                    req.InputStream,
+                    JsonDefaults.Options,
+                    ct);
+                if (body is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Ungültiger Request-Body." }, statusCode: 400);
+                    return;
+                }
+                var config = await configService.LoadAsync();
+                var providerType = ParseProviderType(body.Provider);
+                if (providerType is not null) config.DefaultProvider = providerType.Value;
+                if (body.Model is not null)
+                {
+                    if (config.DefaultProvider == ProviderType.Cerebras) config.Cerebras.Model = body.Model;
+                    else config.Ollama.Model = body.Model;
+                }
+                if (!string.IsNullOrEmpty(body.ApiKey)) config.Cerebras.ApiKey = body.ApiKey;
+                if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
+                if (body.ExecMode is not null) _execMode = ParseExecMode(body.ExecMode) ?? _execMode;
+                if (body.ForceTools is bool ft) _forceTools = ft;
+                await configService.SaveAsync(config);
+                await WriteJsonAsync(ctx.Response, new { ok = true });
+                return;
+            }
+
+            if (req.HttpMethod == "POST" && path == "/api/settings/test")
+            {
+                if (configService is null)
+                {
+                    await WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+                    return;
+                }
+                var config = await configService.LoadAsync();
+                var provider = ProviderFactory.Create(config);
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    await provider.CompleteAsync([new ChatMessage(ChatRole.User, "Hi")], ct);
+                    sw.Stop();
+                    await WriteJsonAsync(ctx.Response, new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
+                }
+                catch (LlmProviderException ex)
+                {
+                    await WriteJsonAsync(ctx.Response, new { ok = false, error = ex.Message });
+                }
+                return;
+            }
+
             if (req.HttpMethod == "POST" && path == "/api/chat")
             {
                 var body = await JsonSerializer.DeserializeAsync<ChatRequest>(
@@ -116,7 +204,7 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
                 }
 
                 var historySnapshot = GetHistorySnapshot();
-                var requestedMode = ParseExecMode(body.ExecMode) ?? options.ExecMode;
+                var requestedMode = ParseExecMode(body.ExecMode) ?? _execMode;
                 var chatOpts = new ServerChatOptions(
                     Prompt: body.Prompt.Trim(),
                     History: historySnapshot,
@@ -126,7 +214,7 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
                     IncludeDir: options.IncludeDir,
                     ExecMode: requestedMode,
                     Verbose: options.Verbose || body.Verbose == true,
-                    ForceTools: options.ForceTools);
+                    ForceTools: _forceTools);
 
                 var result = await handler.RunServerChatAsync(chatOpts, ct);
 
@@ -224,14 +312,32 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
         }
     }
 
+    private static ProviderType? ParseProviderType(string? provider) =>
+        provider?.ToLowerInvariant() switch
+        {
+            "ollama"   => ProviderType.Ollama,
+            "cerebras" => ProviderType.Cerebras,
+            _          => null
+        };
+
+    private static string ExecModeToString(ExecutionMode mode) =>
+        mode switch
+        {
+            ExecutionMode.Ask      => "ask",
+            ExecutionMode.DryRun   => "dry-run",
+            ExecutionMode.AutoExec => "auto-exec",
+            ExecutionMode.NoExec   => "no-exec",
+            _                      => "ask"
+        };
+
     private static ExecutionMode? ParseExecMode(string? mode) =>
         mode?.ToLowerInvariant() switch
         {
-            "ask" => ExecutionMode.Ask,
-            "dry-run" => ExecutionMode.DryRun,
+            "ask"       => ExecutionMode.Ask,
+            "dry-run"   => ExecutionMode.DryRun,
             "auto-exec" => ExecutionMode.AutoExec,
-            "no-exec" => ExecutionMode.NoExec,
-            _ => null
+            "no-exec"   => ExecutionMode.NoExec,
+            _           => null
         };
 
     private static HistoryItem ToHistoryItem(ChatMessage message) =>
@@ -286,6 +392,10 @@ public class ServerHost(IPromptHandler handler, string? historyFile = null)
             // Kein Hard-Fail, UI bleibt über URL erreichbar.
         }
     }
+
+    private sealed record SettingsRequest(
+        string? Provider, string? Model, string? ApiKey,
+        string? OllamaHost, string? ExecMode, bool? ForceTools);
 
     private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose);
     private sealed record HistoryItem(string Role, string Content);
