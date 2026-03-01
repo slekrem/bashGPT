@@ -206,6 +206,11 @@ export class SettingsView extends LitElement {
     }
   }
 
+  private _clearHistory() {
+    if (!confirm('Gesamten Verlauf wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
+    this.dispatchEvent(new CustomEvent('clear-history', { bubbles: true, composed: true }))
+  }
+
   private _switchToV1() {
     localStorage.removeItem('bashgpt_ui_v2')
     location.reload()
@@ -310,6 +315,16 @@ export class SettingsView extends LitElement {
             />
             <label for="force-tools">Force Tools (Tool-Calling erzwingen)</label>
           </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Verlauf</div>
+        <div class="hint">Löscht alle gespeicherten Sessions aus dem Browser-Speicher und setzt die Server-History zurück.</div>
+        <div class="actions" style="margin-top: 12px;">
+          <button class="danger" @click=${this._clearHistory}>
+            Gesamten Verlauf löschen
+          </button>
         </div>
       </div>
 
