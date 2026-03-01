@@ -176,12 +176,6 @@ export class Sidebar extends LitElement {
       <div class="divider"></div>
 
       <button
-        class="nav-btn ${this.view === 'dashboard' ? 'active' : ''}"
-        @click=${() => this._dispatch('view-change', { view: 'dashboard' })}
-      >
-        <span class="icon">⌂</span> Dashboard
-      </button>
-      <button
         class="nav-btn ${this.view === 'settings' ? 'active' : ''}"
         @click=${() => this._dispatch('view-change', { view: 'settings' })}
         style="margin-bottom: 12px;"

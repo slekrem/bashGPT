@@ -526,12 +526,6 @@ export class ChatApp extends LitElement {
             @click=${() => { this._mobileMenuOpen = !this._mobileMenuOpen }}
             aria-label="Menü"
           >☰</button>
-          <button
-            class="primary"
-            @click=${this._onNewChat}
-          >
-            + Neuer Chat
-          </button>
         </div>
       </header>
 
