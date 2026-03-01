@@ -3,14 +3,18 @@ using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Server;
 using BashGPT.Shell;
+using BashGPT.Storage;
 
+var configDir        = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+    ".config", "bashgpt");
 var configService    = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
 var handler          = new PromptHandler(configService, contextCollector);
-var historyFile      = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-    ".config", "bashgpt", "history.json");
-var serverHost       = new ServerHost(handler, configService, historyFile);
+var historyFile      = Path.Combine(configDir, "history.json");
+var sessionsFile     = Path.Combine(configDir, "sessions.json");
+var sessionStore     = new SessionStore(sessionsFile, legacyHistoryFile: historyFile);
+var serverHost       = new ServerHost(handler, configService, historyFile, sessionStore);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 

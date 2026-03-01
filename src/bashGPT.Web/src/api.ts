@@ -19,7 +19,7 @@ async function assertOk(res: Response): Promise<void> {
   throw new Error(await readErrorMessage(res))
 }
 
-export async function sendChat(prompt: string, execMode: ExecMode): Promise<ChatResponse> {
+export async function sendChat(prompt: string, execMode: ExecMode, sessionId?: string): Promise<ChatResponse> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
   let res: Response
@@ -27,7 +27,7 @@ export async function sendChat(prompt: string, execMode: ExecMode): Promise<Chat
     res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, execMode }),
+      body: JSON.stringify({ prompt, execMode, ...(sessionId ? { sessionId } : {}) }),
       signal: controller.signal,
     })
   } catch (err) {
@@ -54,7 +54,7 @@ export async function resetHistory(): Promise<void> {
   await assertOk(res)
 }
 
-// ── Sessions (v2 API – graceful fallback if not yet implemented) ────────────
+// ── Sessions API ─────────────────────────────────────────────────────────────
 
 export async function getSessions(): Promise<Session[]> {
   try {
@@ -67,9 +67,9 @@ export async function getSessions(): Promise<Session[]> {
   }
 }
 
-export async function createSession(): Promise<Session | null> {
+export async function getSession(id: string): Promise<{ messages: any[]; shellContext?: any } | null> {
   try {
-    const res = await fetch('/api/sessions', { method: 'POST' })
+    const res = await fetch(`/api/sessions/${id}`)
     if (!res.ok) return null
     return res.json()
   } catch {
@@ -77,9 +77,32 @@ export async function createSession(): Promise<Session | null> {
   }
 }
 
+export async function putSession(
+  id: string,
+  data: { title?: string; messages: any[]; shellContext?: any; createdAt?: string }
+): Promise<void> {
+  try {
+    await fetch(`/api/sessions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, id }),
+    })
+  } catch {
+    // ignore – localStorage bleibt als Fallback
+  }
+}
+
 export async function deleteSession(id: string): Promise<void> {
   try {
     await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
+  } catch {
+    // ignore
+  }
+}
+
+export async function clearSessions(): Promise<void> {
+  try {
+    await fetch('/api/sessions/clear', { method: 'POST' })
   } catch {
     // ignore
   }

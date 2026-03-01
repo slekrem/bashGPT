@@ -7,7 +7,7 @@ import './dashboard'
 import './settings-view'
 import './chat-view'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory, getSessions } from '../api'
+import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, clearSessions } from '../api'
 import type { AppView, ExecMode, CommandResult, Session, ShellContext } from '../types'
 import {
   LIVE_SESSION_ID,
@@ -249,11 +249,25 @@ export class ChatApp extends LitElement {
     super.connectedCallback()
     if (this._isV2) {
       const serverSessions = await getSessions()
+      // Server liefert Sessions → zentraler Modus; kein localStorage nötig
       this._useLocalSessionsFallback = serverSessions.length === 0
 
       if (!this._useLocalSessionsFallback) {
-        this._sessions = serverSessions
+        // ── Server-Modus ─────────────────────────────────────────────────────
+        await this._migrateLocalSessionsToServer()
+        const freshSessions = await getSessions()
+        this._sessions = freshSessions
+        if (this._sessions.length > 0) {
+          this._activeSessionId = this._sessions[0].id
+        }
+
+        // Erste Session mit Messages in die chat-view laden
+        await this.updateComplete
+        if (this._activeSessionId) {
+          await this._loadServerSessionIntoView(this._activeSessionId)
+        }
       } else {
+        // ── localStorage-Fallback (kein SessionStore auf Server) ─────────────
         this._localSessions = readLocalSessions()
 
         // First run fallback: import existing global server history once.
@@ -313,6 +327,40 @@ export class ChatApp extends LitElement {
     }
   }
 
+  // ── Server-Session-Hilfsmethoden ─────────────────────────────────────────
+
+  /** Einmalige Migration: localStorage-Sessions per API auf den Server hochladen. */
+  private async _migrateLocalSessionsToServer() {
+    const local = readLocalSessions()
+    if (local.length === 0) return
+    // Nur migrieren wenn der Server noch keine eigenen Sessions hat
+    const existing = await getSessions()
+    if (existing.length > 0) {
+      // Server hat bereits Daten – localStorage bereinigen
+      writeLocalSessions([])
+      return
+    }
+    for (const s of local) {
+      await putSession(s.id, {
+        title: s.title,
+        messages: s.messages,
+        shellContext: s.shellContext,
+        createdAt: s.createdAt,
+      })
+    }
+    writeLocalSessions([])
+  }
+
+  /** Lädt eine Server-Session und befüllt die chat-view. */
+  private async _loadServerSessionIntoView(id: string) {
+    const session = await getSession(id)
+    if (!session) return
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    if (!chatView) return
+    chatView.readOnly = false
+    chatView.loadSnapshot?.(session.messages ?? [], session.shellContext ?? null)
+  }
+
   // ── v2 event handlers ────────────────────────────────────────────────────
 
   private async _onNewChat() {
@@ -339,7 +387,8 @@ export class ChatApp extends LitElement {
       writeLocalSessions(this._localSessions)
       this._sessions = this._localSessions.map(toSession)
     } else {
-      this._sessions = this._sessions.filter(s => s.id !== LIVE_SESSION_ID)
+      // Server-Modus: Session-Liste neu laden
+      this._sessions = await getSessions()
     }
 
     this._view = 'chat'
@@ -351,7 +400,7 @@ export class ChatApp extends LitElement {
     this._mobileMenuOpen = false
   }
 
-  private _onSessionSelect(e: CustomEvent<{ id: string }>) {
+  private async _onSessionSelect(e: CustomEvent<{ id: string }>) {
     this._activeSessionId = e.detail.id
     this._view = 'chat'
     this._mobileMenuOpen = false
@@ -380,8 +429,8 @@ export class ChatApp extends LitElement {
 
     if (e.detail.id === LIVE_SESSION_ID) return
 
-    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
-    if (chatView) chatView.reloadHistory()
+    // Server-Modus: Session-Inhalt vom Server laden
+    await this._loadServerSessionIntoView(e.detail.id)
   }
 
   private _ensureLiveSessionActive() {
@@ -456,8 +505,12 @@ export class ChatApp extends LitElement {
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
     if (chatView) chatView.beforeSend = undefined
     if (chatView) await chatView.reset()
-    this._localSessions = []
-    writeLocalSessions(this._localSessions)
+    if (this._useLocalSessionsFallback) {
+      this._localSessions = []
+      writeLocalSessions(this._localSessions)
+    } else {
+      await clearSessions()
+    }
     this._sessions = []
     this._activeSessionId = null
   }
@@ -472,7 +525,6 @@ export class ChatApp extends LitElement {
   }
 
   private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
-    if (!this._useLocalSessionsFallback) return
     if (this._chatReadOnly) return
 
     const targetSessionId = this._activeSessionId ?? LIVE_SESSION_ID
@@ -481,9 +533,18 @@ export class ChatApp extends LitElement {
       this._chatReadOnly = false
     }
 
-    this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages, e.detail.shellContext)
-    writeLocalSessions(this._localSessions)
-    this._sessions = this._localSessions.map(toSession)
+    if (this._useLocalSessionsFallback) {
+      this._localSessions = upsertSession(this._localSessions, targetSessionId, e.detail.messages, e.detail.shellContext)
+      writeLocalSessions(this._localSessions)
+      this._sessions = this._localSessions.map(toSession)
+    } else {
+      // Server-Modus: Session per API persistieren und Sidebar aktualisieren
+      const sc = e.detail.shellContext
+      putSession(targetSessionId, {
+        messages: e.detail.messages,
+        shellContext: sc ? { user: (sc as any).user, host: (sc as any).host, cwd: (sc as any).cwd } : undefined,
+      }).then(() => getSessions().then(s => { this._sessions = s }))
+    }
   }
 
   private _switchToV2() {
@@ -617,6 +678,7 @@ export class ChatApp extends LitElement {
           <bashgpt-chat-view
             style="display: ${this._view === 'chat' ? 'flex' : 'none'}; flex-direction: column; height: 100%;"
             pendingPrompt=${this._pendingPrompt}
+            sessionId=${this._activeSessionId ?? ''}
             ?showTerminal=${true}
             ?active=${this._view === 'chat'}
             ?readOnly=${this._chatReadOnly}
