@@ -7,7 +7,7 @@ import './dashboard'
 import './settings-view'
 import './chat-view'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, clearSessions } from '../api'
+import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions } from '../api'
 import type { AppView, ExecMode, CommandResult, Session, ShellContext } from '../types'
 import {
   LIVE_SESSION_ID,
@@ -375,6 +375,19 @@ export class ChatApp extends LitElement {
         const liveShellContext = this._localSessions.find(s => s.id === LIVE_SESSION_ID)?.shellContext
         this._localSessions = upsertSession(this._localSessions, archivedId, snapshot, liveShellContext)
       }
+    } else if (!this._useLocalSessionsFallback && chatView) {
+      // Server-Modus: aktuelle 'current'-Session archivieren, bevor eine neue gestartet wird.
+      const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
+      if (snapshot && snapshot.length > 0) {
+        const liveSession = this._sessions.find(s => s.id === LIVE_SESSION_ID)
+        const archivedId = `s-${Date.now()}`
+        await putSession(archivedId, {
+          title: liveSession?.title ?? 'Chat',
+          messages: snapshot,
+          createdAt: liveSession?.createdAt,
+        })
+        await deleteSession(LIVE_SESSION_ID)
+      }
     }
 
     if (chatView) await chatView.reset()
@@ -538,12 +551,9 @@ export class ChatApp extends LitElement {
       writeLocalSessions(this._localSessions)
       this._sessions = this._localSessions.map(toSession)
     } else {
-      // Server-Modus: Session per API persistieren und Sidebar aktualisieren
-      const sc = e.detail.shellContext
-      putSession(targetSessionId, {
-        messages: e.detail.messages,
-        shellContext: sc ? { user: (sc as any).user, host: (sc as any).host, cwd: (sc as any).cwd } : undefined,
-      }).then(() => getSessions().then(s => { this._sessions = s }))
+      // Server-Modus: POST /api/chat persistiert bereits mit korrektem title/createdAt.
+      // Nur die Sidebar-Liste aktualisieren.
+      getSessions().then(s => { this._sessions = s })
     }
   }
 

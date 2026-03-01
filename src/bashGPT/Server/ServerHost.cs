@@ -370,6 +370,15 @@ public class ServerHost(
                 }
                 body.Id = id;
                 body.UpdatedAt = DateTime.UtcNow.ToString("o");
+                // Fehlende Felder aus der bestehenden Session übernehmen (verhindert Datenverlust)
+                if (string.IsNullOrEmpty(body.CreatedAt) || string.IsNullOrEmpty(body.Title))
+                {
+                    var existing = await sessionStore.LoadAsync(id);
+                    if (string.IsNullOrEmpty(body.CreatedAt))
+                        body.CreatedAt = existing?.CreatedAt ?? body.UpdatedAt;
+                    if (string.IsNullOrEmpty(body.Title))
+                        body.Title = existing?.Title ?? "Chat";
+                }
                 await sessionStore.UpsertAsync(body);
                 await WriteJsonAsync(ctx.Response, new { ok = true });
                 return;

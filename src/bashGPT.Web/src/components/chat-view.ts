@@ -308,7 +308,6 @@ export class ChatView extends LitElement {
         content: m.content,
       }))
       this._statusError = false
-      this._emitMessagesChanged()
     } catch (e) {
       this._statusError = true
       this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
