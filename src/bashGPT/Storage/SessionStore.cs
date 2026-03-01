@@ -75,6 +75,7 @@ public class SessionStore
 
             file.Sessions = [.. file.Sessions
                 .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.CreatedAt)
                 .Take(MaxSessions)];
 
             await WriteFileInternalAsync(file);

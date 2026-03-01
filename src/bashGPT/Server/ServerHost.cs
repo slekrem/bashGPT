@@ -322,7 +322,7 @@ public class ServerHost(
                 var now = DateTime.UtcNow.ToString("o");
                 var newSession = new SessionRecord
                 {
-                    Id = SessionStore.LiveSessionId, Title = "Neuer Chat",
+                    Id = $"s-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}", Title = "Neuer Chat",
                     CreatedAt = now, UpdatedAt = now,
                 };
                 await sessionStore.UpsertAsync(newSession);

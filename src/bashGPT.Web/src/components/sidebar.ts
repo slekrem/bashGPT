@@ -167,7 +167,7 @@ export class Sidebar extends LitElement {
                   aria-current=${s.id === this.activeSessionId ? 'page' : 'false'}
                 >
                   <div class="session-title">${s.title}</div>
-                  <div class="session-date">${this._formatDate(s.updatedAt)}</div>
+                  <div class="session-date">${this._formatDate(s.createdAt)}</div>
                 </button>
               `
             )}

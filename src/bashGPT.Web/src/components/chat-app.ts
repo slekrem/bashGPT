@@ -7,7 +7,7 @@ import './dashboard'
 import './settings-view'
 import './chat-view'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions } from '../api'
+import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions, createSession } from '../api'
 import type { AppView, ExecMode, CommandResult, Session, ShellContext } from '../types'
 import {
   LIVE_SESSION_ID,
@@ -249,15 +249,19 @@ export class ChatApp extends LitElement {
     super.connectedCallback()
     if (this._isV2) {
       const serverSessions = await getSessions()
-      // Server liefert Sessions → zentraler Modus; kein localStorage nötig
-      this._useLocalSessionsFallback = serverSessions.length === 0
+      // null = Endpunkt nicht erreichbar → localStorage-Fallback; [] = verfügbar aber leer → Server-Modus
+      this._useLocalSessionsFallback = serverSessions === null
 
       if (!this._useLocalSessionsFallback) {
         // ── Server-Modus ─────────────────────────────────────────────────────
         await this._migrateLocalSessionsToServer()
-        const freshSessions = await getSessions()
-        this._sessions = freshSessions
-        if (this._sessions.length > 0) {
+        const freshSessions = await getSessions() ?? []
+        if (freshSessions.length === 0) {
+          const s = await createSession()
+          if (s) this._activeSessionId = s.id
+          this._sessions = await getSessions() ?? []
+        } else {
+          this._sessions = freshSessions
           this._activeSessionId = this._sessions[0].id
         }
 
@@ -334,7 +338,7 @@ export class ChatApp extends LitElement {
     const local = readLocalSessions()
     if (local.length === 0) return
     // Nur migrieren wenn der Server noch keine eigenen Sessions hat
-    const existing = await getSessions()
+    const existing = await getSessions() ?? []
     if (existing.length > 0) {
       // Server hat bereits Daten – localStorage bereinigen
       writeLocalSessions([])
@@ -376,23 +380,17 @@ export class ChatApp extends LitElement {
         this._localSessions = upsertSession(this._localSessions, archivedId, snapshot, liveShellContext)
       }
     } else if (!this._useLocalSessionsFallback && chatView) {
-      // Server-Modus: aktuelle 'current'-Session archivieren, bevor eine neue gestartet wird.
+      // Server-Modus: leere Session aufräumen, dann neue anlegen
       const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
-      if (snapshot && snapshot.length > 0) {
-        const liveSession = this._sessions.find(s => s.id === LIVE_SESSION_ID)
-        const archivedId = `s-${Date.now()}`
-        await putSession(archivedId, {
-          title: liveSession?.title ?? 'Chat',
-          messages: snapshot,
-          createdAt: liveSession?.createdAt,
-        })
-        await deleteSession(LIVE_SESSION_ID)
+      if ((!snapshot || snapshot.length === 0) && this._activeSessionId) {
+        await deleteSession(this._activeSessionId)
       }
+      const newSession = await createSession()
+      if (newSession) this._activeSessionId = newSession.id
     }
 
     if (chatView) await chatView.reset()
     this._pendingPrompt = ''
-    this._activeSessionId = LIVE_SESSION_ID
     this._chatReadOnly = false
 
     if (this._useLocalSessionsFallback) {
@@ -400,8 +398,7 @@ export class ChatApp extends LitElement {
       writeLocalSessions(this._localSessions)
       this._sessions = this._localSessions.map(toSession)
     } else {
-      // Server-Modus: Session-Liste neu laden
-      this._sessions = await getSessions()
+      this._sessions = await getSessions() ?? []
     }
 
     this._view = 'chat'
@@ -440,26 +437,20 @@ export class ChatApp extends LitElement {
       return
     }
 
-    if (e.detail.id === LIVE_SESSION_ID) return
-
-    // Server-Modus: Session-Inhalt vom Server laden
+    // Server-Modus: Session-Inhalt vom Server laden (auch für 'current')
     await this._loadServerSessionIntoView(e.detail.id)
   }
 
   private _ensureLiveSessionActive() {
     this._chatReadOnly = false
-    this._activeSessionId = LIVE_SESSION_ID
-
     if (this._useLocalSessionsFallback) {
+      this._activeSessionId = LIVE_SESSION_ID
       if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID))
         this._localSessions = upsertSession(this._localSessions, LIVE_SESSION_ID, [])
       writeLocalSessions(this._localSessions)
       this._sessions = this._localSessions.map(toSession)
-      return
     }
-
-    if (!this._sessions.some(s => s.id === LIVE_SESSION_ID))
-      this._sessions = [this._currentSession(), ...this._sessions]
+    // Server-Modus: _activeSessionId bereits korrekt – nichts tun
   }
 
   private async _activateArchivedSession(archivedId: string) {
@@ -530,11 +521,15 @@ export class ChatApp extends LitElement {
 
   private _onChatStarted() {
     this._chatReadOnly = false
-    // Synthetische Session hinzufügen, damit der Nutzer über die Sidebar zurücknavigieren kann
-    if (!this._sessions.some(s => s.id === LIVE_SESSION_ID)) {
-      this._sessions = [this._currentSession(), ...this._sessions]
+    if (this._useLocalSessionsFallback) {
+      if (!this._sessions.some(s => s.id === LIVE_SESSION_ID))
+        this._sessions = [this._currentSession(), ...this._sessions]
+      this._activeSessionId = LIVE_SESSION_ID
+    } else {
+      // Server-Modus: _activeSessionId ist bereits korrekt gesetzt
+      if (this._activeSessionId && !this._sessions.some(s => s.id === this._activeSessionId))
+        this._sessions = [this._currentSession(), ...this._sessions]
     }
-    this._activeSessionId = LIVE_SESSION_ID
   }
 
   private _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
@@ -553,7 +548,7 @@ export class ChatApp extends LitElement {
     } else {
       // Server-Modus: POST /api/chat persistiert bereits mit korrektem title/createdAt.
       // Nur die Sidebar-Liste aktualisieren.
-      getSessions().then(s => { this._sessions = s })
+      getSessions().then(s => { this._sessions = s ?? [] })
     }
   }
 

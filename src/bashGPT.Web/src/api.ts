@@ -56,15 +56,23 @@ export async function resetHistory(): Promise<void> {
 
 // ── Sessions API ─────────────────────────────────────────────────────────────
 
-export async function getSessions(): Promise<Session[]> {
+export async function getSessions(): Promise<Session[] | null> {
   try {
     const res = await fetch('/api/sessions')
-    if (!res.ok) return []
+    if (!res.ok) return null
     const data = await res.json()
     return Array.isArray(data.sessions) ? data.sessions : []
   } catch {
-    return []
+    return null
   }
+}
+
+export async function createSession(): Promise<Session | null> {
+  try {
+    const res = await fetch('/api/sessions', { method: 'POST' })
+    if (!res.ok) return null
+    return res.json()
+  } catch { return null }
 }
 
 export async function getSession(id: string): Promise<{ messages: any[]; shellContext?: any } | null> {
