@@ -44,6 +44,7 @@ export interface Session {
 export interface Settings {
   provider: string
   model: string
+  contextWindowTokens?: number
   apiKey?: string
   ollamaHost?: string
   execMode: ExecMode

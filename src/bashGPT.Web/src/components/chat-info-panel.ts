@@ -177,11 +177,6 @@ export class ChatInfoPanel extends LitElement {
     const normalized = model.trim().toLowerCase()
     if (!normalized) return null
 
-    if (normalized.includes('gpt-oss:20b') || normalized.includes('gpt-oss-20b'))
-      return 131072
-    if (normalized.includes('gpt-oss:120b') || normalized.includes('gpt-oss-120b'))
-      return 131072
-
     const kMatch = normalized.match(/(?:^|[-_:])(\d{1,4})k(?:$|[-_:])/)
     if (kMatch) {
       const k = Number(kMatch[1])
@@ -217,7 +212,7 @@ export class ChatInfoPanel extends LitElement {
     const totalTokens = this.tokenUsage?.totalTokens ?? (inputTokens + outputTokens)
     const cachedInputTokens = this.tokenUsage?.cachedInputTokens ?? 0
     const usedTokens = totalTokens
-    const contextWindow = this._resolveContextWindow(this.settings?.model)
+    const contextWindow = this.settings?.contextWindowTokens ?? this._resolveContextWindow(this.settings?.model)
     const contextUsagePct = contextWindow && usedTokens > 0
       ? Math.min(100, Math.round((usedTokens / contextWindow) * 100))
       : null
