@@ -29,23 +29,33 @@
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
     </PropertyGroup>
 
-    <!-- Diagnose: zeigt cwd, npm-Version, NODE_ENV und ob tsc schon vorhanden ist -->
-    <Exec Command="sh -c 'pwd &amp;&amp; npm --version &amp;&amp; echo NODE_ENV=$NODE_ENV &amp;&amp; ls node_modules/.bin/tsc 2&gt;/dev/null &amp;&amp; echo TSC_FOUND || echo TSC_MISSING'"
+    <!-- Diagnose VOR install: cwd, npm-Version, NODE_ENV, tsc vorhanden? -->
+    <Exec Command="sh -c 'printf &quot;CWD=%s\nNPM=%s\nNODE_ENV=%s\n&quot; $(pwd) $(npm --version) &quot;$NODE_ENV&quot;; ls node_modules/.bin/tsc 2&gt;/dev/null &amp;&amp; echo TSC_BEFORE=found || echo TSC_BEFORE=missing'"
           WorkingDirectory="..\bashGPT.Web"
           EnvironmentVariables="$(NpmEnvPath)"
           Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-          ContinueOnError="true" />
+          ContinueOnError="true"
+          ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagBefore" />
+    </Exec>
+    <Message Text="[WebBuild] $(_DiagBefore)" Importance="high"
+             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
 
-    <!-- npm install: includedev=dev erzwingt Installation von tsc/vite -->
+    <!-- npm install mit include=dev erzwingt Installation von tsc/vite -->
     <Exec Command="npm install --include=dev" WorkingDirectory="..\bashGPT.Web"
           EnvironmentVariables="$(NpmEnvPath)" />
 
-    <!-- Diagnose: prüft ob tsc nach install vorhanden ist -->
-    <Exec Command="sh -c 'ls -la node_modules/.bin/tsc 2&gt;&amp;1 || echo TSC_STILL_MISSING_AFTER_INSTALL'"
+    <!-- Diagnose NACH install: tsc vorhanden? -->
+    <Exec Command="sh -c 'ls -la node_modules/.bin/tsc 2&gt;&amp;1 &amp;&amp; echo TSC_AFTER=found || echo TSC_AFTER=missing'"
           WorkingDirectory="..\bashGPT.Web"
           EnvironmentVariables="$(NpmEnvPath)"
           Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-          ContinueOnError="true" />
+          ContinueOnError="true"
+          ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagAfter" />
+    </Exec>
+    <Message Text="[WebBuild] $(_DiagAfter)" Importance="high"
+             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
 
     <!-- Build the frontend bundle (TypeScript compile + Vite). -->
     <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
