@@ -31,6 +31,12 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
         Assert.Equal("http://localhost:11434", config.Ollama.BaseUrl);
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
+        Assert.Equal(0.2, config.Ollama.Temperature);
+        Assert.Equal(0.9, config.Ollama.TopP);
+        Assert.Equal(16384, config.Ollama.NumCtx);
+        Assert.Equal(1024, config.Ollama.NumPredict);
+        Assert.Equal(1.05, config.Ollama.RepeatPenalty);
+        Assert.Null(config.Ollama.Seed);
         Assert.Equal("gpt-oss:120b-cloud", config.Cerebras.Model);
         Assert.Null(config.Cerebras.ApiKey);
     }
