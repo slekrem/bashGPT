@@ -43,7 +43,7 @@
              Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
 
     <!-- Vite 7 benötigt Node >= 20.19 (oder >= 22.12) -->
-    <Exec Command="node -e &quot;const v=process.versions.node; const p=v.split('.').map(Number); const maj=p[0]||0, min=p[1]||0; const ok=(maj&gt;=22)||(maj===20&amp;&amp;min&gt;=19); console.log('NODE='+v); if(!ok){ console.error('Node.js >= 20.19 (or >= 22.12) is required by Vite 7.'); process.exit(42); }&quot;"
+    <Exec Command="node -e &quot;const v=process.versions.node; const p=v.split('.').map(Number); const maj=p[0]||0, min=p[1]||0; const ok=(maj===20&amp;&amp;min&gt;=19)||(maj===22&amp;&amp;min&gt;=12)||(maj&gt;22); console.log('NODE='+v); if(!ok){ console.error('Node.js >= 20.19 (or >= 22.12) is required by Vite 7.'); process.exit(42); }&quot;"
           WorkingDirectory="$(WebFrontendDir)"
           EnvironmentVariables="$(NpmEnvPath)"
           IgnoreExitCode="true"
