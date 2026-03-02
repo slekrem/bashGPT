@@ -211,11 +211,6 @@ export class SettingsView extends LitElement {
     this.dispatchEvent(new CustomEvent('clear-history', { bubbles: true, composed: true }))
   }
 
-  private _switchToV1() {
-    localStorage.removeItem('bashgpt_ui_v2')
-    location.reload()
-  }
-
   render() {
     const s = this._settings
 
@@ -333,9 +328,6 @@ export class SettingsView extends LitElement {
       <div class="actions">
         <button class="primary" @click=${this._save} ?disabled=${!s || this._loading}>
           ${this._loading ? 'Speichert…' : 'Speichern'}
-        </button>
-        <button class="danger" @click=${this._switchToV1}>
-          Zur alten UI wechseln
         </button>
       </div>
 
