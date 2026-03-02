@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 
@@ -207,6 +208,37 @@ public class CerebrasProviderTests
 
         Assert.Equal(["foo", "bar"], tokens);
         Assert.Equal("foobar", result.Content);
+    }
+
+    [Fact]
+    public async Task ChatAsync_IncludesConfiguredCerebrasOptions()
+    {
+        var json = """{"choices":[{"message":{"content":"ok","tool_calls":null}}]}""";
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new CerebrasProvider(
+            new CerebrasConfig
+            {
+                ApiKey = "key",
+                Model = "test",
+                Temperature = 0.25,
+                TopP = 0.9,
+                MaxCompletionTokens = 2048,
+                Seed = 123,
+                ReasoningEffort = "medium"
+            },
+            new HttpClient(handler));
+
+        _ = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.NotNull(handler.LastRequestBody);
+        using var doc = JsonDocument.Parse(handler.LastRequestBody!);
+        var root = doc.RootElement;
+        Assert.Equal(0.25, root.GetProperty("temperature").GetDouble());
+        Assert.Equal(0.9, root.GetProperty("top_p").GetDouble());
+        Assert.Equal(2048, root.GetProperty("max_completion_tokens").GetInt32());
+        Assert.Equal(123, root.GetProperty("seed").GetInt32());
+        Assert.Equal("medium", root.GetProperty("reasoning_effort").GetString());
     }
 
     // ── 429 Retry-Logik ──────────────────────────────────────────────────────

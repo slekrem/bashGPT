@@ -11,17 +11,21 @@ internal sealed class TestHttpMessageHandler(
     string contentType = "application/x-ndjson") : HttpMessageHandler
 {
     public HttpRequestMessage? LastRequest { get; private set; }
+    public string? LastRequestBody { get; private set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         LastRequest = request;
+        LastRequestBody = request.Content is not null
+            ? await request.Content.ReadAsStringAsync(cancellationToken)
+            : null;
         var response = new HttpResponseMessage(statusCode)
         {
             Content = new StringContent(responseBody,
                 System.Text.Encoding.UTF8, contentType)
         };
-        return Task.FromResult(response);
+        return response;
     }
 }
 

@@ -47,6 +47,11 @@ export interface CerebrasSettings {
   apiKey?: string
   hasApiKey?: boolean
   baseUrl?: string
+  temperature?: number
+  topP?: number
+  maxCompletionTokens?: number
+  seed?: number
+  reasoningEffort?: string
 }
 
 export interface OllamaSettings {

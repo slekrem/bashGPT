@@ -159,6 +159,38 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Put_Settings_CerebrasAdvancedOptions_ArePersisted()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            provider = "cerebras",
+            cerebras = new
+            {
+                model = "cerebras-model-x",
+                temperature = 0.2,
+                topP = 0.95,
+                maxCompletionTokens = 8192,
+                seed = 1234,
+                reasoningEffort = "medium",
+            },
+        });
+
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var config = await _configService.LoadAsync();
+        Assert.Equal(ProviderType.Cerebras, config.DefaultProvider);
+        Assert.Equal("cerebras-model-x", config.Cerebras.Model);
+        Assert.Equal(0.2, config.Cerebras.Temperature);
+        Assert.Equal(0.95, config.Cerebras.TopP);
+        Assert.Equal(8192, config.Cerebras.MaxCompletionTokens);
+        Assert.Equal(1234, config.Cerebras.Seed);
+        Assert.Equal("medium", config.Cerebras.ReasoningEffort);
+    }
+
+    [Fact]
     public async Task Put_Settings_EmptyApiKey_DoesNotOverwriteExisting()
     {
         // Zuerst einen API-Key setzen

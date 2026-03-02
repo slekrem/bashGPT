@@ -113,6 +113,29 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("ollama.model", list);
         Assert.Contains("cerebras.apiKey", list);
         Assert.Contains("cerebras.model", list);
+        Assert.Contains("cerebras.temperature", list);
+        Assert.Contains("cerebras.topP", list);
+        Assert.Contains("cerebras.maxCompletionTokens", list);
+        Assert.Contains("cerebras.seed", list);
+        Assert.Contains("cerebras.reasoningEffort", list);
+    }
+
+    [Fact]
+    public async Task Set_CerebrasAdvancedOptions_ArePersisted()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("cerebras.temperature", "0.3");
+        await svc.SetAsync("cerebras.topP", "0.85");
+        await svc.SetAsync("cerebras.maxCompletionTokens", "4096");
+        await svc.SetAsync("cerebras.seed", "42");
+        await svc.SetAsync("cerebras.reasoningEffort", "high");
+
+        var loaded = await svc.LoadAsync();
+        Assert.Equal(0.3, loaded.Cerebras.Temperature);
+        Assert.Equal(0.85, loaded.Cerebras.TopP);
+        Assert.Equal(4096, loaded.Cerebras.MaxCompletionTokens);
+        Assert.Equal(42, loaded.Cerebras.Seed);
+        Assert.Equal("high", loaded.Cerebras.ReasoningEffort);
     }
 }
 

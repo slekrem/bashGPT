@@ -212,6 +212,11 @@ export class SettingsView extends LitElement {
         apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
         hasApiKey,
         baseUrl: settings.cerebras?.baseUrl ?? 'https://api.cerebras.ai/v1',
+        temperature: settings.cerebras?.temperature,
+        topP: settings.cerebras?.topP,
+        maxCompletionTokens: settings.cerebras?.maxCompletionTokens,
+        seed: settings.cerebras?.seed,
+        reasoningEffort: settings.cerebras?.reasoningEffort,
       },
       ollama: {
         model: ollamaModel,
@@ -268,6 +273,51 @@ export class SettingsView extends LitElement {
     this._status = ''
   }
 
+  private _setCerebrasTemperature(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, temperature: this._parseFloatInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasTopP(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, topP: this._parseFloatInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasMaxCompletionTokens(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, maxCompletionTokens: this._parseIntInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasSeed(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, seed: this._parseIntInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasReasoningEffort(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, reasoningEffort: value.trim() || undefined },
+    }
+    this._status = ''
+  }
+
   private _setOllamaModel(model: string) {
     if (!this._settings) return
     const next = {
@@ -304,12 +354,31 @@ export class SettingsView extends LitElement {
         model: settings.cerebras.model,
         ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
         baseUrl: settings.cerebras.baseUrl,
+        temperature: settings.cerebras.temperature,
+        topP: settings.cerebras.topP,
+        maxCompletionTokens: settings.cerebras.maxCompletionTokens,
+        seed: settings.cerebras.seed,
+        reasoningEffort: settings.cerebras.reasoningEffort,
       },
       ollama: {
         model: settings.ollama.model,
         host: settings.ollama.host,
       },
     }
+  }
+
+  private _parseFloatInput(value: string): number | undefined {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    const parsed = Number.parseFloat(trimmed)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  private _parseIntInput(value: string): number | undefined {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    const parsed = Number.parseInt(trimmed, 10)
+    return Number.isFinite(parsed) ? parsed : undefined
   }
 
   private async _save() {
@@ -423,7 +492,7 @@ export class SettingsView extends LitElement {
                 title=${this._showCerebrasApiKey ? 'API-Key verbergen' : 'API-Key anzeigen'}
                 aria-label=${this._showCerebrasApiKey ? 'API-Key verbergen' : 'API-Key anzeigen'}
               >
-                ${this._showCerebrasApiKey ? '🙈' : '👁'}
+                ${this._showCerebrasApiKey ? 'Hide' : 'Show'}
               </button>
             </div>
             <div class="hint">
@@ -441,6 +510,69 @@ export class SettingsView extends LitElement {
               @input=${(e: InputEvent) => this._setCerebrasBaseUrl((e.target as HTMLInputElement).value)}
               ?disabled=${!s || this._loading}
             />
+          </div>
+
+          <div class="field">
+            <label>Cerebras Temperature</label>
+            <input
+              type="number"
+              step="0.01"
+              .value=${s?.cerebras.temperature?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setCerebrasTemperature((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Cerebras top_p</label>
+            <input
+              type="number"
+              step="0.01"
+              .value=${s?.cerebras.topP?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setCerebrasTopP((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Cerebras max_completion_tokens</label>
+            <input
+              type="number"
+              step="1"
+              .value=${s?.cerebras.maxCompletionTokens?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setCerebrasMaxCompletionTokens((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Cerebras Seed</label>
+            <input
+              type="number"
+              step="1"
+              .value=${s?.cerebras.seed?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setCerebrasSeed((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Cerebras Reasoning Effort</label>
+            <select
+              .value=${s?.cerebras.reasoningEffort ?? ''}
+              @change=${(e: Event) => this._setCerebrasReasoningEffort((e.target as HTMLSelectElement).value)}
+              ?disabled=${!s || this._loading}
+            >
+              <option value="">Standard</option>
+              <option value="none">none</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
           </div>
         ` : html`
           <div class="field">
