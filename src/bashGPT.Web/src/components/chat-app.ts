@@ -1,14 +1,12 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
-import { repeat } from 'lit/directives/repeat.js'
-import './message-bubble'
 import './sidebar'
 import './dashboard'
 import './settings-view'
 import './chat-view'
 import './terminal-panel'
-import { sendChat, loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions, createSession } from '../api'
-import type { AppView, ExecMode, CommandResult, Session, ShellContext } from '../types'
+import { loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions, createSession } from '../api'
+import type { AppView, Session, ShellContext } from '../types'
 import {
   LIVE_SESSION_ID,
   createLiveSession,
@@ -21,23 +19,8 @@ import {
   type SnapshotMessage,
 } from '../session-history'
 
-// ── v1 message type (used in v1 layout) ─────────────────────────────────────
-interface Message {
-  id: number
-  role: 'user' | 'assistant'
-  content: string
-  commands?: CommandResult[]
-  usedToolCalls?: boolean
-}
-
-const UI_V2_KEY = 'bashgpt_ui_v2'
-
 @customElement('bashgpt-app')
 export class ChatApp extends LitElement {
-  // ── shared ────────────────────────────────────────────────────────────────
-  @state() private _isV2 = localStorage.getItem(UI_V2_KEY) === 'true'
-
-  // ── v2 shell state ────────────────────────────────────────────────────────
   @state() private _view: AppView = 'dashboard'
   @state() private _sessions: Session[] = []
   @state() private _activeSessionId: string | null = null
@@ -45,13 +28,6 @@ export class ChatApp extends LitElement {
   @state() private _mobileMenuOpen = false
   @state() private _chatReadOnly = false
 
-  // ── v1 state ──────────────────────────────────────────────────────────────
-  @state() private _messages: Message[] = []
-  @state() private _loading = false
-  @state() private _status = ''
-  @state() private _statusError = false
-  @state() private _mode: ExecMode = 'ask'
-  private _idCounter = 0
   private _localSessions: LocalSession[] = []
   private _useLocalSessionsFallback = false
 
@@ -121,7 +97,7 @@ export class ChatApp extends LitElement {
     }
     button.primary:hover:not(:disabled) { background: #166534; }
 
-    /* ── v2 shell layout ─────────────────────────────────────────────────── */
+    /* ── Shell layout ─────────────────────────────────────────────────────── */
     .shell {
       display: flex;
       flex: 1;
@@ -170,155 +146,78 @@ export class ChatApp extends LitElement {
       padding: 4px 8px;
       cursor: pointer;
     }
-
-    /* ── v1 layout (unchanged) ───────────────────────────────────────────── */
-    #chat {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      scroll-behavior: smooth;
-    }
-    .empty-state {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      color: #475569;
-    }
-    .empty-state .icon { font-size: 48px; }
-    .empty-state p { font-size: 16px; }
-    footer {
-      padding: 12px 20px 20px;
-      border-top: 1px solid #1e293b;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(8px);
-      flex-shrink: 0;
-    }
-    .input-row { display: flex; gap: 8px; align-items: flex-end; }
-    textarea {
-      flex: 1;
-      min-height: 56px;
-      max-height: 200px;
-      resize: vertical;
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #374151;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-family: inherit;
-      font-size: 14px;
-      line-height: 1.5;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    textarea:focus { border-color: #4b5563; }
-    textarea::placeholder { color: #4b5563; }
-    .controls { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-    select {
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-size: 13px;
-      cursor: pointer;
-      outline: none;
-    }
-    .status { font-size: 12px; color: #4b5563; flex: 1; text-align: right; }
-    .status.loading { color: #6b7280; }
-    .status.error { color: #ef4444; }
-    .spinner {
-      display: inline-block;
-      width: 12px; height: 12px;
-      border: 2px solid #374151;
-      border-top-color: var(--color-accent);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 4px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
   `
 
   async connectedCallback() {
     super.connectedCallback()
-    if (this._isV2) {
-      const serverSessions = await getSessions()
-      // null = Endpunkt nicht erreichbar → localStorage-Fallback; [] = verfügbar aber leer → Server-Modus
-      this._useLocalSessionsFallback = serverSessions === null
+    const serverSessions = await getSessions()
+    // null = Endpunkt nicht erreichbar → localStorage-Fallback; [] = verfügbar aber leer → Server-Modus
+    this._useLocalSessionsFallback = serverSessions === null
 
-      if (!this._useLocalSessionsFallback) {
-        // ── Server-Modus ─────────────────────────────────────────────────────
-        await this._migrateLocalSessionsToServer()
-        const freshSessions = await getSessions() ?? []
-        if (freshSessions.length === 0) {
-          const s = await createSession()
-          if (s) this._activeSessionId = s.id
-          this._sessions = await getSessions() ?? []
-        } else {
-          this._sessions = freshSessions
-          this._activeSessionId = this._sessions[0].id
-        }
-
-        // Erste Session mit Messages in die chat-view laden
-        await this.updateComplete
-        if (this._activeSessionId) {
-          await this._loadServerSessionIntoView(this._activeSessionId)
-        }
+    if (!this._useLocalSessionsFallback) {
+      // ── Server-Modus ─────────────────────────────────────────────────────
+      await this._migrateLocalSessionsToServer()
+      const freshSessions = await getSessions() ?? []
+      if (freshSessions.length === 0) {
+        const s = await createSession()
+        if (s) this._activeSessionId = s.id
+        this._sessions = await getSessions() ?? []
       } else {
-        // ── localStorage-Fallback (kein SessionStore auf Server) ─────────────
-        this._localSessions = readLocalSessions()
+        this._sessions = freshSessions
+        this._activeSessionId = this._sessions[0].id
+      }
 
-        // First run fallback: import existing global server history once.
-        if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID)) {
-          try {
-            const history = await loadHistory()
-            if (history.length > 0) {
-              this._localSessions.unshift(createLiveSession(historyToSnapshot(history)))
-            }
-          } catch {
-            // Ignore API error; UI still works in empty state.
+      // Erste Session mit Messages in die chat-view laden
+      await this.updateComplete
+      if (this._activeSessionId) {
+        await this._loadServerSessionIntoView(this._activeSessionId)
+      }
+    } else {
+      // ── localStorage-Fallback (kein SessionStore auf Server) ─────────────
+      this._localSessions = readLocalSessions()
+
+      // First run fallback: import existing global server history once.
+      if (!this._localSessions.some(s => s.id === LIVE_SESSION_ID)) {
+        try {
+          const history = await loadHistory()
+          if (history.length > 0) {
+            this._localSessions.unshift(createLiveSession(historyToSnapshot(history)))
           }
+        } catch {
+          // Ignore API error; UI still works in empty state.
         }
+      }
 
-        this._sessions = this._localSessions.map(toSession)
-        if (this._sessions.length > 0) {
-          this._activeSessionId = this._sessions[0].id
-          this._chatReadOnly = false
-        }
-        writeLocalSessions(this._localSessions)
+      this._sessions = this._localSessions.map(toSession)
+      if (this._sessions.length > 0) {
+        this._activeSessionId = this._sessions[0].id
+        this._chatReadOnly = false
+      }
+      writeLocalSessions(this._localSessions)
 
-        // Initiale Session sofort in die chat-view laden, damit commands nach
-        // einem Reload sichtbar sind – noch bevor _loadHistory() vom Server
-        // zurückkommt (der keine commands kennt).
-        await this.updateComplete
-        const initialId = this._activeSessionId ?? LIVE_SESSION_ID
-        const initialSession = this._localSessions.find(s => s.id === initialId)
-        if (initialSession && initialSession.messages.length > 0) {
-          const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
-          if (chatView) {
-            chatView.readOnly = false
-            if (initialId !== LIVE_SESSION_ID) {
-              const archivedId = initialId
-              chatView.beforeSend = async () => {
-                chatView.beforeSend = undefined
-                await this._activateArchivedSession(archivedId)
-              }
-              chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext,
-                'Archivierte Session – Nachricht senden, um fortzufahren')
-            } else {
-              chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext)
+      // Initiale Session sofort in die chat-view laden, damit commands nach
+      // einem Reload sichtbar sind – noch bevor _loadHistory() vom Server
+      // zurückkommt (der keine commands kennt).
+      await this.updateComplete
+      const initialId = this._activeSessionId ?? LIVE_SESSION_ID
+      const initialSession = this._localSessions.find(s => s.id === initialId)
+      if (initialSession && initialSession.messages.length > 0) {
+        const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+        if (chatView) {
+          chatView.readOnly = false
+          if (initialId !== LIVE_SESSION_ID) {
+            const archivedId = initialId
+            chatView.beforeSend = async () => {
+              chatView.beforeSend = undefined
+              await this._activateArchivedSession(archivedId)
             }
+            chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext,
+              'Archivierte Session – Nachricht senden, um fortzufahren')
+          } else {
+            chatView.loadSnapshot?.(initialSession.messages, initialSession.shellContext)
           }
         }
       }
-    } else {
-      await this._v1LoadHistory()
     }
   }
 
@@ -365,7 +264,7 @@ export class ChatApp extends LitElement {
     chatView.loadSnapshot?.(session.messages ?? [], session.shellContext ?? null)
   }
 
-  // ── v2 event handlers ────────────────────────────────────────────────────
+  // ── Event handlers ────────────────────────────────────────────────────────
 
   private async _onNewChat() {
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
@@ -552,91 +451,7 @@ export class ChatApp extends LitElement {
     }
   }
 
-  private _switchToV2() {
-    localStorage.setItem(UI_V2_KEY, 'true')
-    location.reload()
-  }
-
-  // ── v1 methods ───────────────────────────────────────────────────────────
-
-  private async _v1LoadHistory() {
-    try {
-      const history = await loadHistory()
-      this._messages = history.map(m => ({
-        id: this._idCounter++,
-        role: m.role,
-        content: m.content,
-      }))
-      this._statusError = false
-    } catch (e) {
-      this._statusError = true
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-    }
-  }
-
-  private async _v1Send() {
-    const textarea = this.shadowRoot!.querySelector('textarea')!
-    const prompt = textarea.value.trim()
-    if (!prompt || this._loading) return
-    textarea.value = ''
-    this._messages = [...this._messages, { id: this._idCounter++, role: 'user', content: prompt }]
-    this._loading = true
-    this._status = ''
-    this._statusError = false
-    this._v1ScrollToBottom()
-    try {
-      const result = await sendChat(prompt, this._mode)
-      this._messages = [...this._messages, {
-        id: this._idCounter++,
-        role: 'assistant',
-        content: result.response,
-        commands: result.commands,
-        usedToolCalls: result.usedToolCalls,
-      }]
-      const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
-      if (result.commands.length > 0) parts.push(`${result.commands.length} Befehle`)
-      this._status = parts.join(' · ')
-      this._statusError = false
-    } catch (e) {
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      this._statusError = true
-      this._messages = [...this._messages, { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._status}` }]
-    } finally {
-      this._loading = false
-      this._v1ScrollToBottom()
-    }
-  }
-
-  private async _v1Reset() {
-    try {
-      await resetHistory()
-      this._messages = []
-      this._status = 'Verlauf gelöscht'
-      this._statusError = false
-    } catch (e) {
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      this._statusError = true
-    }
-  }
-
-  private _v1ScrollToBottom() {
-    requestAnimationFrame(() => {
-      const chat = this.shadowRoot?.querySelector('#chat')
-      if (chat) chat.scrollTop = chat.scrollHeight
-    })
-  }
-
-  private _v1Keydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this._v1Send() }
-  }
-
-  // ── render ───────────────────────────────────────────────────────────────
-
   render() {
-    return this._isV2 ? this._renderV2() : this._renderV1()
-  }
-
-  private _renderV2() {
     return html`
       <header>
         <div class="logo" @click=${() => { this._view = 'dashboard'; this._mobileMenuOpen = false }}>
@@ -692,60 +507,6 @@ export class ChatApp extends LitElement {
           ></bashgpt-chat-view>
         </div>
       </div>
-    `
-  }
-
-  private _renderV1() {
-    const isEmpty = this._messages.length === 0
-    return html`
-      <header>
-        <div class="logo">
-          <span class="logo-dot">●</span> bashGPT
-        </div>
-        <div class="header-actions">
-          <button @click=${this._v1Reset} ?disabled=${this._loading}>Verlauf löschen</button>
-          <button @click=${this._switchToV2}>Neue UI</button>
-        </div>
-      </header>
-
-      <div id="chat">
-        ${isEmpty
-          ? html`<div class="empty-state"><div class="icon">⌨️</div><p>Stell mir eine Frage oder gib einen Shell-Befehl ein.</p></div>`
-          : repeat(this._messages, m => m.id, m => html`
-              <bashgpt-message
-                role=${m.role}
-                content=${m.content}
-                .commands=${m.commands ?? []}
-                ?usedToolCalls=${m.usedToolCalls ?? false}
-              ></bashgpt-message>
-            `)}
-      </div>
-
-      <footer>
-        <div class="input-row">
-          <textarea
-            placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
-            @keydown=${this._v1Keydown}
-            ?disabled=${this._loading}
-          ></textarea>
-        </div>
-        <div class="controls">
-          <select
-            .value=${this._mode}
-            @change=${(e: Event) => { this._mode = (e.target as HTMLSelectElement).value as ExecMode }}
-            ?disabled=${this._loading}
-          >
-            <option value="ask">ask</option>
-            <option value="dry-run">dry-run</option>
-            <option value="auto-exec">auto-exec</option>
-            <option value="no-exec">no-exec</option>
-          </select>
-          <span class="status ${this._loading ? 'loading' : ''} ${this._statusError ? 'error' : ''}">
-            ${this._loading ? html`<span class="spinner"></span> Denke...` : this._status}
-          </span>
-          <button class="primary" @click=${this._v1Send} ?disabled=${this._loading}>Senden</button>
-        </div>
-      </footer>
     `
   }
 }
