@@ -27,7 +27,7 @@
         nvm, and Homebrew installations are all resolved correctly.
         On Windows this property stays empty – no PATH override needed.
       -->
-      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$(PATH)</NpmEnvPath>
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
     </PropertyGroup>
 
     <!-- Diagnose VOR install: cwd, npm-Version, NODE_ENV, tsc vorhanden? -->
