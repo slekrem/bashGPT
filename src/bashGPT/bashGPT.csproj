@@ -20,18 +20,19 @@
 
   <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild">
     <PropertyGroup>
+      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
       <!--
         snap-installed .NET SDK runs in a sandbox with a restricted PATH on Linux/macOS
         that may exclude /usr/bin. Prepend common npm locations so that system (apt),
         nvm, and Homebrew installations are all resolved correctly.
         On Windows this property stays empty – no PATH override needed.
       -->
-      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin:$(PATH)</NpmEnvPath>
     </PropertyGroup>
 
     <!-- Diagnose VOR install: cwd, npm-Version, NODE_ENV, tsc vorhanden? -->
-    <Exec Command="sh -c 'printf &quot;CWD=%s\nNPM=%s\nNODE_ENV=%s\n&quot; $(pwd) $(npm --version) &quot;$NODE_ENV&quot;; ls node_modules/.bin/tsc 2&gt;/dev/null &amp;&amp; echo TSC_BEFORE=found || echo TSC_BEFORE=missing'"
-          WorkingDirectory="..\bashGPT.Web"
+    <Exec Command="sh -c 'echo CWD=$PWD; npm --version | sed &quot;s/^/NPM=/&quot;; echo NODE_ENV=$NODE_ENV; if [ -x node_modules/.bin/tsc ]; then echo TSC_BEFORE=found; else echo TSC_BEFORE=missing; fi'"
+          WorkingDirectory="$(WebFrontendDir)"
           EnvironmentVariables="$(NpmEnvPath)"
           Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
           ContinueOnError="true"
@@ -42,12 +43,12 @@
              Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
 
     <!-- npm install mit include=dev erzwingt Installation von tsc/vite -->
-    <Exec Command="npm install --include=dev" WorkingDirectory="..\bashGPT.Web"
+    <Exec Command="npm install --include=dev" WorkingDirectory="$(WebFrontendDir)"
           EnvironmentVariables="$(NpmEnvPath)" />
 
     <!-- Diagnose NACH install: tsc vorhanden? -->
-    <Exec Command="sh -c 'ls -la node_modules/.bin/tsc 2&gt;&amp;1 &amp;&amp; echo TSC_AFTER=found || echo TSC_AFTER=missing'"
-          WorkingDirectory="..\bashGPT.Web"
+    <Exec Command="sh -c 'if [ -x node_modules/.bin/tsc ]; then ls -la node_modules/.bin/tsc; echo TSC_AFTER=found; else echo TSC_AFTER=missing; fi'"
+          WorkingDirectory="$(WebFrontendDir)"
           EnvironmentVariables="$(NpmEnvPath)"
           Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
           ContinueOnError="true"
@@ -58,7 +59,7 @@
              Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
 
     <!-- Build the frontend bundle (TypeScript compile + Vite). -->
-    <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
+    <Exec Command="npm run build" WorkingDirectory="$(WebFrontendDir)"
           EnvironmentVariables="$(NpmEnvPath)" />
   </Target>
 
