@@ -19,16 +19,16 @@ dotnet build
 ## Schnellstart
 ```bash
 # einfache Anfrage
- dotnet run --project src/bashGPT -- "zeige alle .cs Dateien"
+ dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
 
 # Provider wählen
- dotnet run --project src/bashGPT -- --provider ollama "liste alle Tests"
+ dotnet run --project src/bashGPT.Cli -- --provider ollama "liste alle Tests"
 
 # Modell überschreiben
- dotnet run --project src/bashGPT -- --model llama3.2 "zeige geänderte Dateien"
+ dotnet run --project src/bashGPT.Cli -- --model llama3.2 "zeige geänderte Dateien"
 
 # Tool-Calls explizit erzwingen (optional)
- dotnet run --project src/bashGPT -- --force-tools "analysiere dieses Verzeichnis"
+ dotnet run --project src/bashGPT.Cli -- --force-tools "analysiere dieses Verzeichnis"
 ```
 
 ## Konfiguration
@@ -36,18 +36,18 @@ Standardmäßig liegt die Konfiguration unter `~/.config/bashgpt/config.json`.
 
 ```bash
 # Konfiguration anzeigen
- dotnet run --project src/bashGPT -- config list
+ dotnet run --project src/bashGPT.Cli -- config list
 
 # Provider setzen
- dotnet run --project src/bashGPT -- config set defaultProvider ollama
+ dotnet run --project src/bashGPT.Cli -- config set defaultProvider ollama
 
 # Ollama-URL und Modell
- dotnet run --project src/bashGPT -- config set ollama.baseUrl http://localhost:11434
- dotnet run --project src/bashGPT -- config set ollama.model llama3.2
+ dotnet run --project src/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
+ dotnet run --project src/bashGPT.Cli -- config set ollama.model llama3.2
 
 # Cerebras-Key und Modell
- dotnet run --project src/bashGPT -- config set cerebras.apiKey <key>
- dotnet run --project src/bashGPT -- config set cerebras.model gpt-oss:120b-cloud
+ dotnet run --project src/bashGPT.Cli -- config set cerebras.apiKey <key>
+ dotnet run --project src/bashGPT.Cli -- config set cerebras.model gpt-oss:120b-cloud
 ```
 
 Alternativ per Environment:
@@ -58,37 +58,37 @@ Alternativ per Environment:
 ## Ausführungsmodi
 ```bash
 # nur anzeigen, nicht ausführen
- dotnet run --project src/bashGPT -- --dry-run "lösche alle tmp Dateien"
+ dotnet run --project src/bashGPT.Cli -- --dry-run "lösche alle tmp Dateien"
 
 # keine Ausführung (reiner Chat)
- dotnet run --project src/bashGPT -- --no-exec "wie finde ich große Dateien?"
+ dotnet run --project src/bashGPT.Cli -- --no-exec "wie finde ich große Dateien?"
 
 # ohne Bestätigung ausführen
- dotnet run --project src/bashGPT -- --auto-exec "git status"
+ dotnet run --project src/bashGPT.Cli -- --auto-exec "git status"
 ```
 
 ## Kontext-Steuerung
 ```bash
 # keinen Kontext mitschicken
- dotnet run --project src/bashGPT -- --no-context "wie erstelle ich einen neuen branch?"
+ dotnet run --project src/bashGPT.Cli -- --no-context "wie erstelle ich einen neuen branch?"
 
 # Verzeichnisinhalt mitsenden
- dotnet run --project src/bashGPT -- --include-dir "zeige wichtige Dateien"
+ dotnet run --project src/bashGPT.Cli -- --include-dir "zeige wichtige Dateien"
 ```
 
 ## Server-Modus (Browser UI)
 ```bash
 # startet lokalen Server auf http://127.0.0.1:5050 und öffnet den Browser
- dotnet run --project src/bashGPT -- server
+ dotnet run --project src/bashGPT.Server
 
 # eigener Port, ohne automatisches Browser-Öffnen
- dotnet run --project src/bashGPT -- server --port 6060 --no-browser
+ dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
 # Server mit Provider/Exec-Vorgaben
- dotnet run --project src/bashGPT -- server --provider cerebras --auto-exec --verbose
+ dotnet run --project src/bashGPT.Server -- --provider cerebras --auto-exec --verbose
 
 # Tool-Calls im Server explizit erzwingen (optional)
- dotnet run --project src/bashGPT -- server --provider cerebras --force-tools
+ dotnet run --project src/bashGPT.Server -- --provider cerebras --force-tools
 ```
 
 Hinweis:

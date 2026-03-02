@@ -1,16 +1,15 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/bashGPT/` contains the CLI app and core logic.
-- `src/bashGPT/Cli/` handles command-line parsing and prompt handling.
-- `src/bashGPT/Configuration/` manages config loading, saving, and env overrides.
-- `src/bashGPT/Providers/` contains LLM provider integrations and abstractions.
-- `src/bashGPT/Shell/` includes shell context collection and command execution.
+- `src/bashGPT.Core/` contains shared domain logic (configuration, providers, shell, storage, shared runners).
+- `src/bashGPT.Cli/` contains the CLI executable and command-line parsing.
+- `src/bashGPT.Server/` contains the server executable and HTTP/UI host.
 - `tests/bashGPT.Tests/` holds xUnit tests mirroring the main namespaces.
 
 ## Build, Test, and Development Commands
 - `dotnet build` builds the solution.
-- `dotnet run --project src/bashGPT -- "<prompt>"` runs the CLI with a prompt.
+- `dotnet run --project src/bashGPT.Cli -- "<prompt>"` runs the CLI with a prompt.
+- `dotnet run --project src/bashGPT.Server` starts the local server UI.
 - `dotnet test` runs all tests.
 - `dotnet test --collect:"XPlat Code Coverage"` generates coverage via coverlet.
 
@@ -36,4 +35,4 @@
 ## Configuration & Environment Tips
 - Default config is stored at `~/.config/bashgpt/config.json`.
 - Environment overrides include `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`, `BASHGPT_OLLAMA_URL`, and `BASHGPT_OLLAMA_MODEL`.
-- Prefer updating config via the CLI: `dotnet run --project src/bashGPT -- config set <key> <value>`.
+- Prefer updating config via the CLI: `dotnet run --project src/bashGPT.Cli -- config set <key> <value>`.
