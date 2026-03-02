@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { getSettings, saveSettings, testConnection } from '../api'
-import type { Settings, ExecMode } from '../types'
+import type { Settings, ExecMode, ProviderName } from '../types'
 
 @customElement('bashgpt-settings-view')
 export class SettingsView extends LitElement {
@@ -10,6 +10,7 @@ export class SettingsView extends LitElement {
   @state() private _testing = false
   @state() private _status = ''
   @state() private _statusOk = true
+  @state() private _showCerebrasApiKey = false
 
   static styles = css`
     :host {
@@ -66,6 +67,25 @@ export class SettingsView extends LitElement {
     }
     input:focus, select:focus { border-color: #4b5563; }
     input:focus-visible, select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
+    .input-with-action {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .input-with-action input {
+      flex: 1;
+      min-width: 0;
+    }
+    .icon-btn {
+      width: 40px;
+      padding: 0;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    }
 
     .toggle-row {
       display: flex;
@@ -163,7 +183,7 @@ export class SettingsView extends LitElement {
   async connectedCallback() {
     super.connectedCallback()
     this._loading = true
-    this._settings = await getSettings()
+    this._settings = this._normalizeSettings(await getSettings())
     this._loading = false
     if (!this._settings) {
       this._status = 'Einstellungen konnten nicht geladen werden. Bitte stelle sicher, dass der Server läuft.'
@@ -171,17 +191,149 @@ export class SettingsView extends LitElement {
     }
   }
 
-  private _set<K extends keyof Settings>(key: K, value: Settings[K]) {
+  private _normalizeSettings(settings: Settings | null): Settings | null {
+    if (!settings) return null
+
+    const provider: ProviderName = settings.provider === 'cerebras' ? 'cerebras' : 'ollama'
+    const cerebrasModel = settings.cerebras?.model
+      ?? (provider === 'cerebras' ? settings.model : 'gpt-oss:120b-cloud')
+    const ollamaModel = settings.ollama?.model
+      ?? (provider === 'ollama' ? settings.model : 'gpt-oss:20b')
+    const ollamaHost = settings.ollama?.host ?? settings.ollamaHost ?? 'http://localhost:11434'
+    const hasApiKey = settings.hasApiKey ?? settings.cerebras?.hasApiKey ?? false
+
+    return {
+      ...settings,
+      provider,
+      model: provider === 'cerebras' ? cerebrasModel : ollamaModel,
+      ollamaHost,
+      cerebras: {
+        model: cerebrasModel,
+        apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
+        hasApiKey,
+        baseUrl: settings.cerebras?.baseUrl ?? 'https://api.cerebras.ai/v1',
+      },
+      ollama: {
+        model: ollamaModel,
+        host: ollamaHost,
+      },
+    }
+  }
+
+  private _setRoot<K extends keyof Settings>(key: K, value: Settings[K]) {
     if (!this._settings) return
     this._settings = { ...this._settings, [key]: value }
     this._status = ''
   }
 
+  private _setProvider(provider: ProviderName) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      provider,
+      model: provider === 'cerebras' ? this._settings.cerebras.model : this._settings.ollama.model,
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasModel(model: string) {
+    if (!this._settings) return
+    const next = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, model },
+    }
+    this._settings = {
+      ...next,
+      ...(next.provider === 'cerebras' ? { model } : {}),
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasApiKey(apiKey: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      apiKey,
+      cerebras: { ...this._settings.cerebras, apiKey },
+    }
+    this._status = ''
+  }
+
+  private _setCerebrasBaseUrl(baseUrl: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      cerebras: { ...this._settings.cerebras, baseUrl },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaModel(model: string) {
+    if (!this._settings) return
+    const next = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, model },
+    }
+    this._settings = {
+      ...next,
+      ...(next.provider === 'ollama' ? { model } : {}),
+    }
+    this._status = ''
+  }
+
+  private _setOllamaHost(host: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollamaHost: host,
+      ollama: { ...this._settings.ollama, host },
+    }
+    this._status = ''
+  }
+
+  private _buildSavePayload(settings: Settings) {
+    const cerebrasApiKey = settings.cerebras.apiKey?.trim()
+    return {
+      provider: settings.provider,
+      model: settings.provider === 'cerebras' ? settings.cerebras.model : settings.ollama.model,
+      ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
+      ollamaHost: settings.ollama.host,
+      execMode: settings.execMode,
+      forceTools: settings.forceTools,
+      cerebras: {
+        model: settings.cerebras.model,
+        ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
+        baseUrl: settings.cerebras.baseUrl,
+      },
+      ollama: {
+        model: settings.ollama.model,
+        host: settings.ollama.host,
+      },
+    }
+  }
+
   private async _save() {
     if (!this._settings) return
+
+    if (this._settings.provider === 'cerebras' && !this._settings.cerebras.apiKey?.trim() && !this._settings.cerebras.hasApiKey) {
+      this._status = 'Cerebras benötigt einen API-Key (oder einen bereits gespeicherten Key).'
+      this._statusOk = false
+      return
+    }
+    if (this._settings.provider === 'ollama' && !this._settings.ollama.host.trim()) {
+      this._status = 'Ollama Host darf nicht leer sein.'
+      this._statusOk = false
+      return
+    }
+
     this._loading = true
     try {
-      await saveSettings(this._settings)
+      await saveSettings(this._buildSavePayload(this._settings))
+      if (this._settings.cerebras.apiKey?.trim())
+        this._settings = {
+          ...this._settings,
+          cerebras: { ...this._settings.cerebras, hasApiKey: true },
+        }
       this._status = 'Einstellungen gespeichert.'
       this._statusOk = true
     } catch (e) {
@@ -233,47 +385,85 @@ export class SettingsView extends LitElement {
           <label>Provider</label>
           <select
             .value=${s?.provider ?? 'cerebras'}
-            @change=${(e: Event) => this._set('provider', (e.target as HTMLSelectElement).value)}
+            @change=${(e: Event) => this._setProvider((e.target as HTMLSelectElement).value as ProviderName)}
             ?disabled=${!s || this._loading}
           >
             <option value="cerebras">cerebras</option>
             <option value="ollama">ollama</option>
           </select>
         </div>
+        ${s?.provider === 'cerebras' ? html`
+          <div class="field">
+            <label>Cerebras Modell</label>
+            <input
+              type="text"
+              .value=${s?.cerebras.model ?? ''}
+              @input=${(e: InputEvent) => this._setCerebrasModel((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="z.B. gpt-oss-120b-cloud"
+            />
+          </div>
 
-        <div class="field">
-          <label>Modell</label>
-          <input
-            type="text"
-            .value=${s?.model ?? ''}
-            @input=${(e: InputEvent) => this._set('model', (e.target as HTMLInputElement).value)}
-            ?disabled=${!s || this._loading}
-            placeholder="z.B. gpt-oss-120b"
-          />
-        </div>
+          <div class="field">
+            <label>Cerebras API-Key</label>
+            <div class="input-with-action">
+              <input
+                type=${this._showCerebrasApiKey ? 'text' : 'password'}
+                .value=${s?.cerebras.apiKey ?? ''}
+                @input=${(e: InputEvent) => this._setCerebrasApiKey((e.target as HTMLInputElement).value)}
+                ?disabled=${!s || this._loading}
+                placeholder=${s?.cerebras.hasApiKey ? 'Bereits gesetzt (bei Bedarf ändern)' : 'API-Key eingeben'}
+                autocomplete="off"
+              />
+              <button
+                class="icon-btn"
+                type="button"
+                @click=${() => { this._showCerebrasApiKey = !this._showCerebrasApiKey }}
+                ?disabled=${!s || this._loading}
+                title=${this._showCerebrasApiKey ? 'API-Key verbergen' : 'API-Key anzeigen'}
+                aria-label=${this._showCerebrasApiKey ? 'API-Key verbergen' : 'API-Key anzeigen'}
+              >
+                ${this._showCerebrasApiKey ? '🙈' : '👁'}
+              </button>
+            </div>
+            <div class="hint">
+              ${s?.cerebras.hasApiKey
+                ? 'Ein API-Key ist gespeichert und kann bei Bedarf angepasst werden.'
+                : 'Cerebras benötigt einen API-Key.'}
+            </div>
+          </div>
 
-        <div class="field">
-          <label>API-Key</label>
-          <input
-            type="password"
-            .value=${s?.apiKey ?? ''}
-            @input=${(e: InputEvent) => this._set('apiKey', (e.target as HTMLInputElement).value)}
-            ?disabled=${!s || this._loading}
-            placeholder="Leer lassen um bestehenden Key zu behalten"
-            autocomplete="off"
-          />
-          <div class="hint">Nur für Cerebras. Leer lassen = bestehender Key bleibt.</div>
-        </div>
+          <div class="field">
+            <label>Cerebras Base URL</label>
+            <input
+              type="text"
+              .value=${s?.cerebras.baseUrl ?? 'https://api.cerebras.ai/v1'}
+              @input=${(e: InputEvent) => this._setCerebrasBaseUrl((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+            />
+          </div>
+        ` : html`
+          <div class="field">
+            <label>Ollama Modell</label>
+            <input
+              type="text"
+              .value=${s?.ollama.model ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaModel((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="z.B. gpt-oss:20b"
+            />
+          </div>
 
-        <div class="field">
-          <label>Ollama Host</label>
-          <input
-            type="text"
-            .value=${s?.ollamaHost ?? 'http://localhost:11434'}
-            @input=${(e: InputEvent) => this._set('ollamaHost', (e.target as HTMLInputElement).value)}
-            ?disabled=${!s || this._loading}
-          />
-        </div>
+          <div class="field">
+            <label>Ollama Host</label>
+            <input
+              type="text"
+              .value=${s?.ollama.host ?? 'http://localhost:11434'}
+              @input=${(e: InputEvent) => this._setOllamaHost((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+            />
+          </div>
+        `}
 
         <div class="actions">
           <button @click=${this._test} ?disabled=${!s || this._testing || this._loading}>
@@ -289,7 +479,7 @@ export class SettingsView extends LitElement {
           <label>Standard Exec-Mode</label>
           <select
             .value=${s?.execMode ?? 'ask'}
-            @change=${(e: Event) => this._set('execMode', (e.target as HTMLSelectElement).value as ExecMode)}
+            @change=${(e: Event) => this._setRoot('execMode', (e.target as HTMLSelectElement).value as ExecMode)}
             ?disabled=${!s || this._loading}
           >
             <option value="ask">ask</option>
@@ -305,7 +495,7 @@ export class SettingsView extends LitElement {
               type="checkbox"
               id="force-tools"
               .checked=${s?.forceTools ?? false}
-              @change=${(e: Event) => this._set('forceTools', (e.target as HTMLInputElement).checked)}
+              @change=${(e: Event) => this._setRoot('forceTools', (e.target as HTMLInputElement).checked)}
               ?disabled=${!s || this._loading}
             />
             <label for="force-tools">Force Tools (Tool-Calling erzwingen)</label>

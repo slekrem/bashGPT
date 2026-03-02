@@ -137,6 +137,28 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Put_Settings_NestedProviderPayload_UpdatesBothWithoutOverwrite()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            provider = "ollama",
+            cerebras = new { model = "cerebras-model-x" },
+            ollama = new { model = "ollama-model-y", host = "http://ollama.local:11434" },
+        });
+
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var config = await _configService.LoadAsync();
+        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        Assert.Equal("cerebras-model-x", config.Cerebras.Model);
+        Assert.Equal("ollama-model-y", config.Ollama.Model);
+        Assert.Equal("http://ollama.local:11434", config.Ollama.BaseUrl);
+    }
+
+    [Fact]
     public async Task Put_Settings_EmptyApiKey_DoesNotOverwriteExisting()
     {
         // Zuerst einen API-Key setzen

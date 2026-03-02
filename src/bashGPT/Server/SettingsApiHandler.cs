@@ -54,9 +54,22 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             model             = activeModel,
             contextWindowTokens,
             hasApiKey         = config.Cerebras.ApiKey is not null,
+            apiKey            = config.Cerebras.ApiKey,
             ollamaHost        = config.Ollama.BaseUrl,
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
+            cerebras          = new
+            {
+                model = config.Cerebras.Model,
+                apiKey = config.Cerebras.ApiKey,
+                hasApiKey = config.Cerebras.ApiKey is not null,
+                baseUrl = config.Cerebras.BaseUrl,
+            },
+            ollama            = new
+            {
+                model = config.Ollama.Model,
+                host = config.Ollama.BaseUrl,
+            },
         });
     }
 
@@ -78,6 +91,20 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         var config = await configService.LoadAsync();
         var providerType = ParseProviderType(body.Provider);
         if (providerType is not null) config.DefaultProvider = providerType.Value;
+
+        if (body.Cerebras is not null)
+        {
+            if (body.Cerebras.Model is not null) config.Cerebras.Model = body.Cerebras.Model;
+            if (!string.IsNullOrWhiteSpace(body.Cerebras.ApiKey)) config.Cerebras.ApiKey = body.Cerebras.ApiKey;
+            if (body.Cerebras.BaseUrl is not null) config.Cerebras.BaseUrl = body.Cerebras.BaseUrl;
+        }
+
+        if (body.Ollama is not null)
+        {
+            if (body.Ollama.Model is not null) config.Ollama.Model = body.Ollama.Model;
+            if (body.Ollama.Host is not null) config.Ollama.BaseUrl = body.Ollama.Host;
+        }
+
         if (body.Model is not null)
         {
             if (config.DefaultProvider == ProviderType.Cerebras) config.Cerebras.Model = body.Model;
@@ -175,7 +202,10 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
 
     private sealed record SettingsRequest(
         string? Provider, string? Model, string? ApiKey,
-        string? OllamaHost, string? ExecMode, bool? ForceTools);
+        string? OllamaHost, string? ExecMode, bool? ForceTools,
+        ProviderConfigRequest? Cerebras, ProviderConfigRequest? Ollama);
+
+    private sealed record ProviderConfigRequest(string? Model, string? ApiKey, string? BaseUrl, string? Host);
 
     private sealed class CerebrasModelMetadata
     {

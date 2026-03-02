@@ -33,6 +33,7 @@ export interface HistoryMessage {
 }
 
 export type ExecMode = 'ask' | 'dry-run' | 'auto-exec' | 'no-exec'
+export type ProviderName = 'cerebras' | 'ollama'
 
 export interface Session {
   id: string
@@ -41,14 +42,29 @@ export interface Session {
   updatedAt: string
 }
 
+export interface CerebrasSettings {
+  model: string
+  apiKey?: string
+  hasApiKey?: boolean
+  baseUrl?: string
+}
+
+export interface OllamaSettings {
+  model: string
+  host: string
+}
+
 export interface Settings {
-  provider: string
+  provider: ProviderName
   model: string
   contextWindowTokens?: number
+  hasApiKey?: boolean
   apiKey?: string
   ollamaHost?: string
   execMode: ExecMode
   forceTools: boolean
+  cerebras: CerebrasSettings
+  ollama: OllamaSettings
 }
 
 export interface GitContext {
