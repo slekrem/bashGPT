@@ -6,27 +6,13 @@ using BashGPT.Configuration;
 
 namespace BashGPT.Providers;
 
-public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) : ILlmProvider
+public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
+    : BaseLlmProvider(httpClient)
 {
-    private readonly HttpClient _http = httpClient ?? CreateHttpClient();
+    public override string Name  => "Ollama";
+    public override string Model => config.Model;
 
-    public string Name  => "Ollama";
-    public string Model => config.Model;
-
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseCookies = false
-        };
-
-        return new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromMinutes(5)
-        };
-    }
-
-    public async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
+    public override async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
     {
         var ollamaRequest = new OllamaChatRequest
         {
@@ -41,19 +27,16 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync(
+            response = await Http.PostAsJsonAsync(
                 $"{config.BaseUrl.TrimEnd('/')}/api/chat", ollamaRequest, ct);
         }
         catch (HttpRequestException ex)
         {
-            throw new LlmProviderException(
-                $"Ollama ist nicht erreichbar unter '{config.BaseUrl}'. " +
-                $"Läuft 'ollama serve'? (Details: {ex.Message})", ex);
+            throw WrapHttpException(ex, config.BaseUrl);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new LlmProviderException(
-                $"Timeout beim Verbinden mit Ollama ({config.BaseUrl}).", ex);
+            throw WrapTimeoutException(ex, $"Ollama ({config.BaseUrl})");
         }
 
         if (!response.IsSuccessStatusCode)
@@ -142,15 +125,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
         return new LlmChatResponse(contentBuilder.ToString(), ordered, usage);
     }
 
-    public async Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
-    {
-        var sb = new System.Text.StringBuilder();
-        await foreach (var token in StreamAsync(messages, ct))
-            sb.Append(token);
-        return sb.ToString();
-    }
-
-    public async IAsyncEnumerable<string> StreamAsync(
+    public override async IAsyncEnumerable<string> StreamAsync(
         IEnumerable<ChatMessage> messages,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -164,19 +139,16 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null) 
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync(
+            response = await Http.PostAsJsonAsync(
                 $"{config.BaseUrl.TrimEnd('/')}/api/chat", request, ct);
         }
         catch (HttpRequestException ex)
         {
-            throw new LlmProviderException(
-                $"Ollama ist nicht erreichbar unter '{config.BaseUrl}'. " +
-                $"Läuft 'ollama serve'? (Details: {ex.Message})", ex);
+            throw WrapHttpException(ex, config.BaseUrl);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new LlmProviderException(
-                $"Timeout beim Verbinden mit Ollama ({config.BaseUrl}).", ex);
+            throw WrapTimeoutException(ex, $"Ollama ({config.BaseUrl})");
         }
 
         if (!response.IsSuccessStatusCode)
