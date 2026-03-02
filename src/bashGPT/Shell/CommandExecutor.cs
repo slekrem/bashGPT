@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using BashGPT;
 
 namespace BashGPT.Shell;
 
@@ -10,8 +11,8 @@ public class CommandExecutor(
     ExecutionMode mode = ExecutionMode.Ask,
     TextWriter? output = null,
     TextReader? input = null,
-    int maxOutputChars = 10_000,
-    int commandTimeoutSeconds = 30)
+    int maxOutputChars = AppDefaults.MaxCommandOutputChars,
+    int commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds)
 {
     private static readonly Regex InteractiveAlwaysPattern = new(
         @"^\s*(htop|btop|watch|less|more|man|vim|vi|nano|emacs)\b",

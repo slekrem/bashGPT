@@ -1,4 +1,5 @@
 using BashGPT.Providers;
+using BashGPT;
 
 namespace BashGPT.Server;
 
@@ -30,8 +31,8 @@ internal sealed class LegacyHistory
         lock (_lock)
         {
             _history.Add(message);
-            if (_history.Count > 40)
-                _history.RemoveRange(0, _history.Count - 40);
+            if (_history.Count > AppDefaults.MaxHistoryMessages)
+                _history.RemoveRange(0, _history.Count - AppDefaults.MaxHistoryMessages);
         }
     }
 

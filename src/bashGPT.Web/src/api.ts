@@ -1,6 +1,5 @@
 import type { ChatResponse, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
-
-const CHAT_TIMEOUT_MS = 120_000
+import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
   try {

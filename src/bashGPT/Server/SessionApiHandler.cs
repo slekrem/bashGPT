@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BashGPT.Providers;
 using BashGPT.Storage;
+using BashGPT;
 
 namespace BashGPT.Server;
 
@@ -37,7 +38,7 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
             var now = DateTime.UtcNow.ToString("o");
             var newSession = new SessionRecord
             {
-                Id        = $"s-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                Id        = $"{AppDefaults.SessionIdPrefix}{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                 Title     = "Neuer Chat",
                 CreatedAt = now,
                 UpdatedAt = now,
