@@ -29,8 +29,9 @@
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
     </PropertyGroup>
 
-    <!-- Install/update npm dependencies (idempotent; skips already-installed packages). -->
-    <Exec Command="npm install" WorkingDirectory="..\bashGPT.Web"
+    <!-- npm skips devDependencies when NODE_ENV=production (snap may set this).
+         The flag 'include=dev' forces installation of devDependencies (tsc, vite). -->
+    <Exec Command="npm install --include=dev" WorkingDirectory="..\bashGPT.Web"
           EnvironmentVariables="$(NpmEnvPath)" />
 
     <!-- Build the frontend bundle (TypeScript compile + Vite). -->
