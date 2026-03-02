@@ -29,10 +29,23 @@
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
     </PropertyGroup>
 
-    <!-- npm skips devDependencies when NODE_ENV=production (snap may set this).
-         The flag 'include=dev' forces installation of devDependencies (tsc, vite). -->
+    <!-- Diagnose: zeigt cwd, npm-Version, NODE_ENV und ob tsc schon vorhanden ist -->
+    <Exec Command="sh -c 'pwd &amp;&amp; npm --version &amp;&amp; echo NODE_ENV=$NODE_ENV &amp;&amp; ls node_modules/.bin/tsc 2&gt;/dev/null &amp;&amp; echo TSC_FOUND || echo TSC_MISSING'"
+          WorkingDirectory="..\bashGPT.Web"
+          EnvironmentVariables="$(NpmEnvPath)"
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+          ContinueOnError="true" />
+
+    <!-- npm install: includedev=dev erzwingt Installation von tsc/vite -->
     <Exec Command="npm install --include=dev" WorkingDirectory="..\bashGPT.Web"
           EnvironmentVariables="$(NpmEnvPath)" />
+
+    <!-- Diagnose: prüft ob tsc nach install vorhanden ist -->
+    <Exec Command="sh -c 'ls -la node_modules/.bin/tsc 2&gt;&amp;1 || echo TSC_STILL_MISSING_AFTER_INSTALL'"
+          WorkingDirectory="..\bashGPT.Web"
+          EnvironmentVariables="$(NpmEnvPath)"
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+          ContinueOnError="true" />
 
     <!-- Build the frontend bundle (TypeScript compile + Vite). -->
     <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
