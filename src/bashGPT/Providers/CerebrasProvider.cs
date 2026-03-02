@@ -7,27 +7,13 @@ using BashGPT.Configuration;
 
 namespace BashGPT.Providers;
 
-public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = null) : ILlmProvider
+public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = null)
+    : BaseLlmProvider(httpClient)
 {
-    private readonly HttpClient _http = httpClient ?? CreateHttpClient();
+    public override string Name  => "Cerebras";
+    public override string Model => config.Model;
 
-    public string Name  => "Cerebras";
-    public string Model => config.Model;
-
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseCookies = false
-        };
-
-        return new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromMinutes(5)
-        };
-    }
-
-    public async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
+    public override async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
         => await ChatAsyncInternal(request, ct, allowToolChoiceFallback: true);
 
     private async Task<LlmChatResponse> ChatAsyncInternal(
@@ -77,17 +63,16 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
 
             try
             {
-                response = await _http.SendAsync(httpRequest,
+                response = await Http.SendAsync(httpRequest,
                     HttpCompletionOption.ResponseHeadersRead, ct);
             }
             catch (HttpRequestException ex)
             {
-                throw new LlmProviderException(
-                    $"Cerebras API nicht erreichbar ({config.BaseUrl}): {ex.Message}", ex);
+                throw WrapHttpException(ex, config.BaseUrl);
             }
             catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
             {
-                throw new LlmProviderException("Timeout beim Verbinden mit Cerebras API.", ex);
+                throw WrapTimeoutException(ex, "Cerebras API");
             }
 
             if (response.IsSuccessStatusCode)
@@ -204,15 +189,7 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
     }
 
-    public async Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
-    {
-        var sb = new StringBuilder();
-        await foreach (var token in StreamAsync(messages, ct))
-            sb.Append(token);
-        return sb.ToString();
-    }
-
-    public async IAsyncEnumerable<string> StreamAsync(
+    public override async IAsyncEnumerable<string> StreamAsync(
         IEnumerable<ChatMessage> messages,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -242,17 +219,16 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         HttpResponseMessage response;
         try
         {
-            response = await _http.SendAsync(httpRequest,
+            response = await Http.SendAsync(httpRequest,
                 HttpCompletionOption.ResponseHeadersRead, ct);
         }
         catch (HttpRequestException ex)
         {
-            throw new LlmProviderException(
-                $"Cerebras API nicht erreichbar ({config.BaseUrl}): {ex.Message}", ex);
+            throw WrapHttpException(ex, config.BaseUrl);
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new LlmProviderException("Timeout beim Verbinden mit Cerebras API.", ex);
+            throw WrapTimeoutException(ex, "Cerebras API");
         }
 
         if (!response.IsSuccessStatusCode)
