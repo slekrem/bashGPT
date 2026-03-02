@@ -1,6 +1,7 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
+using BashGPT;
 
 namespace BashGPT.Cli;
 
@@ -203,9 +204,8 @@ public class PromptHandler(
             if (opts.Verbose)
                 logs.Add($"Tool-Calls empfangen: {currentResponse.ToolCalls.Count}");
 
-            const int maxToolRounds = 3;
             var rounds = 0;
-            while (currentResponse.ToolCalls.Count > 0 && rounds < maxToolRounds)
+            while (currentResponse.ToolCalls.Count > 0 && rounds < AppDefaults.MaxToolCallRounds)
             {
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
@@ -255,7 +255,7 @@ public class PromptHandler(
                     "Tool-Call-Schleife erkannt und beendet. " +
                     "Bitte nutze nicht-interaktive Befehle (z. B. 'ps aux --sort=-%cpu | head' statt 'top').";
                 if (opts.Verbose)
-                    logs.Add($"Maximale Tool-Call-Runden erreicht ({maxToolRounds}).");
+                    logs.Add($"Maximale Tool-Call-Runden erreicht ({AppDefaults.MaxToolCallRounds}).");
                 var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
                     ? loopGuardMessage
                     : currentResponse.Content;

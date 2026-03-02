@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Configuration;
+using BashGPT;
 
 namespace BashGPT.Providers;
 
@@ -49,10 +50,9 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
         var url = $"{config.BaseUrl.TrimEnd('/')}/chat/completions";
 
-        const int maxRetries = 3;
         HttpResponseMessage response = null!;
 
-        for (var attempt = 0; attempt <= maxRetries; attempt++)
+        for (var attempt = 0; attempt <= AppDefaults.MaxProviderRetries; attempt++)
         {
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
             {
@@ -91,7 +91,7 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             }
 
             // Bei 429 automatisch wiederholen (bis maxRetries erschöpft sind)
-            if ((int)response.StatusCode == 429 && attempt < maxRetries)
+            if ((int)response.StatusCode == 429 && attempt < AppDefaults.MaxProviderRetries)
             {
                 var delay = GetRetryDelay(response, attempt);
                 await Task.Delay(delay, ct);
@@ -101,7 +101,7 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             var hint = (int)response.StatusCode switch
             {
                 401 => " → API-Key ungültig oder abgelaufen.",
-                429 => $" → Rate-Limit nach {maxRetries} Versuchen weiterhin aktiv.",
+                429 => $" → Rate-Limit nach {AppDefaults.MaxProviderRetries} Versuchen weiterhin aktiv.",
                 _   => ""
             };
             throw new LlmProviderException(

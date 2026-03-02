@@ -7,6 +7,7 @@ import './chat-view'
 import './terminal-panel'
 import { loadHistory, resetHistory, getSessions, getSession, putSession, deleteSession, clearSessions, createSession } from '../api'
 import type { AppView, Session, ShellContext } from '../types'
+import { SESSION_ID_PREFIX } from '../constants'
 import {
   LIVE_SESSION_ID,
   createLiveSession,
@@ -273,7 +274,7 @@ export class ChatApp extends LitElement {
     if (this._useLocalSessionsFallback && chatView) {
       const snapshot = chatView.getSnapshot?.() as SnapshotMessage[] | undefined
       if (snapshot && snapshot.length > 0 && this._activeSessionId === LIVE_SESSION_ID) {
-        const archivedId = `s-${Date.now()}`
+        const archivedId = `${SESSION_ID_PREFIX}${Date.now()}`
         // ShellContext der Live-Session beim Archivieren mitübernehmen
         const liveShellContext = this._localSessions.find(s => s.id === LIVE_SESSION_ID)?.shellContext
         this._localSessions = upsertSession(this._localSessions, archivedId, snapshot, liveShellContext)
@@ -362,7 +363,7 @@ export class ChatApp extends LitElement {
     const existingLive = this._localSessions.find(s => s.id === LIVE_SESSION_ID)
     let sessions = this._localSessions.filter(s => s.id !== LIVE_SESSION_ID)
     if (existingLive && existingLive.messages.length > 0) {
-      sessions = [...sessions, { ...existingLive, id: `s-${Date.now()}`, isLive: false }]
+      sessions = [...sessions, { ...existingLive, id: `${SESSION_ID_PREFIX}${Date.now()}`, isLive: false }]
     }
 
     // Archivierten Eintrag zur Live-Session promoten und an die Spitze sortieren.
