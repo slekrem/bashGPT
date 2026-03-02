@@ -54,9 +54,33 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             model             = activeModel,
             contextWindowTokens,
             hasApiKey         = config.Cerebras.ApiKey is not null,
+            apiKey            = config.Cerebras.ApiKey,
             ollamaHost        = config.Ollama.BaseUrl,
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
+            cerebras          = new
+            {
+                model = config.Cerebras.Model,
+                apiKey = config.Cerebras.ApiKey,
+                hasApiKey = config.Cerebras.ApiKey is not null,
+                baseUrl = config.Cerebras.BaseUrl,
+                temperature = config.Cerebras.Temperature,
+                topP = config.Cerebras.TopP,
+                maxCompletionTokens = config.Cerebras.MaxCompletionTokens,
+                seed = config.Cerebras.Seed,
+                reasoningEffort = config.Cerebras.ReasoningEffort,
+            },
+            ollama            = new
+            {
+                model = config.Ollama.Model,
+                host = config.Ollama.BaseUrl,
+                temperature = config.Ollama.Temperature,
+                topP = config.Ollama.TopP,
+                numCtx = config.Ollama.NumCtx,
+                numPredict = config.Ollama.NumPredict,
+                repeatPenalty = config.Ollama.RepeatPenalty,
+                seed = config.Ollama.Seed,
+            },
         });
     }
 
@@ -78,6 +102,31 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         var config = await configService.LoadAsync();
         var providerType = ParseProviderType(body.Provider);
         if (providerType is not null) config.DefaultProvider = providerType.Value;
+
+        if (body.Cerebras is not null)
+        {
+            if (body.Cerebras.Model is not null) config.Cerebras.Model = body.Cerebras.Model;
+            if (!string.IsNullOrWhiteSpace(body.Cerebras.ApiKey)) config.Cerebras.ApiKey = body.Cerebras.ApiKey;
+            if (body.Cerebras.BaseUrl is not null) config.Cerebras.BaseUrl = body.Cerebras.BaseUrl;
+            if (body.Cerebras.Temperature is not null) config.Cerebras.Temperature = body.Cerebras.Temperature;
+            if (body.Cerebras.TopP is not null) config.Cerebras.TopP = body.Cerebras.TopP;
+            if (body.Cerebras.MaxCompletionTokens is not null) config.Cerebras.MaxCompletionTokens = body.Cerebras.MaxCompletionTokens;
+            if (body.Cerebras.Seed is not null) config.Cerebras.Seed = body.Cerebras.Seed;
+            if (body.Cerebras.ReasoningEffort is not null) config.Cerebras.ReasoningEffort = body.Cerebras.ReasoningEffort;
+        }
+
+        if (body.Ollama is not null)
+        {
+            if (body.Ollama.Model is not null) config.Ollama.Model = body.Ollama.Model;
+            if (body.Ollama.Host is not null) config.Ollama.BaseUrl = body.Ollama.Host;
+            if (body.Ollama.Temperature is not null) config.Ollama.Temperature = body.Ollama.Temperature;
+            if (body.Ollama.TopP is not null) config.Ollama.TopP = body.Ollama.TopP;
+            if (body.Ollama.NumCtx is not null) config.Ollama.NumCtx = body.Ollama.NumCtx;
+            if (body.Ollama.NumPredict is not null) config.Ollama.NumPredict = body.Ollama.NumPredict;
+            if (body.Ollama.RepeatPenalty is not null) config.Ollama.RepeatPenalty = body.Ollama.RepeatPenalty;
+            if (body.Ollama.Seed is not null) config.Ollama.Seed = body.Ollama.Seed;
+        }
+
         if (body.Model is not null)
         {
             if (config.DefaultProvider == ProviderType.Cerebras) config.Cerebras.Model = body.Model;
@@ -175,7 +224,22 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
 
     private sealed record SettingsRequest(
         string? Provider, string? Model, string? ApiKey,
-        string? OllamaHost, string? ExecMode, bool? ForceTools);
+        string? OllamaHost, string? ExecMode, bool? ForceTools,
+        ProviderConfigRequest? Cerebras, ProviderConfigRequest? Ollama);
+
+    private sealed record ProviderConfigRequest(
+        string? Model,
+        string? ApiKey,
+        string? BaseUrl,
+        string? Host,
+        double? Temperature,
+        double? TopP,
+        int? NumCtx,
+        int? NumPredict,
+        double? RepeatPenalty,
+        int? MaxCompletionTokens,
+        int? Seed,
+        string? ReasoningEffort);
 
     private sealed class CerebrasModelMetadata
     {

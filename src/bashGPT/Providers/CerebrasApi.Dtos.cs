@@ -10,6 +10,21 @@ internal sealed class OpenAiChatRequest
     [JsonPropertyName("model")]    public string Model    { get; set; } = "";
     [JsonPropertyName("messages")] public List<OpenAiMessage> Messages { get; set; } = [];
     [JsonPropertyName("stream")]   public bool   Stream   { get; set; } = true;
+    [JsonPropertyName("temperature")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Temperature { get; set; }
+    [JsonPropertyName("top_p")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TopP { get; set; }
+    [JsonPropertyName("max_completion_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxCompletionTokens { get; set; }
+    [JsonPropertyName("seed")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Seed { get; set; }
+    [JsonPropertyName("reasoning_effort")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReasoningEffort { get; set; }
     [JsonPropertyName("stream_options")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OpenAiStreamOptions? StreamOptions { get; set; }

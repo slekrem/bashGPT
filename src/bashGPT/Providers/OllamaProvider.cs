@@ -18,7 +18,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         {
             Model    = config.Model,
             Messages = request.Messages.Select(MapMessage).ToList(),
-            Stream   = request.Stream
+            Stream   = request.Stream,
+            Options  = BuildOptions()
         };
 
         if (request.Tools is { Count: > 0 })
@@ -133,7 +134,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         {
             Model    = config.Model,
             Messages = messages.Select(m => new OllamaMessage { Role = m.RoleString, Content = m.Content }).ToList(),
-            Stream   = true
+            Stream   = true,
+            Options  = BuildOptions()
         };
 
         HttpResponseMessage response;
@@ -193,9 +195,34 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         [JsonPropertyName("model")]    public string Model    { get; set; } = "";
         [JsonPropertyName("messages")] public List<OllamaMessage> Messages { get; set; } = [];
         [JsonPropertyName("stream")]   public bool   Stream   { get; set; } = true;
+        [JsonPropertyName("options")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public OllamaOptions? Options { get; set; }
         [JsonPropertyName("tools")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<OllamaTool>? Tools { get; set; }
+    }
+
+    private sealed class OllamaOptions
+    {
+        [JsonPropertyName("temperature")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public double? Temperature { get; set; }
+        [JsonPropertyName("top_p")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public double? TopP { get; set; }
+        [JsonPropertyName("num_ctx")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? NumCtx { get; set; }
+        [JsonPropertyName("num_predict")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? NumPredict { get; set; }
+        [JsonPropertyName("repeat_penalty")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public double? RepeatPenalty { get; set; }
+        [JsonPropertyName("seed")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? Seed { get; set; }
     }
 
     private sealed class OllamaMessage
@@ -312,4 +339,25 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
 
     private static string EscapeJson(string value) =>
         value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private OllamaOptions? BuildOptions()
+    {
+        if (config.Temperature is null
+            && config.TopP is null
+            && config.NumCtx is null
+            && config.NumPredict is null
+            && config.RepeatPenalty is null
+            && config.Seed is null)
+            return null;
+
+        return new OllamaOptions
+        {
+            Temperature = config.Temperature,
+            TopP = config.TopP,
+            NumCtx = config.NumCtx,
+            NumPredict = config.NumPredict,
+            RepeatPenalty = config.RepeatPenalty,
+            Seed = config.Seed,
+        };
+    }
 }
