@@ -6,15 +6,15 @@ using BashGPT.Shell;
 namespace BashGPT.Tests.Cli;
 
 /// <summary>
-/// Unit-Tests für PromptHandler.RunServerChatAsync.
+/// Unit-Tests für ServerChatRunner.RunServerChatAsync.
 /// Nutzt FakeLlmProvider (via providerOverride) und NoContext=true, um echte
 /// LLM- und Dateisystem-Aufrufe zu vermeiden.
 /// </summary>
-public sealed class PromptHandlerTests
+public sealed class ServerChatRunnerTests
 {
     // ── Hilfsmethoden ───────────────────────────────────────────────────────
 
-    private static PromptHandler CreateHandler(FakeLlmProvider provider) =>
+    private static ServerChatRunner CreateRunner(FakeLlmProvider provider) =>
         new(new ConfigurationService(), new ShellContextCollector(), provider);
 
     private static ServerChatOptions Opts(
@@ -44,7 +44,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Hallo Welt!", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
@@ -58,7 +58,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.NextException = new LlmProviderException("API-Fehler");
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
@@ -71,7 +71,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.NextException = new OperationCanceledException();
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
@@ -84,7 +84,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("echo hi")]));
         provider.Enqueue(new LlmChatResponse("Fertig!", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -101,7 +101,7 @@ public sealed class PromptHandlerTests
         provider.Enqueue(new LlmChatResponse("", [BashCall("pwd", "tc-2")]));
         provider.Enqueue(new LlmChatResponse("", [BashCall("date", "tc-3")]));
         provider.Enqueue(new LlmChatResponse("Alle Runden erledigt.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -118,7 +118,7 @@ public sealed class PromptHandlerTests
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-2")]));
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-3")]));
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-4")]));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -135,7 +135,7 @@ public sealed class PromptHandlerTests
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-3")]));
         // 4. Antwort hat Tool-Calls UND Content → Content wird zurückgegeben
         provider.Enqueue(new LlmChatResponse("Eigene Antwort trotz Tool-Call.", [BashCall("top", "tc-4")]));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -148,7 +148,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("rm -rf /", "tc-1")]));
         provider.Enqueue(new LlmChatResponse("Erledigt.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.Ask));
 
@@ -161,7 +161,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("ls -la", "tc-1")]));
         provider.Enqueue(new LlmChatResponse("Erledigt.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -175,7 +175,7 @@ public sealed class PromptHandlerTests
         // Text-Antwort mit Bash-Block → NoExec überspringt Ausführung
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("```bash\nls\n```", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.NoExec));
 
@@ -187,7 +187,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Antwort", [], new TokenUsage(10, 5)));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
@@ -202,7 +202,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("ls", "tc-1")], new TokenUsage(10, 5)));
         provider.Enqueue(new LlmChatResponse("Fertig.", [], new TokenUsage(20, 8)));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -216,7 +216,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Antwort", []));  // Usage == null
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
@@ -229,7 +229,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [new ToolCall("tc-1", "bash", "nicht-json")]));
         provider.Enqueue(new LlmChatResponse("Fehler ignoriert.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -242,7 +242,7 @@ public sealed class PromptHandlerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [new ToolCall("tc-1", "unbekannt", """{"command":"ls"}""")]));
         provider.Enqueue(new LlmChatResponse("Unbekanntes Tool ignoriert.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
@@ -254,7 +254,7 @@ public sealed class PromptHandlerTests
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Ok.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(verbose: true));
 
@@ -271,7 +271,7 @@ public sealed class PromptHandlerTests
         };
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Antwort.", []));
-        var sut = CreateHandler(provider);
+        var sut = CreateRunner(provider);
 
         await sut.RunServerChatAsync(Opts(history: history));
 

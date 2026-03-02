@@ -10,11 +10,12 @@ var configDir        = Path.Combine(
     ".config", "bashgpt");
 var configService    = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
-var handler          = new PromptHandler(configService, contextCollector);
+var cliRunner        = new CliChatRunner(configService, contextCollector);
+var serverRunner     = new ServerChatRunner(configService, contextCollector);
 var historyFile      = Path.Combine(configDir, "history.json");
 var sessionsFile     = Path.Combine(configDir, "sessions.json");
 var sessionStore     = new SessionStore(sessionsFile, legacyHistoryFile: historyFile);
-var serverHost       = new ServerHost(handler, configService, sessionStore);
+var serverHost       = new ServerHost(serverRunner, configService, sessionStore);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ rootCommand.SetAction(async (parseResult, ct) =>
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-    await handler.RunAsync(opts, cts.Token);
+    await cliRunner.RunAsync(opts, cts.Token);
 });
 
 // ── config-Subkommando ────────────────────────────────────────────────────────
