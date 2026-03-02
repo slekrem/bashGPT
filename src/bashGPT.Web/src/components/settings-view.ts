@@ -29,6 +29,69 @@ export class SettingsView extends LitElement {
       color: #f1f5f9;
       margin: 0 0 24px;
     }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 24px;
+      align-items: start;
+    }
+    .settings-main {
+      min-width: 0;
+    }
+    .provider-doc {
+      border: 1px solid #1e293b;
+      background: #0b1220;
+      border-radius: 12px;
+      padding: 16px;
+      position: sticky;
+      top: 12px;
+    }
+    .provider-doc h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: #e2e8f0;
+    }
+    .provider-doc p {
+      margin: 0 0 12px;
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .doc-group {
+      margin-bottom: 14px;
+    }
+    .doc-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+    .doc-list {
+      margin: 0;
+      padding-left: 16px;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .doc-list li + li {
+      margin-top: 4px;
+    }
+    .doc-links {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .doc-links a {
+      color: #86efac;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .doc-links a:hover {
+      text-decoration: underline;
+    }
 
     .section {
       margin-bottom: 28px;
@@ -177,6 +240,13 @@ export class SettingsView extends LitElement {
 
     @media (max-width: 768px) {
       :host { padding: 16px 16px 32px; }
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .provider-doc {
+        position: static;
+      }
     }
   `
 
@@ -498,6 +568,76 @@ export class SettingsView extends LitElement {
     this.dispatchEvent(new CustomEvent('clear-history', { bubbles: true, composed: true }))
   }
 
+  private _renderProviderDocumentation(provider: ProviderName) {
+    if (provider === 'cerebras') {
+      return html`
+        <h3>Cerebras Doku</h3>
+        <p>Diese Optionen werden im Request an <code>/chat/completions</code> genutzt.</p>
+        <div class="doc-group">
+          <span class="doc-label">Pflicht</span>
+          <ul class="doc-list">
+            <li><code>model</code> - Modell-ID, z.B. <code>gpt-oss-120b</code></li>
+            <li><code>apiKey</code> - Zugriffstoken für die API</li>
+          </ul>
+        </div>
+        <div class="doc-group">
+          <span class="doc-label">Sampling</span>
+          <ul class="doc-list">
+            <li><code>temperature</code> - Kreativität des Outputs</li>
+            <li><code>top_p</code> - Nucleus Sampling</li>
+            <li><code>seed</code> - reproduzierbare Ergebnisse</li>
+          </ul>
+        </div>
+        <div class="doc-group">
+          <span class="doc-label">Antwort</span>
+          <ul class="doc-list">
+            <li><code>max_completion_tokens</code> - maximale Antwortlänge</li>
+            <li><code>reasoning_effort</code> - none/low/medium/high</li>
+          </ul>
+        </div>
+        <div class="doc-links">
+          <a href="https://inference-docs.cerebras.ai/api-reference/chat-completions" target="_blank" rel="noreferrer">Cerebras Chat Completions</a>
+          <a href="https://inference-docs.cerebras.ai/api-reference/models/list" target="_blank" rel="noreferrer">Cerebras Models</a>
+        </div>
+      `
+    }
+
+    return html`
+      <h3>Ollama Doku</h3>
+      <p>Diese Optionen werden im Request an <code>/api/chat</code> als <code>options</code> gesendet.</p>
+      <div class="doc-group">
+        <span class="doc-label">Basis</span>
+        <ul class="doc-list">
+          <li><code>model</code> - lokales Modell, z.B. <code>gpt-oss:20b</code></li>
+          <li><code>host</code> - Standard: <code>http://localhost:11434</code></li>
+        </ul>
+      </div>
+      <div class="doc-group">
+        <span class="doc-label">Optimierte Defaults in bashGPT</span>
+        <ul class="doc-list">
+          <li><code>temperature</code>: 0.2</li>
+          <li><code>top_p</code>: 0.9</li>
+          <li><code>num_ctx</code>: 16384</li>
+          <li><code>num_predict</code>: 1024</li>
+          <li><code>repeat_penalty</code>: 1.05</li>
+          <li><code>seed</code>: optional</li>
+        </ul>
+      </div>
+      <div class="doc-group">
+        <span class="doc-label">Wirkung</span>
+        <ul class="doc-list">
+          <li>niedrige Temperatur für stabileres Tool-Calling</li>
+          <li>größeres Kontextfenster für längere Bash-Sessions</li>
+          <li>kontrollierte Antwortlänge und weniger Wiederholungen</li>
+        </ul>
+      </div>
+      <div class="doc-links">
+        <a href="https://ollama.readthedocs.io/en/api/" target="_blank" rel="noreferrer">Ollama API Reference</a>
+        <a href="https://pkg.go.dev/github.com/ollama/ollama/api" target="_blank" rel="noreferrer">Ollama Options Schema</a>
+      </div>
+    `
+  }
+
   render() {
     const s = this._settings
 
@@ -512,7 +652,8 @@ export class SettingsView extends LitElement {
 
     return html`
       <h2>Einstellungen</h2>
-
+      <div class="layout">
+      <div class="settings-main">
       <div class="section">
         <div class="section-label">Verbindung</div>
 
@@ -797,6 +938,11 @@ export class SettingsView extends LitElement {
             ${this._status}
           </div>
         ` : ''}
+      </div>
+      </div>
+      <aside class="provider-doc" aria-label="Provider Dokumentation">
+        ${this._renderProviderDocumentation(s?.provider ?? 'cerebras')}
+      </aside>
       </div>
     `
   }
