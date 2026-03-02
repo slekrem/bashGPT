@@ -55,7 +55,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             contextWindowTokens,
             hasApiKey         = config.Cerebras.ApiKey is not null,
             ollamaHost        = config.Ollama.BaseUrl,
-            execMode          = ExecModeToString(state.ExecMode),
+            execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
         });
     }
@@ -85,7 +85,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         }
         if (!string.IsNullOrEmpty(body.ApiKey)) config.Cerebras.ApiKey = body.ApiKey;
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
-        if (body.ExecMode is not null) state.ExecMode = ParseExecMode(body.ExecMode) ?? state.ExecMode;
+        if (body.ExecMode is not null) state.ExecMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
         if (body.ForceTools is bool ft) state.ForceTools = ft;
         await configService.SaveAsync(config);
         await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
@@ -171,26 +171,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             "ollama"   => ProviderType.Ollama,
             "cerebras" => ProviderType.Cerebras,
             _          => null
-        };
-
-    internal static string ExecModeToString(ExecutionMode mode) =>
-        mode switch
-        {
-            ExecutionMode.Ask      => "ask",
-            ExecutionMode.DryRun   => "dry-run",
-            ExecutionMode.AutoExec => "auto-exec",
-            ExecutionMode.NoExec   => "no-exec",
-            _                      => "ask"
-        };
-
-    internal static ExecutionMode? ParseExecMode(string? mode) =>
-        mode?.ToLowerInvariant() switch
-        {
-            "ask"       => ExecutionMode.Ask,
-            "dry-run"   => ExecutionMode.DryRun,
-            "auto-exec" => ExecutionMode.AutoExec,
-            "no-exec"   => ExecutionMode.NoExec,
-            _           => null
         };
 
     private sealed record SettingsRequest(

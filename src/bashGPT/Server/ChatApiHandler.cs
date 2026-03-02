@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BashGPT.Cli;
 using BashGPT.Providers;
+using BashGPT.Shell;
 using BashGPT.Storage;
 
 namespace BashGPT.Server;
@@ -38,7 +39,7 @@ internal sealed class ChatApiHandler(
             historySnapshot = legacyHistory.GetSnapshot();
         }
 
-        var requestedMode = SettingsApiHandler.ParseExecMode(body.ExecMode) ?? state.ExecMode;
+        var requestedMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
         var chatOpts = new ServerChatOptions(
             Prompt:     body.Prompt.Trim(),
             History:    historySnapshot,
