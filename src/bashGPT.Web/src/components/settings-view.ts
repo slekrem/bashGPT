@@ -20,7 +20,7 @@ export class SettingsView extends LitElement {
       overflow-y: auto;
       padding: 28px 28px 40px;
       box-sizing: border-box;
-      max-width: 560px;
+      width: 100%;
     }
 
     h2 {
