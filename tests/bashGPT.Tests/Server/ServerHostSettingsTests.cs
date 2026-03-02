@@ -191,6 +191,42 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Put_Settings_OllamaAdvancedOptions_ArePersisted()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            provider = "ollama",
+            ollama = new
+            {
+                model = "ollama-model-y",
+                host = "http://ollama.local:11434",
+                temperature = 0.3,
+                topP = 0.9,
+                numCtx = 16384,
+                numPredict = 2048,
+                repeatPenalty = 1.05,
+                seed = 99,
+            },
+        });
+
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var config = await _configService.LoadAsync();
+        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        Assert.Equal("ollama-model-y", config.Ollama.Model);
+        Assert.Equal("http://ollama.local:11434", config.Ollama.BaseUrl);
+        Assert.Equal(0.3, config.Ollama.Temperature);
+        Assert.Equal(0.9, config.Ollama.TopP);
+        Assert.Equal(16384, config.Ollama.NumCtx);
+        Assert.Equal(2048, config.Ollama.NumPredict);
+        Assert.Equal(1.05, config.Ollama.RepeatPenalty);
+        Assert.Equal(99, config.Ollama.Seed);
+    }
+
+    [Fact]
     public async Task Put_Settings_EmptyApiKey_DoesNotOverwriteExisting()
     {
         // Zuerst einen API-Key setzen

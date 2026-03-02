@@ -111,6 +111,12 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("defaultProvider", list);
         Assert.Contains("ollama.baseUrl", list);
         Assert.Contains("ollama.model", list);
+        Assert.Contains("ollama.temperature", list);
+        Assert.Contains("ollama.topP", list);
+        Assert.Contains("ollama.numCtx", list);
+        Assert.Contains("ollama.numPredict", list);
+        Assert.Contains("ollama.repeatPenalty", list);
+        Assert.Contains("ollama.seed", list);
         Assert.Contains("cerebras.apiKey", list);
         Assert.Contains("cerebras.model", list);
         Assert.Contains("cerebras.temperature", list);
@@ -136,6 +142,26 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(4096, loaded.Cerebras.MaxCompletionTokens);
         Assert.Equal(42, loaded.Cerebras.Seed);
         Assert.Equal("high", loaded.Cerebras.ReasoningEffort);
+    }
+
+    [Fact]
+    public async Task Set_OllamaAdvancedOptions_ArePersisted()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("ollama.temperature", "0.4");
+        await svc.SetAsync("ollama.topP", "0.9");
+        await svc.SetAsync("ollama.numCtx", "32768");
+        await svc.SetAsync("ollama.numPredict", "512");
+        await svc.SetAsync("ollama.repeatPenalty", "1.1");
+        await svc.SetAsync("ollama.seed", "77");
+
+        var loaded = await svc.LoadAsync();
+        Assert.Equal(0.4, loaded.Ollama.Temperature);
+        Assert.Equal(0.9, loaded.Ollama.TopP);
+        Assert.Equal(32768, loaded.Ollama.NumCtx);
+        Assert.Equal(512, loaded.Ollama.NumPredict);
+        Assert.Equal(1.1, loaded.Ollama.RepeatPenalty);
+        Assert.Equal(77, loaded.Ollama.Seed);
     }
 }
 

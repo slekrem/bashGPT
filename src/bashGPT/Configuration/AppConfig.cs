@@ -10,6 +10,12 @@ public class OllamaConfig
 {
     public string BaseUrl { get; set; } = "http://localhost:11434";
     public string Model { get; set; } = "gpt-oss:20b";
+    public double? Temperature { get; set; }
+    public double? TopP { get; set; }
+    public int? NumCtx { get; set; }
+    public int? NumPredict { get; set; }
+    public double? RepeatPenalty { get; set; }
+    public int? Seed { get; set; }
 }
 
 public class CerebrasConfig

@@ -57,6 +57,12 @@ export interface CerebrasSettings {
 export interface OllamaSettings {
   model: string
   host: string
+  temperature?: number
+  topP?: number
+  numCtx?: number
+  numPredict?: number
+  repeatPenalty?: number
+  seed?: number
 }
 
 export interface Settings {

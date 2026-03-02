@@ -66,6 +66,28 @@ public class ConfigurationService
             case "ollama.model":
                 config.Ollama.Model = value;
                 break;
+            case "ollama.temperature":
+                config.Ollama.Temperature = ParseDouble(value, "ollama.temperature");
+                break;
+            case "ollama.topp":
+            case "ollama.top_p":
+                config.Ollama.TopP = ParseDouble(value, "ollama.topP");
+                break;
+            case "ollama.numctx":
+            case "ollama.num_ctx":
+                config.Ollama.NumCtx = ParseInt(value, "ollama.numCtx");
+                break;
+            case "ollama.numpredict":
+            case "ollama.num_predict":
+                config.Ollama.NumPredict = ParseInt(value, "ollama.numPredict");
+                break;
+            case "ollama.repeatpenalty":
+            case "ollama.repeat_penalty":
+                config.Ollama.RepeatPenalty = ParseDouble(value, "ollama.repeatPenalty");
+                break;
+            case "ollama.seed":
+                config.Ollama.Seed = ParseInt(value, "ollama.seed");
+                break;
             case "cerebras.apikey":
                 config.Cerebras.ApiKey = value;
                 break;
@@ -96,7 +118,8 @@ public class ConfigurationService
             default:
                 throw new ArgumentException(
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
-                    "Gültige Schlüssel: defaultProvider, ollama.baseUrl, ollama.model, " +
+                    "Gültige Schlüssel: defaultProvider, ollama.baseUrl, ollama.model, ollama.temperature, " +
+                    "ollama.topP, ollama.numCtx, ollama.numPredict, ollama.repeatPenalty, ollama.seed, " +
                     "cerebras.apiKey, cerebras.model, cerebras.baseUrl, cerebras.temperature, " +
                     "cerebras.topP, cerebras.maxCompletionTokens, cerebras.seed, cerebras.reasoningEffort");
         }
@@ -113,6 +136,12 @@ public class ConfigurationService
             "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLower(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
+            "ollama.temperature" => config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
+            "ollama.topp" or "ollama.top_p" => config.Ollama.TopP?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
+            "ollama.numctx" or "ollama.num_ctx" => config.Ollama.NumCtx?.ToString() ?? "(nicht gesetzt)",
+            "ollama.numpredict" or "ollama.num_predict" => config.Ollama.NumPredict?.ToString() ?? "(nicht gesetzt)",
+            "ollama.repeatpenalty" or "ollama.repeat_penalty" => config.Ollama.RepeatPenalty?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
+            "ollama.seed" => config.Ollama.Seed?.ToString() ?? "(nicht gesetzt)",
             "cerebras.apikey" => config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)",
             "cerebras.model" => config.Cerebras.Model,
             "cerebras.baseurl" => config.Cerebras.BaseUrl,
@@ -132,6 +161,12 @@ public class ConfigurationService
             defaultProvider  = {config.DefaultProvider.ToString().ToLower()}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
+            ollama.temperature = {config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
+            ollama.topP        = {config.Ollama.TopP?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
+            ollama.numCtx      = {config.Ollama.NumCtx?.ToString() ?? "(nicht gesetzt)"}
+            ollama.numPredict  = {config.Ollama.NumPredict?.ToString() ?? "(nicht gesetzt)"}
+            ollama.repeatPenalty = {config.Ollama.RepeatPenalty?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
+            ollama.seed        = {config.Ollama.Seed?.ToString() ?? "(nicht gesetzt)"}
             cerebras.apiKey  = {(config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)")}
             cerebras.model   = {config.Cerebras.Model}
             cerebras.baseUrl = {config.Cerebras.BaseUrl}
@@ -184,6 +219,30 @@ public class ConfigurationService
         var ollamaModel = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_MODEL");
         if (ollamaModel is not null)
             config.Ollama.Model = ollamaModel;
+
+        var ollamaTemperature = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_TEMPERATURE");
+        if (!string.IsNullOrWhiteSpace(ollamaTemperature))
+            config.Ollama.Temperature = ParseDouble(ollamaTemperature, "BASHGPT_OLLAMA_TEMPERATURE");
+
+        var ollamaTopP = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_TOP_P");
+        if (!string.IsNullOrWhiteSpace(ollamaTopP))
+            config.Ollama.TopP = ParseDouble(ollamaTopP, "BASHGPT_OLLAMA_TOP_P");
+
+        var ollamaNumCtx = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_NUM_CTX");
+        if (!string.IsNullOrWhiteSpace(ollamaNumCtx))
+            config.Ollama.NumCtx = ParseInt(ollamaNumCtx, "BASHGPT_OLLAMA_NUM_CTX");
+
+        var ollamaNumPredict = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_NUM_PREDICT");
+        if (!string.IsNullOrWhiteSpace(ollamaNumPredict))
+            config.Ollama.NumPredict = ParseInt(ollamaNumPredict, "BASHGPT_OLLAMA_NUM_PREDICT");
+
+        var ollamaRepeatPenalty = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_REPEAT_PENALTY");
+        if (!string.IsNullOrWhiteSpace(ollamaRepeatPenalty))
+            config.Ollama.RepeatPenalty = ParseDouble(ollamaRepeatPenalty, "BASHGPT_OLLAMA_REPEAT_PENALTY");
+
+        var ollamaSeed = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_SEED");
+        if (!string.IsNullOrWhiteSpace(ollamaSeed))
+            config.Ollama.Seed = ParseInt(ollamaSeed, "BASHGPT_OLLAMA_SEED");
     }
 
     private static double ParseDouble(string value, string key)

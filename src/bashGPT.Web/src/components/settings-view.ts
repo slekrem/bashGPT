@@ -221,6 +221,12 @@ export class SettingsView extends LitElement {
       ollama: {
         model: ollamaModel,
         host: ollamaHost,
+        temperature: settings.ollama?.temperature,
+        topP: settings.ollama?.topP,
+        numCtx: settings.ollama?.numCtx,
+        numPredict: settings.ollama?.numPredict,
+        repeatPenalty: settings.ollama?.repeatPenalty,
+        seed: settings.ollama?.seed,
       },
     }
   }
@@ -341,6 +347,60 @@ export class SettingsView extends LitElement {
     this._status = ''
   }
 
+  private _setOllamaTemperature(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, temperature: this._parseFloatInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaTopP(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, topP: this._parseFloatInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaNumCtx(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, numCtx: this._parseIntInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaNumPredict(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, numPredict: this._parseIntInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaRepeatPenalty(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, repeatPenalty: this._parseFloatInput(value) },
+    }
+    this._status = ''
+  }
+
+  private _setOllamaSeed(value: string) {
+    if (!this._settings) return
+    this._settings = {
+      ...this._settings,
+      ollama: { ...this._settings.ollama, seed: this._parseIntInput(value) },
+    }
+    this._status = ''
+  }
+
   private _buildSavePayload(settings: Settings) {
     const cerebrasApiKey = settings.cerebras.apiKey?.trim()
     return {
@@ -363,6 +423,12 @@ export class SettingsView extends LitElement {
       ollama: {
         model: settings.ollama.model,
         host: settings.ollama.host,
+        temperature: settings.ollama.temperature,
+        topP: settings.ollama.topP,
+        numCtx: settings.ollama.numCtx,
+        numPredict: settings.ollama.numPredict,
+        repeatPenalty: settings.ollama.repeatPenalty,
+        seed: settings.ollama.seed,
       },
     }
   }
@@ -593,6 +659,78 @@ export class SettingsView extends LitElement {
               .value=${s?.ollama.host ?? 'http://localhost:11434'}
               @input=${(e: InputEvent) => this._setOllamaHost((e.target as HTMLInputElement).value)}
               ?disabled=${!s || this._loading}
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama Temperature</label>
+            <input
+              type="number"
+              step="0.01"
+              .value=${s?.ollama.temperature?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaTemperature((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama top_p</label>
+            <input
+              type="number"
+              step="0.01"
+              .value=${s?.ollama.topP?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaTopP((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama num_ctx</label>
+            <input
+              type="number"
+              step="1"
+              .value=${s?.ollama.numCtx?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaNumCtx((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama num_predict</label>
+            <input
+              type="number"
+              step="1"
+              .value=${s?.ollama.numPredict?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaNumPredict((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama repeat_penalty</label>
+            <input
+              type="number"
+              step="0.01"
+              .value=${s?.ollama.repeatPenalty?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaRepeatPenalty((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div class="field">
+            <label>Ollama Seed</label>
+            <input
+              type="number"
+              step="1"
+              .value=${s?.ollama.seed?.toString() ?? ''}
+              @input=${(e: InputEvent) => this._setOllamaSeed((e.target as HTMLInputElement).value)}
+              ?disabled=${!s || this._loading}
+              placeholder="Optional"
             />
           </div>
         `}

@@ -74,6 +74,12 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             {
                 model = config.Ollama.Model,
                 host = config.Ollama.BaseUrl,
+                temperature = config.Ollama.Temperature,
+                topP = config.Ollama.TopP,
+                numCtx = config.Ollama.NumCtx,
+                numPredict = config.Ollama.NumPredict,
+                repeatPenalty = config.Ollama.RepeatPenalty,
+                seed = config.Ollama.Seed,
             },
         });
     }
@@ -113,6 +119,12 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         {
             if (body.Ollama.Model is not null) config.Ollama.Model = body.Ollama.Model;
             if (body.Ollama.Host is not null) config.Ollama.BaseUrl = body.Ollama.Host;
+            if (body.Ollama.Temperature is not null) config.Ollama.Temperature = body.Ollama.Temperature;
+            if (body.Ollama.TopP is not null) config.Ollama.TopP = body.Ollama.TopP;
+            if (body.Ollama.NumCtx is not null) config.Ollama.NumCtx = body.Ollama.NumCtx;
+            if (body.Ollama.NumPredict is not null) config.Ollama.NumPredict = body.Ollama.NumPredict;
+            if (body.Ollama.RepeatPenalty is not null) config.Ollama.RepeatPenalty = body.Ollama.RepeatPenalty;
+            if (body.Ollama.Seed is not null) config.Ollama.Seed = body.Ollama.Seed;
         }
 
         if (body.Model is not null)
@@ -222,6 +234,9 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         string? Host,
         double? Temperature,
         double? TopP,
+        int? NumCtx,
+        int? NumPredict,
+        double? RepeatPenalty,
         int? MaxCompletionTokens,
         int? Seed,
         string? ReasoningEffort);
