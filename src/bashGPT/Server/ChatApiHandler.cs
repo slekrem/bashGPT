@@ -107,10 +107,9 @@ internal sealed class ChatApiHandler(
         }
         else
         {
-            // Fallback: globale In-Memory-History (legacy)
+            // Fallback: globale In-Memory-History (legacy, kein SessionStore)
             legacyHistory.Append(new ChatMessage(ChatRole.User,      body.Prompt.Trim()));
             legacyHistory.Append(new ChatMessage(ChatRole.Assistant, result.Response));
-            await legacyHistory.PersistAsync();
         }
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new

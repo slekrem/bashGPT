@@ -55,7 +55,6 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
         {
             await sessionStore.ClearAsync();
             legacyHistory.Clear();
-            await legacyHistory.PersistAsync();
             await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
             return;
         }

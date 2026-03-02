@@ -18,11 +18,10 @@ public class ServerHost
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
-        string? historyFile = null,
         SessionStore? sessionStore = null)
     {
         _state           = new ServerState();
-        _legacyHistory   = new LegacyHistory(historyFile);
+        _legacyHistory   = new LegacyHistory();
         _contextHandler  = new ContextApiHandler();
         _settingsHandler = new SettingsApiHandler(configService, _state);
         _chatHandler     = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
@@ -50,8 +49,6 @@ public class ServerHost
 
         Console.WriteLine($"bashGPT Server läuft auf {prefix}");
         Console.WriteLine("Beenden mit Ctrl+C");
-
-        await _legacyHistory.LoadFromFileAsync();
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);
@@ -94,13 +91,14 @@ public class ServerHost
             if (req.HttpMethod == "GET"  && path == "/bundle.js")
             { await ApiResponse.WriteResourceAsync(ctx.Response, "bashGPT.Web.bundle.js", "application/javascript; charset=utf-8"); return; }
 
+            // @deprecated – Nur noch für Frontend-Kompatibilität; neue Clients nutzen /api/sessions
             if (req.HttpMethod == "GET"  && path == "/api/history")
             { await ApiResponse.WriteJsonAsync(ctx.Response, new { history = _legacyHistory.GetItems() }); return; }
 
+            // @deprecated – Nur noch für Frontend-Kompatibilität; neue Clients nutzen /api/sessions/clear
             if (req.HttpMethod == "POST" && path == "/api/reset")
             {
                 _legacyHistory.Clear();
-                await _legacyHistory.PersistAsync();
                 await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
                 return;
             }
