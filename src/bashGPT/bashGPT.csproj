@@ -19,7 +19,17 @@
   </ItemGroup>
 
   <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild">
-    <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web" />
+    <!--
+      Windows: npm is resolved via the normal PATH.
+      Linux/macOS: snap-installed .NET runs in a sandbox with a restricted PATH
+      that may exclude /usr/bin and /usr/local/bin. We prepend the common npm
+      locations so that system-installed (apt) and nvm-managed npm are both found.
+    -->
+    <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
+          EnvironmentVariables="PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)"
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
   </Target>
 
 </Project>
