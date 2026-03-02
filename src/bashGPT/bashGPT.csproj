@@ -29,10 +29,9 @@
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
     </PropertyGroup>
 
-    <!-- Install dependencies automatically on first checkout (node_modules absent). -->
+    <!-- Install/update npm dependencies (idempotent; skips already-installed packages). -->
     <Exec Command="npm install" WorkingDirectory="..\bashGPT.Web"
-          EnvironmentVariables="$(NpmEnvPath)"
-          Condition="!Exists('..\bashGPT.Web\node_modules')" />
+          EnvironmentVariables="$(NpmEnvPath)" />
 
     <!-- Build the frontend bundle (TypeScript compile + Vite). -->
     <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
