@@ -202,9 +202,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
                 host = "http://ollama.local:11434",
                 temperature = 0.3,
                 topP = 0.9,
-                numCtx = 16384,
-                numPredict = 2048,
-                repeatPenalty = 1.05,
                 seed = 99,
             },
         });
@@ -220,9 +217,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         Assert.Equal("http://ollama.local:11434", config.Ollama.BaseUrl);
         Assert.Equal(0.3, config.Ollama.Temperature);
         Assert.Equal(0.9, config.Ollama.TopP);
-        Assert.Equal(16384, config.Ollama.NumCtx);
-        Assert.Equal(2048, config.Ollama.NumPredict);
-        Assert.Equal(1.05, config.Ollama.RepeatPenalty);
         Assert.Equal(99, config.Ollama.Seed);
     }
 

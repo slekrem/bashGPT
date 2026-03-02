@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using BashGPT.Configuration;
 
 namespace BashGPT.Providers;
@@ -14,22 +14,28 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
 
     public override async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
     {
-        var ollamaRequest = new OllamaChatRequest
+        var openAiRequest = new OpenAiChatRequest
         {
-            Model    = config.Model,
-            Messages = request.Messages.Select(MapMessage).ToList(),
-            Stream   = request.Stream,
-            Options  = BuildOptions()
+            Model       = config.Model,
+            Messages    = request.Messages.Select(MapMessage).ToList(),
+            Stream      = request.Stream,
+            Temperature = config.Temperature,
+            TopP        = config.TopP,
+            Seed        = config.Seed,
         };
 
         if (request.Tools is { Count: > 0 })
-            ollamaRequest.Tools = request.Tools.Select(MapTool).ToList();
+            openAiRequest.Tools = request.Tools.Select(MapTool).ToList();
+
+        if (request.Stream)
+            openAiRequest.StreamOptions = new OpenAiStreamOptions();
+
+        var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
         HttpResponseMessage response;
         try
         {
-            response = await Http.PostAsJsonAsync(
-                $"{config.BaseUrl.TrimEnd('/')}/api/chat", ollamaRequest, ct);
+            response = await Http.PostAsJsonAsync(url, openAiRequest, JsonDefaults.Options, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -50,21 +56,21 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         if (!request.Stream)
         {
             var json = await response.Content.ReadAsStringAsync(ct);
-            var full = JsonSerializer.Deserialize<OllamaChatResponse>(json, JsonDefaults.Options);
-            var content = full?.Message?.Content ?? "";
-            var toolCalls = full?.Message?.ToolCalls?.Select(MapToolCall).ToList() ?? [];
+            var full = JsonSerializer.Deserialize<OpenAiChatResponse>(json, JsonDefaults.Options);
+            var message = full?.Choices?.FirstOrDefault()?.Message;
+            var content = message?.Content ?? "";
+            var toolCalls = message?.ToolCalls?.Select(MapToolCall).ToList() ?? [];
             if (!string.IsNullOrEmpty(content))
                 request.OnToken?.Invoke(content);
-            var nonStreamUsage = full?.PromptEvalCount is int p && full?.EvalCount is int o
-                ? new TokenUsage(p, o, p + o)
+            var nonStreamUsage = full?.Usage is { } u
+                ? new TokenUsage(u.PromptTokens, u.CompletionTokens, u.TotalTokens)
                 : null;
             return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
 
-        var contentBuilder = new System.Text.StringBuilder();
-        var toolCallsByIndex = new Dictionary<int, ToolCall>();
-        var toolCallsNoIndex = new List<ToolCall>();
-        int? promptTokens = null, outputTokens = null;
+        var contentBuilder = new StringBuilder();
+        var toolBuilder = new Dictionary<int, ToolCallBuilder>();
+        OpenAiUsage? streamUsage = null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new System.IO.StreamReader(stream);
@@ -74,75 +80,71 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             var line = await reader.ReadLineAsync(ct);
             if (string.IsNullOrWhiteSpace(line)) continue;
 
-            OllamaChatResponse? chunk;
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+
+            var json = line["data:".Length..].Trim();
+            if (json == "[DONE]") break;
+
+            OpenAiStreamChunk? chunk;
             try
             {
-                chunk = JsonSerializer.Deserialize<OllamaChatResponse>(line, JsonDefaults.Options);
+                chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
             }
             catch (JsonException)
             {
                 continue;
             }
 
-            if (chunk is null) continue;
-
-            var content = chunk.Message?.Content;
+            var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
+            var content = delta?.Content;
             if (!string.IsNullOrEmpty(content))
             {
                 request.OnToken?.Invoke(content);
                 contentBuilder.Append(content);
             }
 
-            if (chunk.Message?.ToolCalls is { Count: > 0 })
+            if (delta?.ToolCalls is { Count: > 0 })
             {
-                foreach (var tc in chunk.Message.ToolCalls)
-                {
-                    var mapped = MapToolCall(tc);
-                    if (mapped.Index is int idx)
-                        toolCallsByIndex[idx] = mapped;
-                    else
-                        toolCallsNoIndex.Add(mapped);
-                }
+                foreach (var toolDelta in delta.ToolCalls)
+                    ApplyToolDelta(toolBuilder, toolDelta);
             }
 
-            if (chunk.Done)
-            {
-                if (chunk.PromptEvalCount is int p) promptTokens = p;
-                if (chunk.EvalCount is int o) outputTokens = o;
-                break;
-            }
+            if (chunk?.Usage is not null)
+                streamUsage = chunk.Usage;
         }
 
-        var ordered = toolCallsByIndex
+        var toolCallsFinal = toolBuilder
             .OrderBy(kvp => kvp.Key)
-            .Select(kvp => kvp.Value)
-            .Concat(toolCallsNoIndex)
+            .Select(kvp => kvp.Value.ToToolCall())
             .ToList();
 
-        var usage = promptTokens.HasValue && outputTokens.HasValue
-            ? new TokenUsage(promptTokens.Value, outputTokens.Value, promptTokens.Value + outputTokens.Value)
+        var usage = streamUsage is not null
+            ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
             : null;
 
-        return new LlmChatResponse(contentBuilder.ToString(), ordered, usage);
+        return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
     }
 
     public override async IAsyncEnumerable<string> StreamAsync(
         IEnumerable<ChatMessage> messages,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var request = new OllamaChatRequest
+        var request = new OpenAiChatRequest
         {
-            Model    = config.Model,
-            Messages = messages.Select(m => new OllamaMessage { Role = m.RoleString, Content = m.Content }).ToList(),
-            Stream   = true,
-            Options  = BuildOptions()
+            Model       = config.Model,
+            Messages    = messages.Select(m => new OpenAiMessage { Role = m.RoleString, Content = m.Content }).ToList(),
+            Stream      = true,
+            Temperature = config.Temperature,
+            TopP        = config.TopP,
+            Seed        = config.Seed,
         };
+
+        var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
         HttpResponseMessage response;
         try
         {
-            response = await Http.PostAsJsonAsync(
-                $"{config.BaseUrl.TrimEnd('/')}/api/chat", request, ct);
+            response = await Http.PostAsJsonAsync(url, request, JsonDefaults.Options, ct);
         }
         catch (HttpRequestException ex)
         {
@@ -168,114 +170,32 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             var line = await reader.ReadLineAsync(ct);
             if (string.IsNullOrWhiteSpace(line)) continue;
 
-            OllamaChatResponse? chunk;
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+
+            var json = line["data:".Length..].Trim();
+            if (json == "[DONE]") yield break;
+
+            OpenAiStreamChunk? chunk;
             try
             {
-                chunk = JsonSerializer.Deserialize<OllamaChatResponse>(line, JsonDefaults.Options);
+                chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
             }
             catch (JsonException)
             {
                 continue;
             }
 
-            if (chunk is null) continue;
-
-            var content = chunk.Message?.Content;
+            var content = chunk?.Choices?.FirstOrDefault()?.Delta?.Content;
             if (!string.IsNullOrEmpty(content))
                 yield return content;
-
-            if (chunk.Done) yield break;
         }
     }
 
-    // ── DTOs ────────────────────────────────────────────────────────────────
+    // ── Mapping-Funktionen ──────────────────────────────────────────────────
 
-    private sealed class OllamaChatRequest
+    private static OpenAiMessage MapMessage(ChatMessage msg)
     {
-        [JsonPropertyName("model")]    public string Model    { get; set; } = "";
-        [JsonPropertyName("messages")] public List<OllamaMessage> Messages { get; set; } = [];
-        [JsonPropertyName("stream")]   public bool   Stream   { get; set; } = true;
-        [JsonPropertyName("options")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public OllamaOptions? Options { get; set; }
-        [JsonPropertyName("tools")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public List<OllamaTool>? Tools { get; set; }
-    }
-
-    private sealed class OllamaOptions
-    {
-        [JsonPropertyName("temperature")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public double? Temperature { get; set; }
-        [JsonPropertyName("top_p")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public double? TopP { get; set; }
-        [JsonPropertyName("num_ctx")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public int? NumCtx { get; set; }
-        [JsonPropertyName("num_predict")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public int? NumPredict { get; set; }
-        [JsonPropertyName("repeat_penalty")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public double? RepeatPenalty { get; set; }
-        [JsonPropertyName("seed")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public int? Seed { get; set; }
-    }
-
-    private sealed class OllamaMessage
-    {
-        [JsonPropertyName("role")]    public string Role    { get; set; } = "";
-        [JsonPropertyName("content")] public string Content { get; set; } = "";
-        [JsonPropertyName("tool_calls")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public List<OllamaToolCall>? ToolCalls { get; set; }
-        [JsonPropertyName("tool_name")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? ToolName { get; set; }
-    }
-
-    private sealed class OllamaChatResponse
-    {
-        [JsonPropertyName("message")]           public OllamaMessage? Message        { get; set; }
-        [JsonPropertyName("done")]              public bool           Done            { get; set; }
-        [JsonPropertyName("prompt_eval_count")] public int?           PromptEvalCount { get; set; }
-        [JsonPropertyName("eval_count")]        public int?           EvalCount       { get; set; }
-    }
-
-    private sealed class OllamaTool
-    {
-        [JsonPropertyName("type")] public string Type { get; set; } = "function";
-        [JsonPropertyName("function")] public OllamaToolFunction Function { get; set; } = new();
-    }
-
-    private sealed class OllamaToolFunction
-    {
-        [JsonPropertyName("name")] public string Name { get; set; } = "";
-        [JsonPropertyName("description")] public string Description { get; set; } = "";
-        [JsonPropertyName("parameters")] public object Parameters { get; set; } = new();
-    }
-
-    private sealed class OllamaToolCall
-    {
-        [JsonPropertyName("type")] public string Type { get; set; } = "function";
-        [JsonPropertyName("function")] public OllamaToolCallFunction Function { get; set; } = new();
-    }
-
-    private sealed class OllamaToolCallFunction
-    {
-        [JsonPropertyName("name")] public string Name { get; set; } = "";
-        [JsonPropertyName("arguments")] public JsonElement Arguments { get; set; }
-        [JsonPropertyName("index")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public int? Index { get; set; }
-    }
-
-    private static OllamaMessage MapMessage(ChatMessage msg)
-    {
-        var message = new OllamaMessage
+        var message = new OpenAiMessage
         {
             Role    = msg.RoleString,
             Content = msg.Content
@@ -284,17 +204,17 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         if (msg.ToolCalls is { Count: > 0 })
             message.ToolCalls = msg.ToolCalls.Select(MapToolCallDto).ToList();
 
-        if (!string.IsNullOrWhiteSpace(msg.ToolName))
-            message.ToolName = msg.ToolName;
+        if (!string.IsNullOrWhiteSpace(msg.ToolCallId))
+            message.ToolCallId = msg.ToolCallId;
 
         return message;
     }
 
-    private static OllamaTool MapTool(ToolDefinition tool) =>
+    private static OpenAiTool MapTool(ToolDefinition tool) =>
         new()
         {
             Type = "function",
-            Function = new OllamaToolFunction
+            Function = new OpenAiToolFunction
             {
                 Name        = tool.Name,
                 Description = tool.Description,
@@ -302,62 +222,38 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             }
         };
 
-    private static OllamaToolCall MapToolCallDto(ToolCall call)
-    {
-        var args = TryParseJson(call.ArgumentsJson, out var element)
-            ? element
-            : JsonSerializer.Deserialize<JsonElement>("{\"command\":\"" + EscapeJson(call.ArgumentsJson) + "\"}");
-
-        return new OllamaToolCall
+    private static OpenAiToolCall MapToolCallDto(ToolCall call) =>
+        new()
         {
+            Id = call.Id ?? "",
             Type = "function",
-            Function = new OllamaToolCallFunction
+            Function = new OpenAiToolCallFunction
             {
                 Name = call.Name,
-                Arguments = args,
-                Index = call.Index
+                Arguments = call.ArgumentsJson
             }
         };
-    }
 
-    private static ToolCall MapToolCall(OllamaToolCall call) =>
-        new(null, call.Function.Name, call.Function.Arguments.GetRawText(), call.Function.Index);
+    private static ToolCall MapToolCall(OpenAiToolCall call) =>
+        new(call.Id, call.Function.Name ?? "", call.Function.Arguments ?? "", null);
 
-    private static bool TryParseJson(string input, out JsonElement element)
+    private static void ApplyToolDelta(
+        Dictionary<int, ToolCallBuilder> builder,
+        OpenAiToolCallDelta delta)
     {
-        try
+        if (!builder.TryGetValue(delta.Index, out var item))
         {
-            element = JsonSerializer.Deserialize<JsonElement>(input);
-            return true;
+            item = new ToolCallBuilder { Index = delta.Index };
+            builder[delta.Index] = item;
         }
-        catch (JsonException)
-        {
-            element = default;
-            return false;
-        }
-    }
 
-    private static string EscapeJson(string value) =>
-        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        if (!string.IsNullOrWhiteSpace(delta.Id))
+            item.Id = delta.Id;
 
-    private OllamaOptions? BuildOptions()
-    {
-        if (config.Temperature is null
-            && config.TopP is null
-            && config.NumCtx is null
-            && config.NumPredict is null
-            && config.RepeatPenalty is null
-            && config.Seed is null)
-            return null;
+        if (!string.IsNullOrWhiteSpace(delta.Function?.Name))
+            item.Name = delta.Function.Name;
 
-        return new OllamaOptions
-        {
-            Temperature = config.Temperature,
-            TopP = config.TopP,
-            NumCtx = config.NumCtx,
-            NumPredict = config.NumPredict,
-            RepeatPenalty = config.RepeatPenalty,
-            Seed = config.Seed,
-        };
+        if (!string.IsNullOrWhiteSpace(delta.Function?.Arguments))
+            item.Arguments.Append(delta.Function.Arguments);
     }
 }

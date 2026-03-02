@@ -12,9 +12,6 @@ public class OllamaConfig
     public string Model { get; set; } = "gpt-oss:20b";
     public double? Temperature { get; set; } = 0.2;
     public double? TopP { get; set; } = 0.9;
-    public int? NumCtx { get; set; } = 16384;
-    public int? NumPredict { get; set; } = 1024;
-    public double? RepeatPenalty { get; set; } = 1.05;
     public int? Seed { get; set; }
 }
 

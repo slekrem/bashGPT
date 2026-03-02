@@ -317,18 +317,6 @@ export class ChatInfoPanel extends LitElement {
                 <span class="value mono">${this._fmtNumber(this.settings.ollama.topP ?? 0.9)}</span>
               </div>
               <div class="row">
-                <span class="label">num_ctx</span>
-                <span class="value mono">${this._fmtNumber(this.settings.ollama.numCtx ?? 16384, 0)}</span>
-              </div>
-              <div class="row">
-                <span class="label">num_pred</span>
-                <span class="value mono">${this._fmtNumber(this.settings.ollama.numPredict ?? 1024, 0)}</span>
-              </div>
-              <div class="row">
-                <span class="label">repeat</span>
-                <span class="value mono">${this._fmtNumber(this.settings.ollama.repeatPenalty ?? 1.05)}</span>
-              </div>
-              <div class="row">
                 <span class="label">seed</span>
                 <span class="value mono">${this.settings.ollama.seed ?? '-'}</span>
               </div>
