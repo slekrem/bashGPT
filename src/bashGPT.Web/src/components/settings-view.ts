@@ -572,63 +572,56 @@ export class SettingsView extends LitElement {
     if (provider === 'cerebras') {
       return html`
         <h3>Cerebras Doku</h3>
-        <p>Diese Optionen werden im Request an <code>/chat/completions</code> genutzt.</p>
+        <p>Diese Optionen werden im Request an <code>/chat/completions</code> genutzt. Kurz-Hinweise findest du direkt unter den Eingabefeldern links.</p>
         <div class="doc-group">
           <span class="doc-label">Pflicht</span>
           <ul class="doc-list">
-            <li><code>model</code> - Modell-ID, z.B. <code>gpt-oss-120b</code></li>
-            <li><code>apiKey</code> - Zugriffstoken für die API</li>
+            <li><code>model</code> - Modell-ID, z.B. <code>gpt-oss-120b</code>. Wirkung: bestimmt Qualität, Kosten und verfügbare Features.</li>
+            <li><code>apiKey</code> - Zugriffstoken für die API. Wirkung: ohne Key sind Requests nicht möglich.</li>
           </ul>
         </div>
         <div class="doc-group">
-          <span class="doc-label">Sampling</span>
+          <span class="doc-label">Sampling Und Qualität</span>
           <ul class="doc-list">
-            <li><code>temperature</code> - Kreativität des Outputs</li>
-            <li><code>top_p</code> - Nucleus Sampling</li>
-            <li><code>seed</code> - reproduzierbare Ergebnisse</li>
+            <li><code>temperature</code> (typisch 0 bis 1.5). Wirkung: niedriger = stabiler/konservativer, höher = kreativer/variabler.</li>
+            <li><code>top_p</code> - Nucleus Sampling. Wirkung: begrenzt Token-Auswahl auf wahrscheinlichste Kandidaten.</li>
+            <li><code>seed</code> - optional. Wirkung: macht Antworten bei gleichem Prompt reproduzierbarer.</li>
           </ul>
         </div>
         <div class="doc-group">
           <span class="doc-label">Antwort</span>
           <ul class="doc-list">
-            <li><code>max_completion_tokens</code> - maximale Antwortlänge</li>
-            <li><code>reasoning_effort</code> - none/low/medium/high</li>
+            <li><code>max_completion_tokens</code> - harte Obergrenze. Wirkung: verhindert zu lange Antworten und reduziert Kosten.</li>
+            <li><code>reasoning_effort</code> - <code>low</code>/<code>medium</code>/<code>high</code>. Wirkung: höher = gründlicher, aber oft langsamer/teurer.</li>
           </ul>
         </div>
         <div class="doc-links">
           <a href="https://inference-docs.cerebras.ai/api-reference/chat-completions" target="_blank" rel="noreferrer">Cerebras Chat Completions</a>
           <a href="https://inference-docs.cerebras.ai/api-reference/models/list" target="_blank" rel="noreferrer">Cerebras Models</a>
+          <a href="https://inference-docs.cerebras.ai/capabilities/reasoning" target="_blank" rel="noreferrer">Cerebras Reasoning Guide</a>
         </div>
       `
     }
 
     return html`
       <h3>Ollama Doku</h3>
-      <p>Diese Optionen werden im Request an <code>/api/chat</code> als <code>options</code> gesendet.</p>
+      <p>Diese Optionen werden im Request an <code>/api/chat</code> als <code>options</code> gesendet. Kurz-Hinweise findest du direkt unter den Eingabefeldern links.</p>
       <div class="doc-group">
         <span class="doc-label">Basis</span>
         <ul class="doc-list">
-          <li><code>model</code> - lokales Modell, z.B. <code>gpt-oss:20b</code></li>
-          <li><code>host</code> - Standard: <code>http://localhost:11434</code></li>
+          <li><code>model</code> - lokales Modell, z.B. <code>gpt-oss:20b</code>. Wirkung: steuert Fähigkeit, RAM-Bedarf und Latenz.</li>
+          <li><code>host</code> - Standard: <code>http://localhost:11434</code>. Wirkung: Zielinstanz für alle Ollama-Requests.</li>
         </ul>
       </div>
       <div class="doc-group">
         <span class="doc-label">Optimierte Defaults in bashGPT</span>
         <ul class="doc-list">
-          <li><code>temperature</code>: 0.2</li>
-          <li><code>top_p</code>: 0.9</li>
-          <li><code>num_ctx</code>: 16384</li>
-          <li><code>num_predict</code>: 1024</li>
-          <li><code>repeat_penalty</code>: 1.05</li>
-          <li><code>seed</code>: optional</li>
-        </ul>
-      </div>
-      <div class="doc-group">
-        <span class="doc-label">Wirkung</span>
-        <ul class="doc-list">
-          <li>niedrige Temperatur für stabileres Tool-Calling</li>
-          <li>größeres Kontextfenster für längere Bash-Sessions</li>
-          <li>kontrollierte Antwortlänge und weniger Wiederholungen</li>
+          <li><code>temperature</code>: 0.2. Wirkung: stabileres Tool-Calling und weniger Zufall.</li>
+          <li><code>top_p</code>: 0.9. Wirkung: genug Vielfalt ohne starke Drift.</li>
+          <li><code>num_ctx</code>: 16384. Wirkung: längere Sessions behalten mehr Kontext (mehr RAM).</li>
+          <li><code>num_predict</code>: 1024. Wirkung: begrenzt Antwortlänge, verhindert endlose Ausgaben.</li>
+          <li><code>repeat_penalty</code>: 1.05. Wirkung: reduziert Schleifen und Wiederholungen.</li>
+          <li><code>seed</code>: optional. Wirkung: bei gesetztem Wert reproduzierbarere Antworten.</li>
         </ul>
       </div>
       <div class="doc-links">
@@ -678,6 +671,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="z.B. gpt-oss-120b-cloud"
             />
+            <div class="hint">Bestimmt Qualität, Kosten und Feature-Set der Antworten.</div>
           </div>
 
           <div class="field">
@@ -717,6 +711,7 @@ export class SettingsView extends LitElement {
               @input=${(e: InputEvent) => this._setCerebrasBaseUrl((e.target as HTMLInputElement).value)}
               ?disabled=${!s || this._loading}
             />
+            <div class="hint">Nur ändern, wenn du gegen einen anderen Endpoint/Gateway sprichst.</div>
           </div>
 
           <div class="field">
@@ -729,6 +724,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Niedriger = stabiler, höher = kreativer.</div>
           </div>
 
           <div class="field">
@@ -741,6 +737,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Begrenzt die Token-Auswahl auf wahrscheinlichere Kandidaten.</div>
           </div>
 
           <div class="field">
@@ -753,6 +750,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Harte Obergrenze für Antwortlänge und Kosten.</div>
           </div>
 
           <div class="field">
@@ -765,6 +763,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Für reproduzierbarere Antworten beim Debugging setzen.</div>
           </div>
 
           <div class="field">
@@ -780,6 +779,7 @@ export class SettingsView extends LitElement {
               <option value="medium">medium</option>
               <option value="high">high</option>
             </select>
+            <div class="hint">Höher = gründlicheres Reasoning, oft langsamer/teurer.</div>
           </div>
         ` : html`
           <div class="field">
@@ -791,6 +791,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="z.B. gpt-oss:20b"
             />
+            <div class="hint">Steuert Qualität, Geschwindigkeit und Ressourcenbedarf.</div>
           </div>
 
           <div class="field">
@@ -801,6 +802,7 @@ export class SettingsView extends LitElement {
               @input=${(e: InputEvent) => this._setOllamaHost((e.target as HTMLInputElement).value)}
               ?disabled=${!s || this._loading}
             />
+            <div class="hint">Standard lokal: <code>http://localhost:11434</code>.</div>
           </div>
 
           <div class="field">
@@ -813,6 +815,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Niedriger = stabiler Tool-Output, höher = variabler.</div>
           </div>
 
           <div class="field">
@@ -825,6 +828,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Alternative/Ergänzung zu Temperature für Sampling-Kontrolle.</div>
           </div>
 
           <div class="field">
@@ -837,6 +841,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Mehr Kontext, aber höherer RAM-Bedarf.</div>
           </div>
 
           <div class="field">
@@ -849,6 +854,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Begrenzt Antwortlänge; erhöhen, wenn Antworten abgeschnitten sind.</div>
           </div>
 
           <div class="field">
@@ -861,6 +867,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Reduziert Wiederholungen und Schleifen im Output.</div>
           </div>
 
           <div class="field">
@@ -873,6 +880,7 @@ export class SettingsView extends LitElement {
               ?disabled=${!s || this._loading}
               placeholder="Optional"
             />
+            <div class="hint">Für reproduzierbare Antworten bei identischem Prompt setzen.</div>
           </div>
         `}
 
