@@ -19,12 +19,12 @@ describe('ChatView – private logic', () => {
       { command: 'rm',   exitCode: 1, output: '', wasExecuted: true  }, // error
       { command: 'cat',  exitCode: 0, output: '', wasExecuted: false }, // skipped
     ]
-    el._messages = [{ id: 1, role: 'user', content: 'test', commands }]
+    el._chat = { ...el._chat, messages: [{ id: 1, role: 'user', content: 'test', commands }] }
     expect(el._commandStats).toEqual({ total: 3, success: 1, error: 1, skipped: 1 })
   })
 
   it('_commandStats returns all-zeros when messages have no commands', () => {
-    el._messages = [{ id: 1, role: 'user', content: 'hello' }]
+    el._chat = { ...el._chat, messages: [{ id: 1, role: 'user', content: 'hello' }] }
     expect(el._commandStats).toEqual({ total: 0, success: 0, error: 0, skipped: 0 })
   })
 

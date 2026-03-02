@@ -33,19 +33,30 @@ export class ChatView extends LitElement {
   /** Session-ID für server-seitige Persistenz (optional) */
   @property() sessionId = ''
 
-  @state() private _messages: Message[] = []
-  @state() private _loading = false
-  @state() private _statusText = ''
-  @state() private _statusError = false
-  @state() private _mode: ExecMode = 'auto-exec'
-  @state() private _terminalOpen = true
-  @state() private _shellContext: ShellContext | null = null
-  @state() private _infoOpen = false
-  @state() private _context: FullShellContext | null = null
-  @state() private _settings: Settings | null = null
-  @state() private _contextLoaded = false
-  @state() private _contextLoading = false
-  @state() private _tokenUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  // ── Grouped reactive state (3 @state instead of 13) ───────────────────────
+
+  @state() private _chat = {
+    messages:    [] as Message[],
+    loading:     false,
+    statusText:  '',
+    statusError: false,
+    mode:        'auto-exec' as ExecMode,
+    shellContext: null as ShellContext | null,
+    tokenUsage:  { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as TokenUsage,
+  }
+
+  @state() private _panels = {
+    terminalOpen: true,
+    infoOpen:     false,
+  }
+
+  @state() private _ctx = {
+    data:     null as FullShellContext | null,
+    settings: null as Settings | null,
+    loaded:   false,
+    loading:  false,
+  }
+
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
@@ -261,14 +272,14 @@ export class ChatView extends LitElement {
       this._lastHandledPendingPrompt = ''
     }
     // History nachladen, wenn die View aktiv wird und noch keine Nachrichten vorhanden sind
-    if (changed.has('active') && this.active && this._messages.length === 0) {
+    if (changed.has('active') && this.active && this._chat.messages.length === 0) {
       this._loadHistory()
     }
   }
 
   /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
-    this._messages = []
+    this._chat = { ...this._chat, messages: [] }
     await this._loadHistory(true)
   }
 
@@ -277,7 +288,7 @@ export class ChatView extends LitElement {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
-    this._messages = messages.map(m => ({
+    const newMessages = messages.map(m => ({
       id: this._idCounter++,
       role: m.role,
       content: m.content,
@@ -285,16 +296,20 @@ export class ChatView extends LitElement {
       execMode: m.execMode,
       usage: m.usage,
     }))
-    this._tokenUsage = this._sumTokenUsage(this._messages)
-    if (shellContext !== undefined) this._shellContext = shellContext ?? null
-    this._statusText = hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : '')
-    this._statusError = false
+    this._chat = {
+      ...this._chat,
+      messages: newMessages,
+      tokenUsage: this._sumTokenUsage(newMessages),
+      shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
+      statusText: hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : ''),
+      statusError: false,
+    }
     this._scrollToBottom()
   }
 
   /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
   getSnapshot(): SnapshotMessage[] {
-    return this._messages.map(m => ({
+    return this._chat.messages.map(m => ({
       role: m.role,
       content: m.content,
       ...(m.commands?.length ? { commands: m.commands } : {}),
@@ -305,21 +320,27 @@ export class ChatView extends LitElement {
 
   /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
   setExecMode(mode: ExecMode) {
-    this._mode = mode
+    this._chat = { ...this._chat, mode }
   }
 
   /** Öffentlich: Session zurücksetzen */
   async reset() {
     try {
       await resetHistory()
-      this._messages = []
-      this._tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-      this._statusText = 'Verlauf gelöscht'
-      this._statusError = false
+      this._chat = {
+        ...this._chat,
+        messages:   [],
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        statusText: 'Verlauf gelöscht',
+        statusError: false,
+      }
       this._emitMessagesChanged()
     } catch (e) {
-      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      this._statusError = true
+      this._chat = {
+        ...this._chat,
+        statusText:  `Fehler: ${e instanceof Error ? e.message : String(e)}`,
+        statusError: true,
+      }
     }
   }
 
@@ -330,71 +351,86 @@ export class ChatView extends LitElement {
       if (loadSeq !== this._historyLoadSeq) return
       // Wenn zwischen Start und Ende bereits neue Messages entstanden sind
       // (z. B. Dashboard-Prompt wurde gesendet), darf History diese nicht überschreiben.
-      if (!force && this._messages.length > 0) return
+      if (!force && this._chat.messages.length > 0) return
 
-      this._messages = history.map(m => ({
+      const newMessages = history.map(m => ({
         id: this._idCounter++,
         role: m.role,
         content: m.content,
       }))
-      this._tokenUsage = this._sumTokenUsage(this._messages)
-      this._statusError = false
+      this._chat = {
+        ...this._chat,
+        messages:    newMessages,
+        tokenUsage:  this._sumTokenUsage(newMessages),
+        statusError: false,
+      }
     } catch (e) {
-      this._statusError = true
-      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._chat = {
+        ...this._chat,
+        statusError: true,
+        statusText:  `Fehler: ${e instanceof Error ? e.message : String(e)}`,
+      }
     }
   }
 
   private async _sendPrompt(prompt: string) {
-    if (!prompt.trim() || this._loading) return
+    if (!prompt.trim() || this._chat.loading) return
 
     // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
     // angelegten User-Input nachträglich überschreibt.
     this._historyLoadSeq++
-    const execMode = this._mode
-    this._messages = [
-      ...this._messages,
-      { id: this._idCounter++, role: 'user', content: prompt, execMode },
-    ]
-    this._loading = true
-    this._statusText = ''
-    this._statusError = false
+    const execMode = this._chat.mode
+    this._chat = {
+      ...this._chat,
+      messages: [...this._chat.messages, { id: this._idCounter++, role: 'user', content: prompt, execMode }],
+      loading:     true,
+      statusText:  '',
+      statusError: false,
+    }
     this._scrollToBottom()
     this.dispatchEvent(new CustomEvent('chat-started', { bubbles: true, composed: true }))
 
     try {
       if (this.beforeSend) await this.beforeSend()
       const result = await sendChat(prompt, execMode, this.sessionId || undefined)
-      if (result.shellContext)
-        this._shellContext = result.shellContext
-      this._messages = [
-        ...this._messages,
+      const newMessages = [
+        ...this._chat.messages,
         {
-          id: this._idCounter++,
-          role: 'assistant',
-          content: result.response,
-          commands: result.commands,
+          id:           this._idCounter++,
+          role:         'assistant' as const,
+          content:      result.response,
+          commands:     result.commands,
           usedToolCalls: result.usedToolCalls,
-          usage: result.usage ?? undefined,
+          usage:        result.usage ?? undefined,
         },
       ]
-      this._tokenUsage = this._sumTokenUsage(this._messages)
       const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
       if (result.commands.length > 0)
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
-      this._statusText = parts.join(' · ')
-      this._statusError = false
+      this._chat = {
+        ...this._chat,
+        messages:    newMessages,
+        tokenUsage:  this._sumTokenUsage(newMessages),
+        shellContext: result.shellContext ?? this._chat.shellContext,
+        statusText:  parts.join(' · '),
+        statusError: false,
+      }
       this._emitMessagesChanged()
     } catch (e) {
-      this._statusText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      this._statusError = true
-      this._messages = [
-        ...this._messages,
-        { id: this._idCounter++, role: 'assistant', content: `⚠️ ${this._statusText}` },
+      const errText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      const newMessages = [
+        ...this._chat.messages,
+        { id: this._idCounter++, role: 'assistant' as const, content: `⚠️ ${errText}` },
       ]
+      this._chat = {
+        ...this._chat,
+        messages:    newMessages,
+        statusText:  errText,
+        statusError: true,
+      }
       this._emitMessagesChanged()
     } finally {
-      this._loading = false
+      this._chat = { ...this._chat, loading: false }
       this._scrollToBottom()
     }
   }
@@ -426,14 +462,14 @@ export class ChatView extends LitElement {
     this.dispatchEvent(new CustomEvent('messages-changed', {
       bubbles: true,
       composed: true,
-      detail: { messages: this.getSnapshot(), shellContext: this._shellContext },
+      detail: { messages: this.getSnapshot(), shellContext: this._chat.shellContext },
     }))
   }
 
   /** Aggregiert alle CommandResults aus allen Nachrichten als TerminalEntries */
   private get _terminalEntries(): TerminalEntry[] {
     const entries: TerminalEntry[] = []
-    for (const msg of this._messages) {
+    for (const msg of this._chat.messages) {
       if (msg.role !== 'assistant' || !msg.commands?.length) continue
       for (const cmd of msg.commands) {
         let status: TerminalEntry['status']
@@ -453,14 +489,15 @@ export class ChatView extends LitElement {
   }
 
   private async _toggleInfo() {
-    this._infoOpen = !this._infoOpen
-    if (this._infoOpen && !this._contextLoaded) {
-      this._contextLoaded = true
-      this._contextLoading = true
+    const newOpen = !this._panels.infoOpen
+    this._panels = { ...this._panels, infoOpen: newOpen }
+    if (newOpen && !this._ctx.loaded) {
+      this._ctx = { ...this._ctx, loaded: true, loading: true }
       try {
-        ;[this._context, this._settings] = await Promise.all([getContext(), getSettings()])
+        const [data, settings] = await Promise.all([getContext(), getSettings()])
+        this._ctx = { ...this._ctx, data, settings }
       } finally {
-        this._contextLoading = false
+        this._ctx = { ...this._ctx, loading: false }
       }
     }
   }
@@ -480,7 +517,7 @@ export class ChatView extends LitElement {
 
   private get _commandStats() {
     let total = 0, success = 0, error = 0, skipped = 0
-    for (const m of this._messages)
+    for (const m of this._chat.messages)
       for (const c of m.commands ?? []) {
         total++
         if (!c.wasExecuted) skipped++
@@ -491,8 +528,8 @@ export class ChatView extends LitElement {
   }
 
   private _workingText() {
-    if (!this._loading) return ''
-    const last = this._messages.at(-1)
+    if (!this._chat.loading) return ''
+    const last = this._chat.messages.at(-1)
     // Wenn letzter Eintrag vom User kommt, sind wir noch in der LLM-Phase
     return last?.role === 'user' ? 'Denke…' : 'Verarbeite Tool-Ergebnis…'
   }
@@ -506,9 +543,9 @@ export class ChatView extends LitElement {
   }
 
   render() {
-    const isEmpty = this._messages.length === 0
+    const isEmpty = this._chat.messages.length === 0
     const workingText = this._workingText()
-    const showPanel = this.showTerminal && this._terminalOpen
+    const showPanel = this.showTerminal && this._panels.terminalOpen
 
     return html`
       <div class="split-wrapper">
@@ -516,8 +553,8 @@ export class ChatView extends LitElement {
           <bashgpt-terminal-panel
             class="${showPanel ? '' : 'collapsed'}"
             .entries=${this._terminalEntries}
-            .shellContext=${this._shellContext ?? this._fallbackShellContext()}
-            ?loading=${this._loading}
+            .shellContext=${this._chat.shellContext ?? this._fallbackShellContext()}
+            ?loading=${this._chat.loading}
           ></bashgpt-terminal-panel>
         ` : ''}
 
@@ -532,7 +569,7 @@ export class ChatView extends LitElement {
                   </div>
                 `
               : repeat(
-                  this._messages,
+                  this._chat.messages,
                   m => m.id,
                   m => html`
                     <bashgpt-message
@@ -544,7 +581,7 @@ export class ChatView extends LitElement {
                 )}
           </div>
 
-          ${this._loading ? html`
+          ${this._chat.loading ? html`
             <div class="working-bar">
               <div class="spinner"></div>
               ${workingText}
@@ -553,14 +590,14 @@ export class ChatView extends LitElement {
         </div>
 
         <bashgpt-chat-info-panel
-          class="${this._infoOpen ? '' : 'collapsed'}"
-          .context=${this._context}
-          .settings=${this._settings}
-          execMode=${this._mode}
-          messageCount=${this._messages.length}
+          class="${this._panels.infoOpen ? '' : 'collapsed'}"
+          .context=${this._ctx.data}
+          .settings=${this._ctx.settings}
+          execMode=${this._chat.mode}
+          messageCount=${this._chat.messages.length}
           .commandStats=${this._commandStats}
-          .tokenUsage=${this._tokenUsage}
-          ?loading=${this._contextLoading}
+          .tokenUsage=${this._chat.tokenUsage}
+          ?loading=${this._ctx.loading}
         ></bashgpt-chat-info-panel>
       </div>
 
@@ -572,14 +609,14 @@ export class ChatView extends LitElement {
               : 'Nachricht eingeben… (Cmd+Enter zum Senden)'}
             aria-label="Nachricht eingeben"
             @keydown=${this._onKeydown}
-            ?disabled=${this._loading || this.readOnly}
+            ?disabled=${this._chat.loading || this.readOnly}
           ></textarea>
         </div>
         <div class="controls">
           <select
-            .value=${this._mode}
-            @change=${(e: Event) => { this._mode = (e.target as HTMLSelectElement).value as ExecMode }}
-            ?disabled=${this._loading || this.readOnly}
+            .value=${this._chat.mode}
+            @change=${(e: Event) => { this._chat = { ...this._chat, mode: (e.target as HTMLSelectElement).value as ExecMode } }}
+            ?disabled=${this._chat.loading || this.readOnly}
             aria-label="Ausführungsmodus"
           >
             <option value="ask">ask</option>
@@ -590,33 +627,33 @@ export class ChatView extends LitElement {
 
           ${this.showTerminal ? html`
             <button
-              class="terminal-toggle ${this._terminalOpen ? 'active' : ''}"
-              @click=${() => { this._terminalOpen = !this._terminalOpen }}
+              class="terminal-toggle ${this._panels.terminalOpen ? 'active' : ''}"
+              @click=${() => { this._panels = { ...this._panels, terminalOpen: !this._panels.terminalOpen } }}
               title="Terminal ein-/ausblenden"
-              aria-pressed=${this._terminalOpen ? 'true' : 'false'}
+              aria-pressed=${this._panels.terminalOpen ? 'true' : 'false'}
               aria-label="Terminal ein-/ausblenden"
             >⌃ Terminal</button>
           ` : ''}
 
           <button
-            class="terminal-toggle ${this._infoOpen ? 'active' : ''}"
+            class="terminal-toggle ${this._panels.infoOpen ? 'active' : ''}"
             @click=${this._toggleInfo}
             title="Info-Panel ein-/ausblenden"
-            aria-pressed=${this._infoOpen ? 'true' : 'false'}
+            aria-pressed=${this._panels.infoOpen ? 'true' : 'false'}
           >ℹ Info</button>
 
           <span
-            class="status ${this._statusError ? 'error' : ''}"
+            class="status ${this._chat.statusError ? 'error' : ''}"
             aria-live="polite"
             aria-atomic="true"
           >
-            ${this._statusText}
+            ${this._chat.statusText}
           </span>
 
           <button
             class="primary"
             @click=${this._send}
-            ?disabled=${this._loading || this.readOnly}
+            ?disabled=${this._chat.loading || this.readOnly}
             aria-label="Nachricht senden"
           >
             Senden
