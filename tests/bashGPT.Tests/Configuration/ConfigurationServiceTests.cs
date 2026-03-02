@@ -38,6 +38,11 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(1.05, config.Ollama.RepeatPenalty);
         Assert.Null(config.Ollama.Seed);
         Assert.Equal("gpt-oss:120b-cloud", config.Cerebras.Model);
+        Assert.Equal(0.2, config.Cerebras.Temperature);
+        Assert.Equal(0.9, config.Cerebras.TopP);
+        Assert.Equal(2048, config.Cerebras.MaxCompletionTokens);
+        Assert.Null(config.Cerebras.Seed);
+        Assert.Equal("medium", config.Cerebras.ReasoningEffort);
         Assert.Null(config.Cerebras.ApiKey);
     }
 
