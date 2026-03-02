@@ -19,17 +19,24 @@
   </ItemGroup>
 
   <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild">
-    <!--
-      Windows: npm is resolved via the normal PATH.
-      Linux/macOS: snap-installed .NET runs in a sandbox with a restricted PATH
-      that may exclude /usr/bin and /usr/local/bin. We prepend the common npm
-      locations so that system-installed (apt) and nvm-managed npm are both found.
-    -->
+    <PropertyGroup>
+      <!--
+        snap-installed .NET SDK runs in a sandbox with a restricted PATH on Linux/macOS
+        that may exclude /usr/bin. Prepend common npm locations so that system (apt),
+        nvm, and Homebrew installations are all resolved correctly.
+        On Windows this property stays empty – no PATH override needed.
+      -->
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)</NpmEnvPath>
+    </PropertyGroup>
+
+    <!-- Install dependencies automatically on first checkout (node_modules absent). -->
+    <Exec Command="npm install" WorkingDirectory="..\bashGPT.Web"
+          EnvironmentVariables="$(NpmEnvPath)"
+          Condition="!Exists('..\bashGPT.Web\node_modules')" />
+
+    <!-- Build the frontend bundle (TypeScript compile + Vite). -->
     <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
-          Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-    <Exec Command="npm run build" WorkingDirectory="..\bashGPT.Web"
-          EnvironmentVariables="PATH=/usr/local/bin:/usr/bin:/bin:$(PATH)"
-          Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+          EnvironmentVariables="$(NpmEnvPath)" />
   </Target>
 
 </Project>
