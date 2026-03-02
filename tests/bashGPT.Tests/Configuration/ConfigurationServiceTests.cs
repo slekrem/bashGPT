@@ -174,6 +174,52 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(1.1, loaded.Ollama.RepeatPenalty);
         Assert.Equal(77, loaded.Ollama.Seed);
     }
+
+    [Fact]
+    public async Task Load_NormalizesNullProviderOptions_ToDefaults()
+    {
+        var svc = CreateService();
+        var config = new AppConfig
+        {
+            Ollama = new OllamaConfig
+            {
+                BaseUrl = "http://localhost:11434",
+                Model = "gpt-oss:20b",
+                Temperature = null,
+                TopP = null,
+                NumCtx = null,
+                NumPredict = null,
+                RepeatPenalty = null,
+                Seed = null,
+            },
+            Cerebras = new CerebrasConfig
+            {
+                Model = "gpt-oss:120b-cloud",
+                BaseUrl = "https://api.cerebras.ai/v1",
+                Temperature = null,
+                TopP = null,
+                MaxCompletionTokens = null,
+                Seed = null,
+                ReasoningEffort = null,
+            }
+        };
+
+        await svc.SaveAsync(config);
+        var loaded = await svc.LoadAsync();
+
+        Assert.Equal(0.2, loaded.Ollama.Temperature);
+        Assert.Equal(0.9, loaded.Ollama.TopP);
+        Assert.Equal(16384, loaded.Ollama.NumCtx);
+        Assert.Equal(1024, loaded.Ollama.NumPredict);
+        Assert.Equal(1.05, loaded.Ollama.RepeatPenalty);
+        Assert.Null(loaded.Ollama.Seed);
+
+        Assert.Equal(0.2, loaded.Cerebras.Temperature);
+        Assert.Equal(0.9, loaded.Cerebras.TopP);
+        Assert.Equal(2048, loaded.Cerebras.MaxCompletionTokens);
+        Assert.Equal("medium", loaded.Cerebras.ReasoningEffort);
+        Assert.Null(loaded.Cerebras.Seed);
+    }
 }
 
 /// <summary>

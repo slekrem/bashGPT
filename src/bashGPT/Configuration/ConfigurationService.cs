@@ -36,7 +36,9 @@ public class ConfigurationService
             }
         }
 
+        ApplyDefaultNormalization(config);
         ApplyEnvironmentOverrides(config);
+        ApplyDefaultNormalization(config);
         return config;
     }
 
@@ -243,6 +245,20 @@ public class ConfigurationService
         var ollamaSeed = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_SEED");
         if (!string.IsNullOrWhiteSpace(ollamaSeed))
             config.Ollama.Seed = ParseInt(ollamaSeed, "BASHGPT_OLLAMA_SEED");
+    }
+
+    private static void ApplyDefaultNormalization(AppConfig config)
+    {
+        config.Ollama.Temperature ??= 0.2;
+        config.Ollama.TopP ??= 0.9;
+        config.Ollama.NumCtx ??= 16384;
+        config.Ollama.NumPredict ??= 1024;
+        config.Ollama.RepeatPenalty ??= 1.05;
+
+        config.Cerebras.Temperature ??= 0.2;
+        config.Cerebras.TopP ??= 0.9;
+        config.Cerebras.MaxCompletionTokens ??= 2048;
+        config.Cerebras.ReasoningEffort ??= "medium";
     }
 
     private static double ParseDouble(string value, string key)

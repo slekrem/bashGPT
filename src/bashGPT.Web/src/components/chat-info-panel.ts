@@ -187,6 +187,13 @@ export class ChatInfoPanel extends LitElement {
     return null
   }
 
+  private _fmtNumber(value: number | undefined, fractionDigits = 2): string {
+    if (value == null) return '-'
+    return Number.isInteger(value)
+      ? value.toString()
+      : value.toFixed(fractionDigits).replace(/\.?0+$/, '')
+  }
+
   render() {
     if (this.loading) {
       return html`
@@ -296,6 +303,61 @@ export class ChatInfoPanel extends LitElement {
                   : html`<span style="color:#334155;font-style:italic">Unbekannt</span>`}
               </span>
             </div>
+            ${this.settings.provider === 'ollama' ? html`
+              <div class="row">
+                <span class="label">Host</span>
+                <span class="value mono">${this.settings.ollama.host}</span>
+              </div>
+              <div class="row">
+                <span class="label">Temp</span>
+                <span class="value mono">${this._fmtNumber(this.settings.ollama.temperature ?? 0.2)}</span>
+              </div>
+              <div class="row">
+                <span class="label">top_p</span>
+                <span class="value mono">${this._fmtNumber(this.settings.ollama.topP ?? 0.9)}</span>
+              </div>
+              <div class="row">
+                <span class="label">num_ctx</span>
+                <span class="value mono">${this._fmtNumber(this.settings.ollama.numCtx ?? 16384, 0)}</span>
+              </div>
+              <div class="row">
+                <span class="label">num_pred</span>
+                <span class="value mono">${this._fmtNumber(this.settings.ollama.numPredict ?? 1024, 0)}</span>
+              </div>
+              <div class="row">
+                <span class="label">repeat</span>
+                <span class="value mono">${this._fmtNumber(this.settings.ollama.repeatPenalty ?? 1.05)}</span>
+              </div>
+              <div class="row">
+                <span class="label">seed</span>
+                <span class="value mono">${this.settings.ollama.seed ?? '-'}</span>
+              </div>
+            ` : html`
+              <div class="row">
+                <span class="label">Base URL</span>
+                <span class="value mono">${this.settings.cerebras.baseUrl ?? 'https://api.cerebras.ai/v1'}</span>
+              </div>
+              <div class="row">
+                <span class="label">Temp</span>
+                <span class="value mono">${this._fmtNumber(this.settings.cerebras.temperature ?? 0.2)}</span>
+              </div>
+              <div class="row">
+                <span class="label">top_p</span>
+                <span class="value mono">${this._fmtNumber(this.settings.cerebras.topP ?? 0.9)}</span>
+              </div>
+              <div class="row">
+                <span class="label">max_tok</span>
+                <span class="value mono">${this._fmtNumber(this.settings.cerebras.maxCompletionTokens ?? 2048, 0)}</span>
+              </div>
+              <div class="row">
+                <span class="label">reason</span>
+                <span class="value mono">${this.settings.cerebras.reasoningEffort ?? 'medium'}</span>
+              </div>
+              <div class="row">
+                <span class="label">seed</span>
+                <span class="value mono">${this.settings.cerebras.seed ?? '-'}</span>
+              </div>
+            `}
           ` : html`
             <div class="row"><span class="value" style="color:#334155;font-style:italic">Nicht verfügbar</span></div>
           `}

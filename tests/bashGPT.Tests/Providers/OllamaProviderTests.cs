@@ -203,4 +203,26 @@ public class OllamaProviderTests
         Assert.Equal(1.1, options.GetProperty("repeat_penalty").GetDouble());
         Assert.Equal(42, options.GetProperty("seed").GetInt32());
     }
+
+    [Fact]
+    public async Task ChatAsync_IncludesDefaultOllamaOptions()
+    {
+        var json = """{"message":{"role":"assistant","content":"ok"},"done":true}""";
+        var handler = new TestHttpMessageHandler(json, contentType: "application/json");
+        var provider = new OllamaProvider(
+            new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
+            new HttpClient(handler));
+
+        _ = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+
+        Assert.NotNull(handler.LastRequestBody);
+        using var doc = JsonDocument.Parse(handler.LastRequestBody!);
+        var options = doc.RootElement.GetProperty("options");
+        Assert.Equal(0.2, options.GetProperty("temperature").GetDouble());
+        Assert.Equal(0.9, options.GetProperty("top_p").GetDouble());
+        Assert.Equal(16384, options.GetProperty("num_ctx").GetInt32());
+        Assert.Equal(1024, options.GetProperty("num_predict").GetInt32());
+        Assert.Equal(1.05, options.GetProperty("repeat_penalty").GetDouble());
+    }
 }
