@@ -86,10 +86,30 @@ public class ServerHost
             var path = req.Url?.AbsolutePath ?? "/";
 
             if (req.HttpMethod == "GET"  && path == "/")
-            { await ApiResponse.WriteResourceAsync(ctx.Response, "bashGPT.Web.index.html",  "text/html; charset=utf-8"); return; }
+            {
+                var found = await ApiResponse.TryWriteResourceAsync(ctx.Response, "bashGPT.Web.index.html", "text/html; charset=utf-8");
+                if (!found)
+                {
+                    await ApiResponse.WriteTextAsync(
+                        ctx.Response,
+                        "<!doctype html><html><head><meta charset=\"utf-8\"><title>bashGPT</title></head><body><div id=\"app\"></div><script src=\"/bundle.js\"></script></body></html>",
+                        "text/html; charset=utf-8");
+                }
+                return;
+            }
 
             if (req.HttpMethod == "GET"  && path == "/bundle.js")
-            { await ApiResponse.WriteResourceAsync(ctx.Response, "bashGPT.Web.bundle.js", "application/javascript; charset=utf-8"); return; }
+            {
+                var found = await ApiResponse.TryWriteResourceAsync(ctx.Response, "bashGPT.Web.bundle.js", "application/javascript; charset=utf-8");
+                if (!found)
+                {
+                    await ApiResponse.WriteTextAsync(
+                        ctx.Response,
+                        "console.warn('bashGPT frontend bundle not embedded.');",
+                        "application/javascript; charset=utf-8");
+                }
+                return;
+            }
 
             // @deprecated – Nur noch für Frontend-Kompatibilität; neue Clients nutzen /api/sessions
             if (req.HttpMethod == "GET"  && path == "/api/history")

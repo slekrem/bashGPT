@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\bashGPT\bashGPT.csproj" />
+    <ProjectReference Include="..\..\src\bashGPT.Core\bashGPT.Core.csproj" />
   </ItemGroup>
 
 </Project>
