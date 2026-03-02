@@ -9,7 +9,8 @@ namespace BashGPT.Cli;
 /// </summary>
 public class PromptHandler(
     ConfigurationService configService,
-    ShellContextCollector contextCollector) : IPromptHandler
+    ShellContextCollector contextCollector,
+    ILlmProvider? providerOverride = null) : IPromptHandler
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
@@ -126,34 +127,41 @@ public class PromptHandler(
         var totalInputTokens = 0;
         var totalOutputTokens = 0;
 
-        AppConfig config;
-        try
-        {
-            config = await configService.LoadAsync();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return new ServerChatResult(
-                Response: $"Konfigurationsfehler: {ex.Message}",
-                Commands: [],
-                Logs: [],
-                UsedToolCalls: false);
-        }
-
-        ApplyModelOverride(config, opts.Provider, opts.Model);
-
         ILlmProvider provider;
-        try
+        if (providerOverride is not null)
         {
-            provider = ProviderFactory.Create(config, opts.Provider);
+            provider = providerOverride;
         }
-        catch (Exception ex)
+        else
         {
-            return new ServerChatResult(
-                Response: $"Provider-Fehler: {ex.Message}",
-                Commands: [],
-                Logs: [],
-                UsedToolCalls: false);
+            AppConfig config;
+            try
+            {
+                config = await configService.LoadAsync();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return new ServerChatResult(
+                    Response: $"Konfigurationsfehler: {ex.Message}",
+                    Commands: [],
+                    Logs: [],
+                    UsedToolCalls: false);
+            }
+
+            ApplyModelOverride(config, opts.Provider, opts.Model);
+
+            try
+            {
+                provider = ProviderFactory.Create(config, opts.Provider);
+            }
+            catch (Exception ex)
+            {
+                return new ServerChatResult(
+                    Response: $"Provider-Fehler: {ex.Message}",
+                    Commands: [],
+                    Logs: [],
+                    UsedToolCalls: false);
+            }
         }
 
         if (opts.Verbose)
