@@ -14,7 +14,7 @@ var handler          = new PromptHandler(configService, contextCollector);
 var historyFile      = Path.Combine(configDir, "history.json");
 var sessionsFile     = Path.Combine(configDir, "sessions.json");
 var sessionStore     = new SessionStore(sessionsFile, legacyHistoryFile: historyFile);
-var serverHost       = new ServerHost(handler, configService, historyFile, sessionStore);
+var serverHost       = new ServerHost(handler, configService, sessionStore);
 
 // ── Optionen ─────────────────────────────────────────────────────────────────
 
