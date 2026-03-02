@@ -59,9 +59,6 @@ export interface OllamaSettings {
   host: string
   temperature?: number
   topP?: number
-  numCtx?: number
-  numPredict?: number
-  repeatPenalty?: number
   seed?: number
 }
 

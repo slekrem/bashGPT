@@ -293,9 +293,6 @@ export class SettingsView extends LitElement {
         host: ollamaHost,
         temperature: settings.ollama?.temperature ?? 0.2,
         topP: settings.ollama?.topP ?? 0.9,
-        numCtx: settings.ollama?.numCtx ?? 16384,
-        numPredict: settings.ollama?.numPredict ?? 1024,
-        repeatPenalty: settings.ollama?.repeatPenalty ?? 1.05,
         seed: settings.ollama?.seed,
       },
     }
@@ -435,33 +432,6 @@ export class SettingsView extends LitElement {
     this._status = ''
   }
 
-  private _setOllamaNumCtx(value: string) {
-    if (!this._settings) return
-    this._settings = {
-      ...this._settings,
-      ollama: { ...this._settings.ollama, numCtx: this._parseIntInput(value) },
-    }
-    this._status = ''
-  }
-
-  private _setOllamaNumPredict(value: string) {
-    if (!this._settings) return
-    this._settings = {
-      ...this._settings,
-      ollama: { ...this._settings.ollama, numPredict: this._parseIntInput(value) },
-    }
-    this._status = ''
-  }
-
-  private _setOllamaRepeatPenalty(value: string) {
-    if (!this._settings) return
-    this._settings = {
-      ...this._settings,
-      ollama: { ...this._settings.ollama, repeatPenalty: this._parseFloatInput(value) },
-    }
-    this._status = ''
-  }
-
   private _setOllamaSeed(value: string) {
     if (!this._settings) return
     this._settings = {
@@ -495,9 +465,6 @@ export class SettingsView extends LitElement {
         host: settings.ollama.host,
         temperature: settings.ollama.temperature,
         topP: settings.ollama.topP,
-        numCtx: settings.ollama.numCtx,
-        numPredict: settings.ollama.numPredict,
-        repeatPenalty: settings.ollama.repeatPenalty,
         seed: settings.ollama.seed,
       },
     }
@@ -605,7 +572,7 @@ export class SettingsView extends LitElement {
 
     return html`
       <h3>Ollama Doku</h3>
-      <p>Diese Optionen werden im Request an <code>/api/chat</code> als <code>options</code> gesendet. Kurz-Hinweise findest du direkt unter den Eingabefeldern links.</p>
+      <p>Diese Optionen werden im Request an <code>/v1/chat/completions</code> gesendet (OpenAI-kompatibler Endpunkt). Kurz-Hinweise findest du direkt unter den Eingabefeldern links.</p>
       <div class="doc-group">
         <span class="doc-label">Basis</span>
         <ul class="doc-list">
@@ -614,19 +581,16 @@ export class SettingsView extends LitElement {
         </ul>
       </div>
       <div class="doc-group">
-        <span class="doc-label">Optimierte Defaults in bashGPT</span>
+        <span class="doc-label">Sampling</span>
         <ul class="doc-list">
           <li><code>temperature</code>: 0.2. Wirkung: stabileres Tool-Calling und weniger Zufall.</li>
           <li><code>top_p</code>: 0.9. Wirkung: genug Vielfalt ohne starke Drift.</li>
-          <li><code>num_ctx</code>: 16384. Wirkung: längere Sessions behalten mehr Kontext (mehr RAM).</li>
-          <li><code>num_predict</code>: 1024. Wirkung: begrenzt Antwortlänge, verhindert endlose Ausgaben.</li>
-          <li><code>repeat_penalty</code>: 1.05. Wirkung: reduziert Schleifen und Wiederholungen.</li>
           <li><code>seed</code>: optional. Wirkung: bei gesetztem Wert reproduzierbarere Antworten.</li>
         </ul>
       </div>
       <div class="doc-links">
         <a href="https://ollama.readthedocs.io/en/api/" target="_blank" rel="noreferrer">Ollama API Reference</a>
-        <a href="https://pkg.go.dev/github.com/ollama/ollama/api" target="_blank" rel="noreferrer">Ollama Options Schema</a>
+        <a href="https://ollama.com/blog/openai-compatibility" target="_blank" rel="noreferrer">Ollama OpenAI Compatibility</a>
       </div>
     `
   }
@@ -829,45 +793,6 @@ export class SettingsView extends LitElement {
               placeholder="Optional"
             />
             <div class="hint">Alternative/Ergänzung zu Temperature für Sampling-Kontrolle.</div>
-          </div>
-
-          <div class="field">
-            <label>Ollama num_ctx</label>
-            <input
-              type="number"
-              step="1"
-              .value=${s?.ollama.numCtx?.toString() ?? ''}
-              @input=${(e: InputEvent) => this._setOllamaNumCtx((e.target as HTMLInputElement).value)}
-              ?disabled=${!s || this._loading}
-              placeholder="Optional"
-            />
-            <div class="hint">Mehr Kontext, aber höherer RAM-Bedarf.</div>
-          </div>
-
-          <div class="field">
-            <label>Ollama num_predict</label>
-            <input
-              type="number"
-              step="1"
-              .value=${s?.ollama.numPredict?.toString() ?? ''}
-              @input=${(e: InputEvent) => this._setOllamaNumPredict((e.target as HTMLInputElement).value)}
-              ?disabled=${!s || this._loading}
-              placeholder="Optional"
-            />
-            <div class="hint">Begrenzt Antwortlänge; erhöhen, wenn Antworten abgeschnitten sind.</div>
-          </div>
-
-          <div class="field">
-            <label>Ollama repeat_penalty</label>
-            <input
-              type="number"
-              step="0.01"
-              .value=${s?.ollama.repeatPenalty?.toString() ?? ''}
-              @input=${(e: InputEvent) => this._setOllamaRepeatPenalty((e.target as HTMLInputElement).value)}
-              ?disabled=${!s || this._loading}
-              placeholder="Optional"
-            />
-            <div class="hint">Reduziert Wiederholungen und Schleifen im Output.</div>
           </div>
 
           <div class="field">

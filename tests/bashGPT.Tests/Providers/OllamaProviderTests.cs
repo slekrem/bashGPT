@@ -18,14 +18,15 @@ public class OllamaProviderTests
     [Fact]
     public async Task StreamAsync_YieldsTokens()
     {
-        // Ollama ndjson-Stream: zwei Chunks + done
-        var ndjson = """
-            {"message":{"role":"assistant","content":"Hallo"},"done":false}
-            {"message":{"role":"assistant","content":" Welt"},"done":false}
-            {"message":{"role":"assistant","content":""},"done":true}
+        var sse = """
+            data: {"choices":[{"delta":{"content":"Hallo"}}]}
+
+            data: {"choices":[{"delta":{"content":" Welt"}}]}
+
+            data: [DONE]
             """;
 
-        var provider = CreateProvider(ndjson);
+        var provider = CreateProvider(sse);
         var tokens = new List<string>();
 
         await foreach (var t in provider.StreamAsync([new ChatMessage(ChatRole.User, "test")]))
@@ -37,12 +38,15 @@ public class OllamaProviderTests
     [Fact]
     public async Task CompleteAsync_ReturnsConcatenatedTokens()
     {
-        var ndjson = """
-            {"message":{"role":"assistant","content":"foo"},"done":false}
-            {"message":{"role":"assistant","content":"bar"},"done":true}
+        var sse = """
+            data: {"choices":[{"delta":{"content":"foo"}}]}
+
+            data: {"choices":[{"delta":{"content":"bar"}}]}
+
+            data: [DONE]
             """;
 
-        var provider = CreateProvider(ndjson);
+        var provider = CreateProvider(sse);
         var result = await provider.CompleteAsync([new ChatMessage(ChatRole.User, "test")]);
 
         Assert.Equal("foobar", result);
@@ -51,13 +55,14 @@ public class OllamaProviderTests
     [Fact]
     public async Task StreamAsync_StopsAtDone()
     {
-        var ndjson = """
-            {"message":{"role":"assistant","content":"A"},"done":false}
-            {"message":{"role":"assistant","content":""},"done":true}
-            {"message":{"role":"assistant","content":"B"},"done":false}
+        var sse = """
+            data: {"choices":[{"delta":{"content":"A"}}]}
+
+            data: [DONE]
+            data: {"choices":[{"delta":{"content":"B"}}]}
             """;
 
-        var provider = CreateProvider(ndjson);
+        var provider = CreateProvider(sse);
         var tokens = new List<string>();
 
         await foreach (var t in provider.StreamAsync([new ChatMessage(ChatRole.User, "test")]))
@@ -69,13 +74,15 @@ public class OllamaProviderTests
     [Fact]
     public async Task StreamAsync_SkipsInvalidJsonLines()
     {
-        var ndjson = """
-            {"message":{"role":"assistant","content":"ok"},"done":false}
-            not-json-at-all
-            {"message":{"role":"assistant","content":""},"done":true}
+        var sse = """
+            data: {"choices":[{"delta":{"content":"ok"}}]}
+
+            data: not-json-at-all
+
+            data: [DONE]
             """;
 
-        var provider = CreateProvider(ndjson);
+        var provider = CreateProvider(sse);
         var tokens = new List<string>();
 
         await foreach (var t in provider.StreamAsync([new ChatMessage(ChatRole.User, "test")]))
@@ -108,7 +115,7 @@ public class OllamaProviderTests
     [Fact]
     public async Task ChatAsync_NonStream_ReturnsTextContent()
     {
-        var json = """{"message":{"role":"assistant","content":"Hallo Welt","tool_calls":null},"done":true}""";
+        var json = """{"choices":[{"message":{"role":"assistant","content":"Hallo Welt"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}""";
         var handler = new TestHttpMessageHandler(json, contentType: "application/json");
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
@@ -125,9 +132,9 @@ public class OllamaProviderTests
     public async Task ChatAsync_NonStream_ReturnsToolCall()
     {
         var json = """
-            {"message":{"role":"assistant","content":"",
-             "tool_calls":[{"type":"function","function":{"name":"bash","arguments":{"command":"ls -la"}}}]},
-             "done":true}
+            {"choices":[{"message":{"role":"assistant","content":"",
+             "tool_calls":[{"id":"tc1","type":"function","function":{"name":"bash","arguments":"{\"command\":\"ls -la\"}"}}]}}],
+             "usage":{"prompt_tokens":5,"completion_tokens":10}}
             """;
         var handler = new TestHttpMessageHandler(json, contentType: "application/json");
         var provider = new OllamaProvider(
@@ -146,12 +153,15 @@ public class OllamaProviderTests
     [Fact]
     public async Task ChatAsync_Stream_ReturnsTextContent()
     {
-        var ndjson = """
-            {"message":{"role":"assistant","content":"foo"},"done":false}
-            {"message":{"role":"assistant","content":"bar"},"done":true}
+        var sse = """
+            data: {"choices":[{"delta":{"content":"foo"}}]}
+
+            data: {"choices":[{"delta":{"content":"bar"}}]}
+
+            data: [DONE]
             """;
         var tokens = new List<string>();
-        var provider = CreateProvider(ndjson);
+        var provider = CreateProvider(sse);
 
         var result = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "test")],
@@ -172,9 +182,9 @@ public class OllamaProviderTests
     }
 
     [Fact]
-    public async Task ChatAsync_IncludesConfiguredOllamaOptions()
+    public async Task ChatAsync_SendsOpenAiCompatibleRequest()
     {
-        var json = """{"message":{"role":"assistant","content":"ok"},"done":true}""";
+        var json = """{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}""";
         var handler = new TestHttpMessageHandler(json, contentType: "application/json");
         var provider = new OllamaProvider(
             new OllamaConfig
@@ -183,9 +193,6 @@ public class OllamaProviderTests
                 Model = "test",
                 Temperature = 0.2,
                 TopP = 0.95,
-                NumCtx = 32768,
-                NumPredict = 1024,
-                RepeatPenalty = 1.1,
                 Seed = 42,
             },
             new HttpClient(handler));
@@ -195,19 +202,19 @@ public class OllamaProviderTests
 
         Assert.NotNull(handler.LastRequestBody);
         using var doc = JsonDocument.Parse(handler.LastRequestBody!);
-        var options = doc.RootElement.GetProperty("options");
-        Assert.Equal(0.2, options.GetProperty("temperature").GetDouble());
-        Assert.Equal(0.95, options.GetProperty("top_p").GetDouble());
-        Assert.Equal(32768, options.GetProperty("num_ctx").GetInt32());
-        Assert.Equal(1024, options.GetProperty("num_predict").GetInt32());
-        Assert.Equal(1.1, options.GetProperty("repeat_penalty").GetDouble());
-        Assert.Equal(42, options.GetProperty("seed").GetInt32());
+        var root = doc.RootElement;
+        Assert.Equal("test", root.GetProperty("model").GetString());
+        Assert.Equal(0.2, root.GetProperty("temperature").GetDouble());
+        Assert.Equal(0.95, root.GetProperty("top_p").GetDouble());
+        Assert.Equal(42, root.GetProperty("seed").GetInt32());
+        // Kein options-Objekt bei OpenAI-Format
+        Assert.False(root.TryGetProperty("options", out _));
     }
 
     [Fact]
-    public async Task ChatAsync_IncludesDefaultOllamaOptions()
+    public async Task ChatAsync_UsesCorrectEndpoint()
     {
-        var json = """{"message":{"role":"assistant","content":"ok"},"done":true}""";
+        var json = """{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}""";
         var handler = new TestHttpMessageHandler(json, contentType: "application/json");
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
@@ -216,13 +223,7 @@ public class OllamaProviderTests
         _ = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
 
-        Assert.NotNull(handler.LastRequestBody);
-        using var doc = JsonDocument.Parse(handler.LastRequestBody!);
-        var options = doc.RootElement.GetProperty("options");
-        Assert.Equal(0.2, options.GetProperty("temperature").GetDouble());
-        Assert.Equal(0.9, options.GetProperty("top_p").GetDouble());
-        Assert.Equal(16384, options.GetProperty("num_ctx").GetInt32());
-        Assert.Equal(1024, options.GetProperty("num_predict").GetInt32());
-        Assert.Equal(1.05, options.GetProperty("repeat_penalty").GetDouble());
+        Assert.NotNull(handler.LastRequest?.RequestUri);
+        Assert.Equal("/v1/chat/completions", handler.LastRequest!.RequestUri!.AbsolutePath);
     }
 }

@@ -33,9 +33,6 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
         Assert.Equal(0.2, config.Ollama.Temperature);
         Assert.Equal(0.9, config.Ollama.TopP);
-        Assert.Equal(16384, config.Ollama.NumCtx);
-        Assert.Equal(1024, config.Ollama.NumPredict);
-        Assert.Equal(1.05, config.Ollama.RepeatPenalty);
         Assert.Null(config.Ollama.Seed);
         Assert.Equal("gpt-oss:120b-cloud", config.Cerebras.Model);
         Assert.Equal(0.2, config.Cerebras.Temperature);
@@ -124,9 +121,6 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("ollama.model", list);
         Assert.Contains("ollama.temperature", list);
         Assert.Contains("ollama.topP", list);
-        Assert.Contains("ollama.numCtx", list);
-        Assert.Contains("ollama.numPredict", list);
-        Assert.Contains("ollama.repeatPenalty", list);
         Assert.Contains("ollama.seed", list);
         Assert.Contains("cerebras.apiKey", list);
         Assert.Contains("cerebras.model", list);
@@ -161,17 +155,11 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         await svc.SetAsync("ollama.temperature", "0.4");
         await svc.SetAsync("ollama.topP", "0.9");
-        await svc.SetAsync("ollama.numCtx", "32768");
-        await svc.SetAsync("ollama.numPredict", "512");
-        await svc.SetAsync("ollama.repeatPenalty", "1.1");
         await svc.SetAsync("ollama.seed", "77");
 
         var loaded = await svc.LoadAsync();
         Assert.Equal(0.4, loaded.Ollama.Temperature);
         Assert.Equal(0.9, loaded.Ollama.TopP);
-        Assert.Equal(32768, loaded.Ollama.NumCtx);
-        Assert.Equal(512, loaded.Ollama.NumPredict);
-        Assert.Equal(1.1, loaded.Ollama.RepeatPenalty);
         Assert.Equal(77, loaded.Ollama.Seed);
     }
 
@@ -187,9 +175,6 @@ public class ConfigurationServiceTests : IDisposable
                 Model = "gpt-oss:20b",
                 Temperature = null,
                 TopP = null,
-                NumCtx = null,
-                NumPredict = null,
-                RepeatPenalty = null,
                 Seed = null,
             },
             Cerebras = new CerebrasConfig
@@ -209,9 +194,6 @@ public class ConfigurationServiceTests : IDisposable
 
         Assert.Equal(0.2, loaded.Ollama.Temperature);
         Assert.Equal(0.9, loaded.Ollama.TopP);
-        Assert.Equal(16384, loaded.Ollama.NumCtx);
-        Assert.Equal(1024, loaded.Ollama.NumPredict);
-        Assert.Equal(1.05, loaded.Ollama.RepeatPenalty);
         Assert.Null(loaded.Ollama.Seed);
 
         Assert.Equal(0.2, loaded.Cerebras.Temperature);
