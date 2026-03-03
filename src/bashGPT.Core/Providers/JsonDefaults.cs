@@ -2,9 +2,9 @@ using System.Text.Json;
 
 namespace BashGPT.Providers;
 
-internal static class JsonDefaults
+public static class JsonDefaults
 {
-    internal static readonly JsonSerializerOptions Options = new()
+    public static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy        = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,

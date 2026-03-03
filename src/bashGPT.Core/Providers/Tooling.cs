@@ -45,7 +45,7 @@ public record LlmChatResponse(
     IReadOnlyList<ToolCall> ToolCalls,
     TokenUsage? Usage = null);
 
-internal static class ToolCallParsing
+public static class ToolCallParsing
 {
     public static bool TryGetCommand(ToolCall call, out string command, out string? error)
     {

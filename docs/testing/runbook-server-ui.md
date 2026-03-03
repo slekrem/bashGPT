@@ -131,7 +131,7 @@ Prüfung sinnvoll sein:
 
 ```bash
 # Server starten
-dotnet run --project src/bashGPT -- serve --no-browser
+dotnet run --project src/bashGPT.Server -- --no-browser
 
 # Im Browser öffnen
 open http://localhost:5050

@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "bashGPT.Cli",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/bashGPT.Cli/bin/Debug/net9.0/bashGPT.Cli.dll",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "zeige alle .cs dateien"
+            ],
+            "console": "integratedTerminal",
+            "preLaunchTask": "build"
+        },
+        {
+            "name": "bashGPT.Server",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/bashGPT.Server/bin/Debug/net9.0/bashGPT.Server.dll",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--no-browser"
+            ],
+            "console": "integratedTerminal",
+            "preLaunchTask": "build"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "bashGPT.Cli + bashGPT.Server",
+            "configurations": [
+                "bashGPT.Cli",
+                "bashGPT.Server"
+            ]
+        }
+    ]
+}
