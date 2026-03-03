@@ -12,6 +12,7 @@
 - `dotnet run --project src/bashGPT.Server` starts the local server UI.
 - `dotnet test` runs all tests.
 - `dotnet test --collect:"XPlat Code Coverage"` generates coverage via coverlet.
+- `./scripts/coverage-report.sh` regenerates coverage from scratch and creates an HTML report.
 
 ## Coding Style & Naming Conventions
 - C# with nullable reference types enabled and implicit usings on.
