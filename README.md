@@ -101,6 +101,8 @@ Hinweis:
  dotnet test
 # mit Coverage
  dotnet test --collect:"XPlat Code Coverage"
+# vollständiger HTML-Report (inkl. vorherigem Cleanup)
+ ./scripts/coverage-report.sh
 ```
 
 ## Beispiele (Output-Format)
