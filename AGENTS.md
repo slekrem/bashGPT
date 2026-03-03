@@ -4,7 +4,7 @@
 - `src/bashGPT.Core/` contains shared domain logic (configuration, providers, shell, storage, shared runners).
 - `src/bashGPT.Cli/` contains the CLI executable and command-line parsing.
 - `src/bashGPT.Server/` contains the server executable and HTTP/UI host.
-- `tests/bashGPT.Tests/` holds xUnit tests mirroring the main namespaces.
+- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, and `tests/bashGPT.Server.Tests/` mirror the `src` projects with xUnit tests.
 
 ## Build, Test, and Development Commands
 - `dotnet build` builds the solution.
@@ -23,7 +23,7 @@
 ## Testing Guidelines
 - Framework: xUnit with `Fact` attributes.
 - Test naming follows `Method_Condition_Result` (e.g., `StreamAsync_StopsAtDone`).
-- Put new tests under `tests/bashGPT.Tests/` matching the production namespace.
+- Put new tests under the matching test project (`tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/`) and production namespace.
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow a conventional pattern like `feat: <summary>` (often German). Use a short, descriptive summary.
