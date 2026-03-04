@@ -72,6 +72,8 @@ export interface Settings {
   execMode: ExecMode
   forceTools: boolean
   commandTimeoutSeconds: number
+  loopDetectionEnabled: boolean
+  maxToolCallRounds: number
   cerebras: CerebrasSettings
   ollama: OllamaSettings
 }

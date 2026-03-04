@@ -22,6 +22,8 @@ public class ServerChatRunner(
         var totalInputTokens  = 0;
         var totalOutputTokens = 0;
         var commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds;
+        var loopDetectionEnabled  = true;
+        var maxToolCallRounds     = AppDefaults.MaxToolCallRounds;
 
         ILlmProvider provider;
         if (providerOverride is not null)
@@ -45,6 +47,8 @@ public class ServerChatRunner(
             }
 
             commandTimeoutSeconds = config.CommandTimeoutSeconds;
+            loopDetectionEnabled  = config.LoopDetectionEnabled;
+            maxToolCallRounds     = config.MaxToolCallRounds;
             ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
             try
@@ -100,16 +104,25 @@ public class ServerChatRunner(
             if (opts.Verbose)
                 logs.Add($"Tool-Calls empfangen: {currentResponse.ToolCalls.Count}");
 
-            var rounds            = 0;
-            var previousToolCalls = (IReadOnlyList<ToolCall>?)null;
-            var loopDetected      = false;
+            var rounds                     = 0;
+            var consecutiveIdenticalRounds = 0;
+            var previousToolCalls          = (IReadOnlyList<ToolCall>?)null;
+            var loopDetected               = false;
 
-            while (currentResponse.ToolCalls.Count > 0 && rounds < AppDefaults.MaxToolCallRounds)
+            while (currentResponse.ToolCalls.Count > 0 && (!loopDetectionEnabled || rounds < maxToolCallRounds))
             {
-                if (AppDefaults.DetectLoop(previousToolCalls, currentResponse.ToolCalls))
+                if (loopDetectionEnabled && AppDefaults.DetectLoop(previousToolCalls, currentResponse.ToolCalls))
                 {
-                    loopDetected = true;
-                    break;
+                    consecutiveIdenticalRounds++;
+                    if (consecutiveIdenticalRounds >= AppDefaults.LoopDetectionConsecutiveThreshold)
+                    {
+                        loopDetected = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    consecutiveIdenticalRounds = 0;
                 }
                 previousToolCalls = currentResponse.ToolCalls;
                 rounds++;
@@ -179,8 +192,9 @@ public class ServerChatRunner(
                 else
                 {
                     if (opts.Verbose)
-                        logs.Add($"Maximale Tool-Call-Runden erreicht ({AppDefaults.MaxToolCallRounds}).");
-                    guardMessage = AppDefaults.MaxRoundsReachedMessage;
+                        logs.Add($"Maximale Tool-Call-Runden erreicht ({maxToolCallRounds}).");
+                    guardMessage = $"Maximale Anzahl Tool-Call-Runden ({maxToolCallRounds}) erreicht. " +
+                        "Die Aufgabe wurde möglicherweise nicht vollständig abgeschlossen.";
                 }
                 var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
                     ? guardMessage

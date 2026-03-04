@@ -66,7 +66,7 @@ public class CliChatRunner(
         {
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
-            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, toolChoiceName, config.CommandTimeoutSeconds, ct);
+            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, toolChoiceName, config.CommandTimeoutSeconds, config.LoopDetectionEnabled, config.MaxToolCallRounds, ct);
             return 0;
         }
 
@@ -112,19 +112,30 @@ public class CliChatRunner(
         CliOptions opts,
         string? toolChoiceName,
         int commandTimeoutSeconds,
+        bool loopDetectionEnabled,
+        int maxToolCallRounds,
         CancellationToken ct)
     {
-        var response          = initialResponse;
-        var rounds            = 0;
-        var previousToolCalls = (IReadOnlyList<ToolCall>?)null;
-        var loopDetected      = false;
+        var response                   = initialResponse;
+        var rounds                     = 0;
+        var consecutiveIdenticalRounds = 0;
+        var previousToolCalls          = (IReadOnlyList<ToolCall>?)null;
+        var loopDetected               = false;
 
-        while (response.ToolCalls.Count > 0 && rounds < AppDefaults.MaxToolCallRounds)
+        while (response.ToolCalls.Count > 0 && (!loopDetectionEnabled || rounds < maxToolCallRounds))
         {
-            if (AppDefaults.DetectLoop(previousToolCalls, response.ToolCalls))
+            if (loopDetectionEnabled && AppDefaults.DetectLoop(previousToolCalls, response.ToolCalls))
             {
-                loopDetected = true;
-                break;
+                consecutiveIdenticalRounds++;
+                if (consecutiveIdenticalRounds >= AppDefaults.LoopDetectionConsecutiveThreshold)
+                {
+                    loopDetected = true;
+                    break;
+                }
+            }
+            else
+            {
+                consecutiveIdenticalRounds = 0;
             }
             previousToolCalls = response.ToolCalls;
             rounds++;
@@ -154,7 +165,8 @@ public class CliChatRunner(
         if (loopDetected)
             Console.Error.WriteLine(AppDefaults.LoopDetectedMessage);
         else if (response.ToolCalls.Count > 0)
-            Console.Error.WriteLine(AppDefaults.MaxRoundsReachedMessage);
+            Console.Error.WriteLine($"Maximale Anzahl Tool-Call-Runden ({maxToolCallRounds}) erreicht. " +
+                "Die Aufgabe wurde möglicherweise nicht vollständig abgeschlossen.");
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(

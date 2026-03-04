@@ -31,6 +31,8 @@ public class AppConfig
 {
     public ProviderType DefaultProvider { get; set; } = ProviderType.Ollama;
     public int CommandTimeoutSeconds { get; set; } = 300;
+    public bool LoopDetectionEnabled { get; set; } = true;
+    public int MaxToolCallRounds { get; set; } = AppDefaults.MaxToolCallRounds;
     public OllamaConfig Ollama { get; set; } = new();
     public CerebrasConfig Cerebras { get; set; } = new();
 }

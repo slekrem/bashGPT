@@ -59,6 +59,8 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
             commandTimeoutSeconds = config.CommandTimeoutSeconds,
+            loopDetectionEnabled = config.LoopDetectionEnabled,
+            maxToolCallRounds    = config.MaxToolCallRounds,
             cerebras          = new
             {
                 model = config.Cerebras.Model,
@@ -133,6 +135,8 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         if (body.ForceTools is bool ft) state.ForceTools = ft;
         if (body.CommandTimeoutSeconds is { } timeout && timeout > 0)
             config.CommandTimeoutSeconds = timeout;
+        if (body.LoopDetectionEnabled is { } lde) config.LoopDetectionEnabled = lde;
+        if (body.MaxToolCallRounds is { } mtr && mtr > 0) config.MaxToolCallRounds = mtr;
         await configService.SaveAsync(config);
         await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
     }
@@ -222,7 +226,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
     private sealed record SettingsRequest(
         string? Provider, string? Model, string? ApiKey,
         string? OllamaHost, string? ExecMode, bool? ForceTools,
-        int? CommandTimeoutSeconds,
+        int? CommandTimeoutSeconds, bool? LoopDetectionEnabled, int? MaxToolCallRounds,
         ProviderConfigRequest? Cerebras, ProviderConfigRequest? Ollama);
 
     private sealed record ProviderConfigRequest(
