@@ -29,6 +29,14 @@ internal sealed class FakeLlmProvider : ILlmProvider
             throw NextException;
 
         var response = _queue.Count > 0 ? _queue.Dequeue() : new LlmChatResponse("", []);
+
+        // Simulate token streaming: invoke OnToken per character of Content
+        if (request.OnToken is not null && !string.IsNullOrEmpty(response.Content))
+        {
+            foreach (var ch in response.Content)
+                request.OnToken(ch.ToString());
+        }
+
         return Task.FromResult(response);
     }
 

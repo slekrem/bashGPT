@@ -1,4 +1,4 @@
-import type { ChatResponse, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
+import type { ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
 import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -39,6 +39,107 @@ export async function sendChat(prompt: string, execMode: ExecMode, sessionId?: s
 
   await assertOk(res)
   return res.json()
+}
+
+export type StreamHandlers = {
+  onToken?: (token: string) => void
+  onToolCall?: (data: { name: string; command: string }) => void
+  onCommandResult?: (data: CommandResult) => void
+  onRoundStart?: (data: { round: number }) => void
+}
+
+export async function streamChat(
+  prompt: string,
+  execMode: ExecMode,
+  handlers: StreamHandlers,
+  sessionId?: string
+): Promise<ChatResponse> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, execMode, ...(sessionId ? { sessionId } : {}) }),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timeout)
+    if (err instanceof DOMException && err.name === 'AbortError')
+      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
+    throw err
+  }
+
+  if (!res.ok) {
+    clearTimeout(timeout)
+    throw new Error(await readErrorMessage(res))
+  }
+
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let chatResponse: ChatResponse | null = null
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const payload = line.slice(6).trim()
+        if (payload === '[DONE]') continue
+
+        let parsed: any
+        try { parsed = JSON.parse(payload) } catch { continue }
+
+        const delta = parsed?.choices?.[0]?.delta
+        if (!delta) continue
+
+        if (delta.bashgpt) {
+          const { event, data } = delta.bashgpt
+          if (event === 'tool_call') handlers.onToolCall?.(data)
+          else if (event === 'command_result') handlers.onCommandResult?.(data)
+          else if (event === 'round_start') handlers.onRoundStart?.(data)
+          else if (event === 'error') throw new Error(data?.message ?? 'Serverfehler')
+        } else if (delta.content) {
+          handlers.onToken?.(delta.content)
+        }
+
+        if (parsed?.bashgpt?.event === 'done') {
+          const bg = parsed.bashgpt
+          chatResponse = {
+            response:      bg.response,
+            usedToolCalls: bg.usedToolCalls,
+            logs:          bg.logs ?? [],
+            shellContext:  bg.shellContext,
+            commands:      bg.commands ?? [],
+            usage:         parsed.usage
+              ? { inputTokens: parsed.usage.promptTokens, outputTokens: parsed.usage.completionTokens }
+              : undefined,
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError')
+      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
+    throw err
+  } finally {
+    clearTimeout(timeout)
+    reader.releaseLock()
+  }
+
+  if (!chatResponse)
+    throw new Error('Keine Antwort vom Server erhalten.')
+
+  return chatResponse
 }
 
 export async function loadHistory(): Promise<HistoryMessage[]> {

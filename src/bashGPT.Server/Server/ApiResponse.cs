@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using BashGPT.Providers;
 
@@ -66,5 +67,12 @@ internal static class ApiResponse
 
         response.StatusCode = 404;
         response.Close();
+    }
+
+    internal static void WriteSseEvent(Stream stream, string data)
+    {
+        var bytes = Encoding.UTF8.GetBytes($"data: {data}\n\n");
+        stream.Write(bytes);
+        stream.Flush();
     }
 }

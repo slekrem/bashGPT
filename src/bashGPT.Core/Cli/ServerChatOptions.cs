@@ -13,7 +13,9 @@ public record ServerChatOptions(
     bool IncludeDir,
     ExecutionMode ExecMode,
     bool Verbose,
-    bool ForceTools
+    bool ForceTools,
+    Action<string>? OnToken = null,
+    Action<SseEvent>? OnEvent = null
 );
 
 public record ServerChatResult(
@@ -23,3 +25,5 @@ public record ServerChatResult(
     bool UsedToolCalls,
     TokenUsage? Usage = null
 );
+
+public record SseEvent(string Event, object? Data = null);

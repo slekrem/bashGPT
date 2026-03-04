@@ -8,24 +8,26 @@ namespace BashGPT.Server;
 
 public class ServerHost
 {
-    private readonly ServerState        _state;
-    private readonly LegacyHistory      _legacyHistory;
-    private readonly ContextApiHandler  _contextHandler;
-    private readonly SettingsApiHandler _settingsHandler;
-    private readonly ChatApiHandler     _chatHandler;
-    private readonly SessionApiHandler  _sessionHandler;
+    private readonly ServerState               _state;
+    private readonly LegacyHistory             _legacyHistory;
+    private readonly ContextApiHandler         _contextHandler;
+    private readonly SettingsApiHandler        _settingsHandler;
+    private readonly ChatApiHandler            _chatHandler;
+    private readonly StreamingChatApiHandler   _streamingChatHandler;
+    private readonly SessionApiHandler         _sessionHandler;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null)
     {
-        _state           = new ServerState();
-        _legacyHistory   = new LegacyHistory();
-        _contextHandler  = new ContextApiHandler();
-        _settingsHandler = new SettingsApiHandler(configService, _state);
-        _chatHandler     = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
-        _sessionHandler  = new SessionApiHandler(sessionStore, _legacyHistory);
+        _state                = new ServerState();
+        _legacyHistory        = new LegacyHistory();
+        _contextHandler       = new ContextApiHandler();
+        _settingsHandler      = new SettingsApiHandler(configService, _state);
+        _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore);
+        _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
@@ -128,6 +130,9 @@ public class ServerHost
 
             if (path.StartsWith("/api/settings", StringComparison.Ordinal))
             { await _settingsHandler.HandleAsync(ctx, ct); return; }
+
+            if (req.HttpMethod == "POST" && path == "/api/chat/stream")
+            { await _streamingChatHandler.HandleAsync(ctx, options, ct); return; }
 
             if (req.HttpMethod == "POST" && path == "/api/chat")
             { await _chatHandler.HandleAsync(ctx, options, ct); return; }

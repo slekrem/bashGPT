@@ -83,7 +83,7 @@ public class ServerChatRunner(
         var toolChoiceName = opts.ForceTools ? "bash" : null;
         var usedToolCalls  = false;
 
-        var firstResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+        var firstResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -113,6 +113,9 @@ public class ServerChatRunner(
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
 
+                if (rounds > 1)
+                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = rounds }));
+
                 if (opts.Verbose)
                     logs.Add($"Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
 
@@ -124,6 +127,10 @@ public class ServerChatRunner(
                     foreach (var err in errors)
                         logs.Add($"Tool-Call-Fehler ({err.ToolCall.Name}): {err.Error}");
                 }
+
+                foreach (var cmd in commands)
+                    opts.OnEvent?.Invoke(new SseEvent("tool_call",
+                        new { name = cmd.ToolCall.Name, command = cmd.Command.Command }));
 
                 var effectiveExecMode = opts.ExecMode;
                 if (effectiveExecMode == ExecutionMode.Ask)
@@ -141,9 +148,14 @@ public class ServerChatRunner(
                 var roundResults = await ChatOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls, commands, errors, currentResponse.Content, messages, executor, ct);
 
+                foreach (var r in roundResults)
+                    opts.OnEvent?.Invoke(new SseEvent("command_result",
+                        new { command = r.Command, exitCode = r.ExitCode,
+                              output = r.Output, wasExecuted = r.WasExecuted }));
+
                 commandResults.AddRange(roundResults);
 
-                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
                 if (nextResponse.Error is not null)
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -204,7 +216,7 @@ public class ServerChatRunner(
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
         messages.Add(new ChatMessage(ChatRole.User, followUp));
 
-        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct);
+        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
         if (followUpResponse.Error is not null)
             return new ServerChatResult(followUpResponse.Error, commandResults, logs, usedToolCalls, BuildUsage());
 

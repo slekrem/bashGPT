@@ -4,7 +4,7 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
 import './chat-info-panel'
-import { sendChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
+import { streamChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
 import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
@@ -60,6 +60,8 @@ export class ChatView extends LitElement {
   private _idCounter = 0
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
+  @state() private _streamingContent = ''
+  @state() private _streamingEntries: TerminalEntry[] = []
 
   static styles = css`
     :host {
@@ -380,11 +382,20 @@ export class ChatView extends LitElement {
     // angelegten User-Input nachträglich überschreibt.
     this._historyLoadSeq++
     const execMode = this._chat.mode
+
+    // Platzhalter für die Assistant-Antwort, wird live befüllt
+    const assistantId = this._idCounter++
+    this._streamingContent = ''
+    this._streamingEntries = []
     this._chat = {
       ...this._chat,
-      messages: [...this._chat.messages, { id: this._idCounter++, role: 'user', content: prompt, execMode }],
+      messages: [
+        ...this._chat.messages,
+        { id: this._idCounter++, role: 'user', content: prompt, execMode },
+        { id: assistantId, role: 'assistant' as const, content: '' },
+      ],
       loading:     true,
-      statusText:  '',
+      statusText:  'Denke…',
       statusError: false,
     }
     this._scrollToBottom()
@@ -392,18 +403,54 @@ export class ChatView extends LitElement {
 
     try {
       if (this.beforeSend) await this.beforeSend()
-      const result = await sendChat(prompt, execMode, this.sessionId || undefined)
-      const newMessages = [
-        ...this._chat.messages,
-        {
-          id:           this._idCounter++,
-          role:         'assistant' as const,
-          content:      result.response,
-          commands:     result.commands,
-          usedToolCalls: result.usedToolCalls,
-          usage:        result.usage ?? undefined,
+
+      const result = await streamChat(prompt, execMode, {
+        onToken: token => {
+          this._streamingContent += token
+          this._chat = {
+            ...this._chat,
+            messages: this._chat.messages.map(m =>
+              m.id === assistantId ? { ...m, content: this._streamingContent } : m
+            ),
+          }
+          this._scrollToBottom()
         },
-      ]
+        onToolCall: data => {
+          this._chat = { ...this._chat, statusText: `Führe aus: ${data.command}` }
+          this._streamingEntries = [
+            ...this._streamingEntries,
+            { command: data.command, output: '', exitCode: -1, wasExecuted: false, status: 'running' },
+          ]
+        },
+        onCommandResult: data => {
+          let updated = false
+          this._streamingEntries = this._streamingEntries.map(e => {
+            if (!updated && e.command === data.command && e.status === 'running') {
+              updated = true
+              return {
+                command: data.command,
+                output: data.output ?? '',
+                exitCode: data.exitCode,
+                wasExecuted: data.wasExecuted,
+                status: !data.wasExecuted ? 'skipped' : data.exitCode === 0 ? 'success' : 'error',
+              }
+            }
+            return e
+          })
+          this._chat = { ...this._chat, statusText: 'Verarbeite Ergebnis…' }
+        },
+        onRoundStart: data => {
+          this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
+        },
+      }, this.sessionId || undefined)
+
+      // Finale Message mit vollständigen Daten übernehmen
+      const newMessages = this._chat.messages.map(m =>
+        m.id === assistantId
+          ? { ...m, content: result.response, commands: result.commands,
+              usedToolCalls: result.usedToolCalls, usage: result.usage ?? undefined }
+          : m
+      )
       const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
       if (result.commands.length > 0)
         parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
@@ -415,19 +462,22 @@ export class ChatView extends LitElement {
         statusText:  parts.join(' · '),
         statusError: false,
       }
+      this._streamingContent = ''
+      this._streamingEntries = []
       this._emitMessagesChanged()
     } catch (e) {
       const errText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
-      const newMessages = [
-        ...this._chat.messages,
-        { id: this._idCounter++, role: 'assistant' as const, content: `⚠️ ${errText}` },
-      ]
+      const newMessages = this._chat.messages.map(m =>
+        m.id === assistantId ? { ...m, content: `⚠️ ${errText}` } : m
+      )
       this._chat = {
         ...this._chat,
         messages:    newMessages,
         statusText:  errText,
         statusError: true,
       }
+      this._streamingContent = ''
+      this._streamingEntries = []
       this._emitMessagesChanged()
     } finally {
       this._chat = { ...this._chat, loading: false }
@@ -529,9 +579,7 @@ export class ChatView extends LitElement {
 
   private _workingText() {
     if (!this._chat.loading) return ''
-    const last = this._chat.messages.at(-1)
-    // Wenn letzter Eintrag vom User kommt, sind wir noch in der LLM-Phase
-    return last?.role === 'user' ? 'Denke…' : 'Verarbeite Tool-Ergebnis…'
+    return this._chat.statusText || 'Denke…'
   }
 
   private _fallbackShellContext(): ShellContext {
@@ -552,7 +600,7 @@ export class ChatView extends LitElement {
         ${this.showTerminal ? html`
           <bashgpt-terminal-panel
             class="${showPanel ? '' : 'collapsed'}"
-            .entries=${this._terminalEntries}
+            .entries=${[...this._terminalEntries, ...this._streamingEntries]}
             .shellContext=${this._chat.shellContext ?? this._fallbackShellContext()}
             ?loading=${this._chat.loading}
           ></bashgpt-terminal-panel>
