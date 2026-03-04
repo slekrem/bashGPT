@@ -54,28 +54,14 @@ export async function streamChat(
   handlers: StreamHandlers,
   sessionId?: string
 ): Promise<ChatResponse> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+  const res = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, execMode, ...(sessionId ? { sessionId } : {}) }),
+  })
 
-  let res: Response
-  try {
-    res = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, execMode, ...(sessionId ? { sessionId } : {}) }),
-      signal: controller.signal,
-    })
-  } catch (err) {
-    clearTimeout(timeout)
-    if (err instanceof DOMException && err.name === 'AbortError')
-      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
-    throw err
-  }
-
-  if (!res.ok) {
-    clearTimeout(timeout)
+  if (!res.ok)
     throw new Error(await readErrorMessage(res))
-  }
 
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
@@ -127,12 +113,7 @@ export async function streamChat(
         }
       }
     }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError')
-      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
-    throw err
   } finally {
-    clearTimeout(timeout)
     reader.releaseLock()
   }
 
