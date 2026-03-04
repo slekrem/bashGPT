@@ -27,7 +27,8 @@ public class CliChatRunner(
 
         ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
-        var execMode = opts.ExecMode ?? config.DefaultExecMode;
+        var execMode   = opts.ExecMode   ?? config.DefaultExecMode;
+        var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         ILlmProvider provider;
         try
@@ -58,7 +59,7 @@ public class CliChatRunner(
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
         var tools          = new[] { ToolDefinitions.Bash };
-        var toolChoiceName = opts.ForceTools ? "bash" : null;
+        var toolChoiceName = forceTools ? "bash" : null;
 
         Console.WriteLine();
         var firstResponse = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);

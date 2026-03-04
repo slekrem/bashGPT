@@ -111,8 +111,13 @@ public class ConfigurationService
                 config.Cerebras.ReasoningEffort = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
                 break;
             case "commandtimeoutseconds":
-                config.CommandTimeoutSeconds = ParseInt(value, "commandTimeoutSeconds");
+            {
+                var timeout = ParseInt(value, "commandTimeoutSeconds");
+                if (timeout <= 0)
+                    throw new ArgumentException($"Ungültiger Wert für 'commandTimeoutSeconds': '{value}'. Muss größer als 0 sein.");
+                config.CommandTimeoutSeconds = timeout;
                 break;
+            }
             case "execmode":
             case "defaultexecmode":
                 config.DefaultExecMode = ExecModeConverter.Parse(value)

@@ -43,7 +43,7 @@ var verboseOpt = new Option<bool>("--verbose", "-v")
 {
     Description = "Debug-Ausgaben anzeigen"
 };
-var forceToolsOpt = new Option<bool>("--force-tools")
+var forceToolsOpt = new Option<bool?>("--force-tools")
 {
     Description = "Tool-Calls erzwingen (tool_choice=bash)"
 };
@@ -87,7 +87,7 @@ rootCommand.SetAction(async (parseResult, ct) =>
         IncludeDir: parseResult.GetValue(includeDirOpt),
         ExecMode: execMode,
         Verbose: parseResult.GetValue(verboseOpt),
-        ForceTools: args.Contains("--force-tools") ? true : (bool?)null);
+        ForceTools: parseResult.GetValue(forceToolsOpt));
 
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };

@@ -12,5 +12,5 @@ public record CliOptions(
     bool IncludeDir,
     ExecutionMode? ExecMode,
     bool Verbose,
-    bool ForceTools
+    bool? ForceTools
 );
