@@ -24,11 +24,16 @@ public sealed class BitcoinPriceCheck : IAgentCheck
             var hash = price.ToString("F0");
             var changed = hash != agent.LastHash;
 
+            var apiTime = doc.RootElement.TryGetProperty("time", out var timeEl)
+                ? DateTimeOffset.FromUnixTimeSeconds(timeEl.GetInt64()).ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
+                : null;
+            var timeStr = apiTime is not null ? $"  [{apiTime}]" : "";
+
             var message = agent.LastHash is null || !decimal.TryParse(agent.LastHash, out var lastPrice)
-                ? $"Bitcoin: ${price:N0} USD"
+                ? $"BTC/USD  ${price:N0}{timeStr}"
                 : changed
-                    ? $"Bitcoin: ${price:N0} USD ({(price > lastPrice ? "↑" : "↓")} von ${lastPrice:N0})"
-                    : $"Bitcoin: ${price:N0} USD (unverändert)";
+                    ? $"BTC/USD  ${price:N0}  {(price > lastPrice ? "↑" : "↓")} {(price > lastPrice ? "+" : "-")}${Math.Abs(price - lastPrice):N0}  (zuvor ${lastPrice:N0}){timeStr}"
+                    : $"BTC/USD  ${price:N0}  (unverändert){timeStr}";
 
             return new AgentCheckResult(hash, changed, message, Success: true);
         }
