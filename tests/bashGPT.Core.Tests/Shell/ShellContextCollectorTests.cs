@@ -137,7 +137,7 @@ public class ShellContextCollectorTests
         var ctx = new ShellContext(
             WorkingDirectory: "/home/user/project",
             OperatingSystem:  "macOS (Arm64)",
-            Shell:            "/bin/zsh",
+            Shell:            "test-shell",
             Git:              git,
             DirectoryEntries: [],
             Environment:      new Dictionary<string, string>());
@@ -155,7 +155,7 @@ public class ShellContextCollectorTests
         var ctx = new ShellContext(
             WorkingDirectory: "/tmp",
             OperatingSystem:  "Linux",
-            Shell:            "/bin/bash",
+            Shell:            "test-shell",
             Git:              null,
             DirectoryEntries: [],
             Environment:      new Dictionary<string, string>());
@@ -169,7 +169,7 @@ public class ShellContextCollectorTests
     {
         var manyFiles = Enumerable.Range(1, 15).Select(i => $"M file{i}.cs").ToList();
         var git = new GitContext("feature", null, manyFiles);
-        var ctx = new ShellContext("/tmp", "Linux", "/bin/bash", git, [], new Dictionary<string, string>());
+        var ctx = new ShellContext("/tmp", "Linux", "test-shell", git, [], new Dictionary<string, string>());
 
         var prompt = _sut.BuildSystemPrompt(ctx);
         Assert.Contains("5 weitere", prompt);
