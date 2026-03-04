@@ -14,10 +14,22 @@ dotnet test
 dotnet test --configuration Release
 dotnet test --filter "FullyQualifiedName~CerebrasProvider"  # einzelne Klasse
 dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"  # einzelner Test
+dotnet test --filter "FullyQualifiedName~AgentRunner"       # Agent-Tests
+dotnet test --filter "FullyQualifiedName~AgentStore"        # Store-Tests
 
 # CLI direkt ausführen
-dotnet run --project src/bashGPT -- "zeige alle .cs Dateien"
-dotnet run --project src/bashGPT -- server  # Web-UI auf Port 5050
+dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
+dotnet run --project src/bashGPT.Cli -- server  # Web-UI auf Port 5050
+
+# Agent-Modus
+dotnet run --project src/bashGPT.Cli -- agent add git --name my-repo --path . --every 5
+dotnet run --project src/bashGPT.Cli -- agent add http --name my-api --url https://example.com --every 60
+dotnet run --project src/bashGPT.Cli -- agent list
+dotnet run --project src/bashGPT.Cli -- agent status <name-or-id>
+dotnet run --project src/bashGPT.Cli -- agent pause <name-or-id>
+dotnet run --project src/bashGPT.Cli -- agent resume <name-or-id>
+dotnet run --project src/bashGPT.Cli -- agent remove <name-or-id>
+dotnet run --project src/bashGPT.Cli -- agent run   # Ctrl+C zum Beenden
 
 # Nur Frontend bauen
 cd src/bashGPT.Web && npm run build
@@ -57,6 +69,10 @@ Fallback: Falls keine Tool-Calls, extrahiert `BashCommandExtractor` Befehle aus 
 | `CommandExecutor` | `Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (30s Timeout, interaktive Befehle geblockt) |
 | `BashCommandExtractor` | `Shell/BashCommandExtractor.cs` | Extrahiert Befehle, prüft Danger-Patterns |
 | `ServerHost` | `Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET) |
+| `AgentRunner` | `Agents/AgentRunner.cs` | 1s-Polling-Loop, führt aktive Agenten zyklisch aus, meldet bei Änderungen |
+| `AgentStore` | `Agents/AgentStore.cs` | Thread-sicherer Persistenz-Store für `~/.config/bashgpt/agents.json` |
+| `GitStatusCheck` | `Agents/GitStatusCheck.cs` | Prüft `git status --porcelain`, SHA256-Hash als Fingerprint |
+| `HttpStatusCheck` | `Agents/HttpStatusCheck.cs` | HTTP GET, Statuscode-Wechsel als Änderungssignal |
 
 ### Provider
 

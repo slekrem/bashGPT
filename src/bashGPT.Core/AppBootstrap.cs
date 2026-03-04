@@ -1,3 +1,4 @@
+using BashGPT.Agents;
 using BashGPT.Configuration;
 using BashGPT.Shell;
 using BashGPT.Storage;
@@ -32,5 +33,12 @@ public static class AppBootstrap
         var historyFile = Path.Combine(baseDir, "history.json");
         var sessionsFile = Path.Combine(baseDir, "sessions.json");
         return new SessionStore(sessionsFile, legacyHistoryFile: historyFile);
+    }
+
+    public static AgentStore CreateAgentStore(string? configDir = null)
+    {
+        var baseDir = configDir ?? GetConfigDir();
+        var agentsFile = Path.Combine(baseDir, "agents.json");
+        return new AgentStore(agentsFile);
     }
 }
