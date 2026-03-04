@@ -118,11 +118,14 @@ public class CommandExecutorTests
     public async Task ProcessAsync_StripsAnsiEscapeCodes()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return; // printf mit ANSI-Sequenzen ist auf Windows nicht garantiert
+            return; // awk-basierter Test läuft nur auf Unix
 
         var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
-        // Gibt "hello" mit rotem ANSI-Farbcode aus
-        var cmds = new[] { new ExtractedCommand(@"printf '\033[31mhello\033[0m'", false, null) };
+        // awk %c wandelt 27 in das ESC-Zeichen um – keine Backslashes nötig,
+        // damit EscapeForUnixShell die Sequenz nicht zerstört.
+        var cmds = new[] { new ExtractedCommand(
+            @"awk 'BEGIN{printf ""%c[31mhello%c[0m\n"", 27, 27}'",
+            false, null) };
 
         var results = await exec.ProcessAsync(cmds);
 
