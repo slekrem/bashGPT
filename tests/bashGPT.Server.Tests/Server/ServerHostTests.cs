@@ -38,7 +38,7 @@ public sealed class ServerHostTests : IAsyncLifetime
             IncludeDir: false,
             ExecMode: ExecutionMode.NoExec,
             Verbose: false,
-            ForceTools: false);
+            ForceTools: null);
 
         _server = new ServerHost(_handler);
         _cts = new CancellationTokenSource();

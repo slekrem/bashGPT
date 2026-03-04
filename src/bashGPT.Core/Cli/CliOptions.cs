@@ -10,7 +10,7 @@ public record CliOptions(
     string? Model,
     bool NoContext,
     bool IncludeDir,
-    ExecutionMode ExecMode,
+    ExecutionMode? ExecMode,
     bool Verbose,
-    bool ForceTools
+    bool? ForceTools
 );

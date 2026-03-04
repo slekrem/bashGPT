@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BashGPT.Shell;
 
 namespace BashGPT.Configuration;
 
@@ -109,11 +110,39 @@ public class ConfigurationService
             case "cerebras.reasoning_effort":
                 config.Cerebras.ReasoningEffort = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
                 break;
+            case "commandtimeoutseconds":
+            {
+                var timeout = ParseInt(value, "commandTimeoutSeconds");
+                if (timeout <= 0)
+                    throw new ArgumentException($"Ungültiger Wert für 'commandTimeoutSeconds': '{value}'. Muss größer als 0 sein.");
+                config.CommandTimeoutSeconds = timeout;
+                break;
+            }
+            case "execmode":
+            case "defaultexecmode":
+                config.DefaultExecMode = ExecModeConverter.Parse(value)
+                    ?? throw new ArgumentException($"Ungültiger ExecMode '{value}'. Erlaubt: ask, auto-exec, dry-run, no-exec");
+                break;
+            case "forcetools":
+            case "defaultforcetools":
+                if (!bool.TryParse(value, out var ft))
+                    throw new ArgumentException($"Ungültiger Wert für 'forceTools': '{value}'. Erlaubt: true, false");
+                config.DefaultForceTools = ft;
+                break;
+            case "loopdetectionenabled":
+                if (!bool.TryParse(value, out var ld))
+                    throw new ArgumentException($"Ungültiger Wert für 'loopDetectionEnabled': '{value}'. Erlaubt: true, false");
+                config.LoopDetectionEnabled = ld;
+                break;
+            case "maxtoolcallrounds":
+                config.MaxToolCallRounds = ParseInt(value, "maxToolCallRounds");
+                break;
             default:
                 throw new ArgumentException(
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
-                    "Gültige Schlüssel: defaultProvider, ollama.baseUrl, ollama.model, ollama.temperature, " +
-                    "ollama.topP, ollama.seed, " +
+                    "Gültige Schlüssel: defaultProvider, commandTimeoutSeconds, execMode, forceTools, " +
+                    "loopDetectionEnabled, maxToolCallRounds, " +
+                    "ollama.baseUrl, ollama.model, ollama.temperature, ollama.topP, ollama.seed, " +
                     "cerebras.apiKey, cerebras.model, cerebras.baseUrl, cerebras.temperature, " +
                     "cerebras.topP, cerebras.maxCompletionTokens, cerebras.seed, cerebras.reasoningEffort");
         }
@@ -128,6 +157,11 @@ public class ConfigurationService
         return key.ToLowerInvariant() switch
         {
             "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLower(),
+            "commandtimeoutseconds" => config.CommandTimeoutSeconds.ToString(),
+            "execmode" or "defaultexecmode" => ExecModeConverter.ToString(config.DefaultExecMode),
+            "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLower(),
+            "loopdetectionenabled" => config.LoopDetectionEnabled.ToString().ToLower(),
+            "maxtoolcallrounds" => config.MaxToolCallRounds.ToString(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
             "ollama.temperature" => config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
@@ -150,6 +184,11 @@ public class ConfigurationService
         var config = await LoadAsync();
         return $"""
             defaultProvider  = {config.DefaultProvider.ToString().ToLower()}
+            commandTimeoutSeconds = {config.CommandTimeoutSeconds}
+            execMode         = {ExecModeConverter.ToString(config.DefaultExecMode)}
+            forceTools       = {config.DefaultForceTools.ToString().ToLower()}
+            loopDetectionEnabled = {config.LoopDetectionEnabled.ToString().ToLower()}
+            maxToolCallRounds = {config.MaxToolCallRounds}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
             ollama.temperature = {config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
@@ -222,6 +261,13 @@ public class ConfigurationService
 
         if (int.TryParse(Environment.GetEnvironmentVariable("BASHGPT_COMMAND_TIMEOUT"), out var t) && t > 0)
             config.CommandTimeoutSeconds = t;
+
+        if (ExecModeConverter.Parse(Environment.GetEnvironmentVariable("BASHGPT_EXEC_MODE")) is { } em)
+            config.DefaultExecMode = em;
+
+        if (Environment.GetEnvironmentVariable("BASHGPT_FORCE_TOOLS") is { } fts
+            && bool.TryParse(fts, out var ftBool))
+            config.DefaultForceTools = ftBool;
 
         if (Environment.GetEnvironmentVariable("BASHGPT_LOOP_DETECTION") is { } ld
             && bool.TryParse(ld, out var ldBool))

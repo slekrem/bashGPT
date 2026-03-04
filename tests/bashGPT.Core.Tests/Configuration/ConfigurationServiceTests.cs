@@ -1,4 +1,5 @@
 using BashGPT.Configuration;
+using BashGPT.Shell;
 
 namespace BashGPT.Tests.Configuration;
 
@@ -147,6 +148,70 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(4096, loaded.Cerebras.MaxCompletionTokens);
         Assert.Equal(42, loaded.Cerebras.Seed);
         Assert.Equal("high", loaded.Cerebras.ReasoningEffort);
+    }
+
+    [Fact]
+    public async Task SetAsync_CommandTimeoutSeconds_PersistsValue()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("commandTimeoutSeconds", "120");
+        var config = await svc.LoadAsync();
+        Assert.Equal(120, config.CommandTimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task SetAsync_ExecMode_PersistsValue()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("execMode", "auto-exec");
+        var config = await svc.LoadAsync();
+        Assert.Equal(ExecutionMode.AutoExec, config.DefaultExecMode);
+    }
+
+    [Fact]
+    public async Task SetAsync_ForceTools_PersistsValue()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("forceTools", "true");
+        var config = await svc.LoadAsync();
+        Assert.True(config.DefaultForceTools);
+    }
+
+    [Fact]
+    public async Task GetAsync_ExecMode_ReturnsKebabCaseString()
+    {
+        var svc = CreateService();
+        await svc.SetAsync("execMode", "dry-run");
+        var result = await svc.GetAsync("execMode");
+        Assert.Equal("dry-run", result);
+    }
+
+    [Fact]
+    public async Task ListAsync_IncludesAllNewKeys()
+    {
+        var svc = CreateService();
+        var list = await svc.ListAsync();
+        Assert.Contains("commandTimeoutSeconds", list);
+        Assert.Contains("execMode", list);
+        Assert.Contains("forceTools", list);
+        Assert.Contains("loopDetectionEnabled", list);
+        Assert.Contains("maxToolCallRounds", list);
+    }
+
+    [Fact]
+    public async Task ApplyEnvironmentOverrides_BASHGPT_EXEC_MODE_AppliesCorrectly()
+    {
+        var svc = CreateService();
+        Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", "no-exec");
+        try
+        {
+            var config = await svc.LoadAsync();
+            Assert.Equal(ExecutionMode.NoExec, config.DefaultExecMode);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", null);
+        }
     }
 
     [Fact]

@@ -27,6 +27,9 @@ public class CliChatRunner(
 
         ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
+        var execMode   = opts.ExecMode   ?? config.DefaultExecMode;
+        var forceTools = opts.ForceTools ?? config.DefaultForceTools;
+
         ILlmProvider provider;
         try
         {
@@ -56,7 +59,7 @@ public class CliChatRunner(
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
         var tools          = new[] { ToolDefinitions.Bash };
-        var toolChoiceName = opts.ForceTools ? "bash" : null;
+        var toolChoiceName = forceTools ? "bash" : null;
 
         Console.WriteLine();
         var firstResponse = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
@@ -66,7 +69,7 @@ public class CliChatRunner(
         {
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
-            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, toolChoiceName, config.CommandTimeoutSeconds, config.LoopDetectionEnabled, config.MaxToolCallRounds, ct);
+            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, execMode, toolChoiceName, config.CommandTimeoutSeconds, config.LoopDetectionEnabled, config.MaxToolCallRounds, ct);
             return 0;
         }
 
@@ -77,13 +80,13 @@ public class CliChatRunner(
         var commands = BashCommandExtractor.Extract(firstResponse.Content);
         if (opts.Verbose && commands.Count > 0)
             Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codeblöcken extrahiert");
-        if (commands.Count == 0 || opts.ExecMode == ExecutionMode.NoExec)
+        if (commands.Count == 0 || execMode == ExecutionMode.NoExec)
             return 0;
 
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] {commands.Count} Befehl(e) gefunden");
 
-        var executor = new CommandExecutor(opts.ExecMode, commandTimeoutSeconds: config.CommandTimeoutSeconds);
+        var executor = new CommandExecutor(execMode, commandTimeoutSeconds: config.CommandTimeoutSeconds);
         var results  = await executor.ProcessAsync(commands, ct);
 
         var executed = results.Where(r => r.WasExecuted).ToList();
@@ -110,6 +113,7 @@ public class CliChatRunner(
         LlmChatResponse initialResponse,
         IReadOnlyList<ToolDefinition> tools,
         CliOptions opts,
+        ExecutionMode execMode,
         string? toolChoiceName,
         int commandTimeoutSeconds,
         bool loopDetectionEnabled,
@@ -153,7 +157,7 @@ public class CliChatRunner(
                     Console.Error.WriteLine($"[verbose] Tool-Call-Fehler ({err.ToolCall.Name}): {err.Error}");
             }
 
-            var executor = new CommandExecutor(opts.ExecMode, commandTimeoutSeconds: commandTimeoutSeconds);
+            var executor = new CommandExecutor(execMode, commandTimeoutSeconds: commandTimeoutSeconds);
             await ChatOrchestrator.ExecuteToolCallRoundAsync(
                 toolCalls, commands, errors, response.Content, messages, executor, ct);
 

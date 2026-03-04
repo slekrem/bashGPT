@@ -11,7 +11,7 @@ public static class AppDefaults
     public const int MaxToolCallRounds = 8;
 
     /// <summary>Timeout pro Shell-Befehl in Sekunden (CommandExecutor).</summary>
-    public const int CommandTimeoutSeconds = 30;
+    public const int CommandTimeoutSeconds = 300;
 
     /// <summary>Maximale Ausgabe-Zeichen pro Shell-Befehl (CommandExecutor).</summary>
     public const int MaxCommandOutputChars = 10_000;

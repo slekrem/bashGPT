@@ -43,7 +43,7 @@ var verboseOpt = new Option<bool>("--verbose", "-v")
 {
     Description = "Debug-Ausgaben anzeigen"
 };
-var forceToolsOpt = new Option<bool>("--force-tools")
+var forceToolsOpt = new Option<bool?>("--force-tools")
 {
     Description = "Tool-Calls erzwingen (tool_choice=bash)"
 };
