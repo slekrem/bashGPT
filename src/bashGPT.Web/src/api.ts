@@ -107,6 +107,7 @@ export async function streamChat(
           if (event === 'tool_call') handlers.onToolCall?.(data)
           else if (event === 'command_result') handlers.onCommandResult?.(data)
           else if (event === 'round_start') handlers.onRoundStart?.(data)
+          else if (event === 'error') throw new Error(data?.message ?? 'Serverfehler')
         } else if (delta.content) {
           handlers.onToken?.(delta.content)
         }
@@ -126,6 +127,10 @@ export async function streamChat(
         }
       }
     }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError')
+      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
+    throw err
   } finally {
     clearTimeout(timeout)
     reader.releaseLock()

@@ -86,7 +86,21 @@ internal sealed class StreamingChatApiHandler(
                 ApiResponse.WriteSseEvent(stream, json);
             });
 
-        var result = await handler.RunServerChatAsync(chatOpts, ct);
+        ServerChatResult result;
+        try
+        {
+            result = await handler.RunServerChatAsync(chatOpts, ct);
+        }
+        catch (Exception ex)
+        {
+            var errJson = JsonSerializer.Serialize(
+                new { bashgpt = new { @event = "error", message = ex.Message } },
+                JsonDefaults.Options);
+            ApiResponse.WriteSseEvent(stream, errJson);
+            ApiResponse.WriteSseEvent(stream, "[DONE]");
+            ctx.Response.Close();
+            return;
+        }
 
         var shellCtx = new SessionShellContext
         {
