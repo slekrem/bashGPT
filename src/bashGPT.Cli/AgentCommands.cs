@@ -1,5 +1,7 @@
 using System.CommandLine;
 using BashGPT.Agents;
+using BashGPT.Configuration;
+using BashGPT.Providers;
 
 namespace BashGPT.Cli;
 
@@ -264,9 +266,22 @@ public static class AgentCommands
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-            var runner = new AgentRunner(store, [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()]);
+            var configService = new ConfigurationService();
+            var config = await configService.LoadAsync();
+            ILlmProvider? provider = null;
+            try { provider = ProviderFactory.Create(config); }
+            catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM nicht verfügbar: {ex.Message}"); }
 
-            Console.WriteLine("Agent-Runner gestartet. Ctrl+C zum Beenden.");
+            var sessionStore = AppBootstrap.CreateSessionStore();
+            var runner = new AgentRunner(store,
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()],
+                provider,
+                sessionStore);
+
+            var sessionInfo = provider is not null
+                ? $" | LLM: {provider.Name} ({provider.Model})"
+                : " | LLM: nicht konfiguriert";
+            Console.WriteLine($"Agent-Runner gestartet{sessionInfo}. Ctrl+C zum Beenden.");
             try
             {
                 await runner.RunAsync(cts.Token);
