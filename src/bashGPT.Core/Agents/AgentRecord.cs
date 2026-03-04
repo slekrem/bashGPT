@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace BashGPT.Agents;
 
-public enum AgentCheckType { GitStatus, HttpStatus }
+public enum AgentCheckType { GitStatus, HttpStatus, BitcoinPrice }
 
 public sealed class AgentsFile
 {

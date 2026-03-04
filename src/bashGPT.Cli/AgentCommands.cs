@@ -26,6 +26,7 @@ public static class AgentCommands
 
         addCommand.Subcommands.Add(BuildAddGitCommand(store));
         addCommand.Subcommands.Add(BuildAddHttpCommand(store));
+        addCommand.Subcommands.Add(BuildAddBitcoinPriceCommand(store));
 
         return addCommand;
     }
@@ -98,6 +99,37 @@ public static class AgentCommands
         return cmd;
     }
 
+    private static Command BuildAddBitcoinPriceCommand(AgentStore store)
+    {
+        var nameOpt = new Option<string>("--name") { Description = "Name des Agenten", Required = true };
+        var everyOpt = new Option<int>("--every") { Description = "Prüfintervall in Sekunden (Standard: 30)", DefaultValueFactory = _ => 30 };
+
+        var cmd = new Command("bitcoin-price", "Bitcoin-Preis-Agent hinzufügen (mempool.space)");
+        cmd.Options.Add(nameOpt);
+        cmd.Options.Add(everyOpt);
+
+        cmd.SetAction(async (parseResult, _) =>
+        {
+            var name = parseResult.GetValue(nameOpt)!;
+            var interval = parseResult.GetValue(everyOpt);
+
+            var agent = new AgentRecord
+            {
+                Id = GenerateId(),
+                Name = name,
+                Type = AgentCheckType.BitcoinPrice,
+                Url = "https://mempool.space/api/v1/prices",
+                IntervalSeconds = interval,
+                IsActive = true,
+            };
+
+            await store.UpsertAsync(agent);
+            Console.WriteLine($"Agent '{name}' ({agent.Id}) hinzugefügt. Intervall: {interval}s");
+        });
+
+        return cmd;
+    }
+
     private static Command BuildListCommand(AgentStore store)
     {
         var cmd = new Command("list", "Alle Agenten anzeigen");
@@ -117,7 +149,7 @@ public static class AgentCommands
                 var status = a.IsActive ? "aktiv" : "pausiert";
                 var lastRun = a.LastRun?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "nie";
                 var target = a.Type == AgentCheckType.GitStatus ? a.Path : a.Url;
-                Console.WriteLine($"  {a.Id}  {a.Name,-20}  {a.Type,-10}  {status,-8}  alle {a.IntervalSeconds}s  zuletzt: {lastRun}  → {target}");
+                Console.WriteLine($"  {a.Id}  {a.Name,-20}  {a.Type,-12}  {status,-8}  alle {a.IntervalSeconds}s  zuletzt: {lastRun}  → {target}");
             }
         });
 
@@ -232,7 +264,7 @@ public static class AgentCommands
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-            var runner = new AgentRunner(store, [new GitStatusCheck(), new HttpStatusCheck()]);
+            var runner = new AgentRunner(store, [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()]);
 
             Console.WriteLine("Agent-Runner gestartet. Ctrl+C zum Beenden.");
             try
