@@ -17,6 +17,8 @@ public static class AgentCommands
         agentCommand.Subcommands.Add(BuildPauseCommand(store));
         agentCommand.Subcommands.Add(BuildResumeCommand(store));
         agentCommand.Subcommands.Add(BuildRemoveCommand(store));
+        agentCommand.Subcommands.Add(BuildSetPromptCommand(store));
+        agentCommand.Subcommands.Add(BuildEditCommand(store));
         agentCommand.Subcommands.Add(BuildRunCommand(store));
 
         return agentCommand;
@@ -38,11 +40,13 @@ public static class AgentCommands
         var nameOpt = new Option<string>("--name") { Description = "Name des Agenten", Required = true };
         var pathOpt = new Option<string>("--path") { Description = "Arbeitsverzeichnis (Standard: .)", DefaultValueFactory = _ => "." };
         var everyOpt = new Option<int>("--every") { Description = "Prüfintervall in Sekunden (Standard: 30)", DefaultValueFactory = _ => 30 };
+        var promptOpt = new Option<string?>("--system-prompt") { Description = "Eigene System-Prompt für die LLM-Reaktion" };
 
         var cmd = new Command("git", "Git-Status-Agent hinzufügen");
         cmd.Options.Add(nameOpt);
         cmd.Options.Add(pathOpt);
         cmd.Options.Add(everyOpt);
+        cmd.Options.Add(promptOpt);
 
         cmd.SetAction(async (parseResult, _) =>
         {
@@ -57,6 +61,7 @@ public static class AgentCommands
                 Type = AgentCheckType.GitStatus,
                 Path = path,
                 IntervalSeconds = interval,
+                SystemPrompt = parseResult.GetValue(promptOpt),
                 IsActive = true,
             };
 
@@ -72,11 +77,13 @@ public static class AgentCommands
         var nameOpt = new Option<string>("--name") { Description = "Name des Agenten", Required = true };
         var urlOpt = new Option<string>("--url") { Description = "Ziel-URL", Required = true };
         var everyOpt = new Option<int>("--every") { Description = "Prüfintervall in Sekunden (Standard: 60)", DefaultValueFactory = _ => 60 };
+        var promptOpt = new Option<string?>("--system-prompt") { Description = "Eigene System-Prompt für die LLM-Reaktion" };
 
         var cmd = new Command("http", "HTTP-Status-Agent hinzufügen");
         cmd.Options.Add(nameOpt);
         cmd.Options.Add(urlOpt);
         cmd.Options.Add(everyOpt);
+        cmd.Options.Add(promptOpt);
 
         cmd.SetAction(async (parseResult, _) =>
         {
@@ -91,6 +98,7 @@ public static class AgentCommands
                 Type = AgentCheckType.HttpStatus,
                 Url = url,
                 IntervalSeconds = interval,
+                SystemPrompt = parseResult.GetValue(promptOpt),
                 IsActive = true,
             };
 
@@ -105,10 +113,12 @@ public static class AgentCommands
     {
         var nameOpt = new Option<string>("--name") { Description = "Name des Agenten", Required = true };
         var everyOpt = new Option<int>("--every") { Description = "Prüfintervall in Sekunden (Standard: 30)", DefaultValueFactory = _ => 30 };
+        var promptOpt = new Option<string?>("--system-prompt") { Description = "Eigene System-Prompt für die LLM-Reaktion" };
 
         var cmd = new Command("bitcoin-price", "Bitcoin-Preis-Agent hinzufügen (mempool.space)");
         cmd.Options.Add(nameOpt);
         cmd.Options.Add(everyOpt);
+        cmd.Options.Add(promptOpt);
 
         cmd.SetAction(async (parseResult, _) =>
         {
@@ -122,11 +132,46 @@ public static class AgentCommands
                 Type = AgentCheckType.BitcoinPrice,
                 Url = "https://mempool.space/api/v1/prices",
                 IntervalSeconds = interval,
+                SystemPrompt = parseResult.GetValue(promptOpt),
                 IsActive = true,
             };
 
             await store.UpsertAsync(agent);
             Console.WriteLine($"Agent '{name}' ({agent.Id}) hinzugefügt. Intervall: {interval}s");
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildSetPromptCommand(AgentStore store)
+    {
+        var nameOrIdArg = new Argument<string>("name-or-id") { Description = "Name oder ID des Agenten" };
+        var promptArg = new Argument<string>("prompt") { Description = "Neue System-Prompt (leer zum Zurücksetzen auf Default)" };
+        promptArg.Arity = ArgumentArity.ZeroOrOne;
+
+        var cmd = new Command("set-prompt", "System-Prompt eines Agenten setzen oder zurücksetzen");
+        cmd.Arguments.Add(nameOrIdArg);
+        cmd.Arguments.Add(promptArg);
+
+        cmd.SetAction(async (parseResult, _) =>
+        {
+            var key = parseResult.GetValue(nameOrIdArg)!;
+            var agent = await store.LoadAsync(key);
+
+            if (agent is null)
+            {
+                Console.Error.WriteLine($"Agent '{key}' nicht gefunden.");
+                return;
+            }
+
+            var prompt = parseResult.GetValue(promptArg);
+            agent.SystemPrompt = string.IsNullOrWhiteSpace(prompt) ? null : prompt;
+            await store.UpsertAsync(agent);
+
+            if (agent.SystemPrompt is null)
+                Console.WriteLine($"System-Prompt von '{agent.Name}' zurückgesetzt (Default wird verwendet).");
+            else
+                Console.WriteLine($"System-Prompt von '{agent.Name}' aktualisiert.");
         });
 
         return cmd;
@@ -181,6 +226,7 @@ public static class AgentCommands
             Console.WriteLine($"Aktiv:         {agent.IsActive}");
             Console.WriteLine($"Intervall:     {agent.IntervalSeconds}s");
             Console.WriteLine($"Ziel:          {agent.Path ?? agent.Url ?? "-"}");
+            Console.WriteLine($"System-Prompt: {agent.SystemPrompt ?? "(default)"}");
             Console.WriteLine($"Letzter Run:   {agent.LastRun?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "nie"}");
             Console.WriteLine($"Letzter Hash:  {agent.LastHash ?? "-"}");
             Console.WriteLine($"Letzter Stand: {agent.LastMessage ?? "-"}");
@@ -252,6 +298,57 @@ public static class AgentCommands
             var key = parseResult.GetValue(nameOrIdArg)!;
             await store.DeleteAsync(key);
             Console.WriteLine($"Agent '{key}' entfernt.");
+        });
+
+        return cmd;
+    }
+
+    private static Command BuildEditCommand(AgentStore store)
+    {
+        var nameOrIdArg = new Argument<string>("name-or-id") { Description = "Name oder ID des Agenten" };
+        var everyOpt = new Option<int?>("--every") { Description = "Neues Prüfintervall in Sekunden" };
+        var promptOpt = new Option<string?>("--system-prompt") { Description = "Neue System-Prompt (leer = Default)" };
+
+        var cmd = new Command("edit", "Agenten bearbeiten (Intervall, System-Prompt)");
+        cmd.Arguments.Add(nameOrIdArg);
+        cmd.Options.Add(everyOpt);
+        cmd.Options.Add(promptOpt);
+
+        cmd.SetAction(async (parseResult, _) =>
+        {
+            var key = parseResult.GetValue(nameOrIdArg)!;
+            var agent = await store.LoadAsync(key);
+
+            if (agent is null)
+            {
+                Console.Error.WriteLine($"Agent '{key}' nicht gefunden.");
+                return;
+            }
+
+            var changed = false;
+
+            var every = parseResult.GetValue(everyOpt);
+            if (every.HasValue)
+            {
+                agent.IntervalSeconds = every.Value;
+                changed = true;
+            }
+
+            if (parseResult.GetResult(promptOpt) is not null)
+            {
+                var prompt = parseResult.GetValue(promptOpt);
+                agent.SystemPrompt = string.IsNullOrWhiteSpace(prompt) ? null : prompt;
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                Console.WriteLine("Keine Änderungen angegeben (--every, --system-prompt).");
+                return;
+            }
+
+            await store.UpsertAsync(agent);
+            Console.WriteLine($"Agent '{agent.Name}' aktualisiert: Intervall={agent.IntervalSeconds}s, System-Prompt={(agent.SystemPrompt ?? "(default)")}");
         });
 
         return cmd;

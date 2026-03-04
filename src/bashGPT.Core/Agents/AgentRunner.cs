@@ -57,7 +57,7 @@ public sealed class AgentRunner
                     if (result.Changed)
                     {
                         Console.WriteLine($"[{now:HH:mm:ss}] {agent.Name}: {result.Message}");
-                        await ReactWithLlmAsync(result.Message, session, ct);
+                        await ReactWithLlmAsync(result.Message, agent, session, ct);
                     }
 
                     agent.LastHash = result.Hash;
@@ -81,7 +81,7 @@ public sealed class AgentRunner
         }
     }
 
-    private async Task ReactWithLlmAsync(string changeMessage, SessionRecord session, CancellationToken ct)
+    private async Task ReactWithLlmAsync(string changeMessage, AgentRecord agent, SessionRecord session, CancellationToken ct)
     {
         if (_provider is null || _sessionStore is null)
             return;
@@ -91,9 +91,10 @@ public sealed class AgentRunner
 
         try
         {
+            var systemPrompt = agent.SystemPrompt ?? SystemPrompt;
             var messages = new List<ChatMessage>
             {
-                new(ChatRole.System, SystemPrompt),
+                new(ChatRole.System, systemPrompt),
             };
             foreach (var m in session.Messages)
                 messages.Add(new ChatMessage(m.Role == "user" ? ChatRole.User : ChatRole.Assistant, m.Content));

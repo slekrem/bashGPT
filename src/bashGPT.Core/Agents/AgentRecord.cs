@@ -20,6 +20,7 @@ public sealed class AgentRecord
     public string? Path { get; set; }
     public string? Url { get; set; }
     public int IntervalSeconds { get; set; } = 30;
+    public string? SystemPrompt { get; set; }
     public bool IsActive { get; set; } = true;
 
     // Runtime-State
