@@ -61,6 +61,7 @@ export class ChatView extends LitElement {
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
   @state() private _streamingContent = ''
+  @state() private _streamingEntries: TerminalEntry[] = []
 
   static styles = css`
     :host {
@@ -385,6 +386,7 @@ export class ChatView extends LitElement {
     // Platzhalter für die Assistant-Antwort, wird live befüllt
     const assistantId = this._idCounter++
     this._streamingContent = ''
+    this._streamingEntries = []
     this._chat = {
       ...this._chat,
       messages: [
@@ -415,8 +417,26 @@ export class ChatView extends LitElement {
         },
         onToolCall: data => {
           this._chat = { ...this._chat, statusText: `Führe aus: ${data.command}` }
+          this._streamingEntries = [
+            ...this._streamingEntries,
+            { command: data.command, output: '', exitCode: -1, wasExecuted: false, status: 'running' },
+          ]
         },
-        onCommandResult: _data => {
+        onCommandResult: data => {
+          let updated = false
+          this._streamingEntries = this._streamingEntries.map(e => {
+            if (!updated && e.command === data.command && e.status === 'running') {
+              updated = true
+              return {
+                command: data.command,
+                output: data.output ?? '',
+                exitCode: data.exitCode,
+                wasExecuted: data.wasExecuted,
+                status: !data.wasExecuted ? 'skipped' : data.exitCode === 0 ? 'success' : 'error',
+              }
+            }
+            return e
+          })
           this._chat = { ...this._chat, statusText: 'Verarbeite Ergebnis…' }
         },
         onRoundStart: data => {
@@ -443,6 +463,7 @@ export class ChatView extends LitElement {
         statusError: false,
       }
       this._streamingContent = ''
+      this._streamingEntries = []
       this._emitMessagesChanged()
     } catch (e) {
       const errText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
@@ -456,6 +477,7 @@ export class ChatView extends LitElement {
         statusError: true,
       }
       this._streamingContent = ''
+      this._streamingEntries = []
       this._emitMessagesChanged()
     } finally {
       this._chat = { ...this._chat, loading: false }
@@ -578,7 +600,7 @@ export class ChatView extends LitElement {
         ${this.showTerminal ? html`
           <bashgpt-terminal-panel
             class="${showPanel ? '' : 'collapsed'}"
-            .entries=${this._terminalEntries}
+            .entries=${[...this._terminalEntries, ...this._streamingEntries]}
             .shellContext=${this._chat.shellContext ?? this._fallbackShellContext()}
             ?loading=${this._chat.loading}
           ></bashgpt-terminal-panel>
