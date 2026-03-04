@@ -49,6 +49,17 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
+
+            // Reasoning-Modelle können Denktext vor das Tool-Call-JSON schreiben.
+            // Ollama scheitert dann beim Parsen und liefert HTTP 500.
+            // Fallback: JSON aus dem raw-Feld extrahieren und Tool-Call rekonstruieren.
+            if ((int)response.StatusCode == 500)
+            {
+                var recovered = TryRecoverToolCall(body);
+                if (recovered is not null)
+                    return recovered;
+            }
+
             throw new LlmProviderException(
                 $"Ollama antwortete mit HTTP {(int)response.StatusCode}: {body}");
         }
@@ -188,6 +199,53 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             var content = chunk?.Choices?.FirstOrDefault()?.Delta?.Content;
             if (!string.IsNullOrEmpty(content))
                 yield return content;
+        }
+    }
+
+    // ── Fehler-Fallback ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Versucht einen Tool-Call aus einer Ollama-HTTP-500-Antwort zu retten,
+    /// die durch Reasoning-Text vor dem JSON-Argument entstanden ist.
+    /// Format der Fehlermeldung: "error parsing tool call: raw='&lt;text&gt;{json}', err=..."
+    /// </summary>
+    private static LlmChatResponse? TryRecoverToolCall(string errorBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(errorBody);
+            var message = doc.RootElement
+                .GetProperty("error")
+                .GetProperty("message")
+                .GetString();
+
+            if (message is null || !message.Contains("error parsing tool call", StringComparison.Ordinal))
+                return null;
+
+            var rawStart = message.IndexOf("raw='", StringComparison.Ordinal);
+            if (rawStart < 0) return null;
+            rawStart += "raw='".Length;
+
+            var rawEnd = message.LastIndexOf("', err=", StringComparison.Ordinal);
+            if (rawEnd < 0 || rawEnd <= rawStart) return null;
+
+            var raw = message[rawStart..rawEnd];
+
+            // Letztes JSON-Objekt im raw-String finden
+            var jsonStart = raw.LastIndexOf('{');
+            if (jsonStart < 0) return null;
+            var jsonStr = raw[jsonStart..];
+
+            // Prüfen ob das JSON parsebar ist
+            JsonDocument.Parse(jsonStr).Dispose();
+
+            var reasoningText = raw[..jsonStart].Trim();
+            var toolCall = new ToolCall("recovered-0", "bash", jsonStr);
+            return new LlmChatResponse(reasoningText, [toolCall], null);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
