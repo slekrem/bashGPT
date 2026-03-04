@@ -98,9 +98,18 @@ public class ServerChatRunner(
             if (opts.Verbose)
                 logs.Add($"Tool-Calls empfangen: {currentResponse.ToolCalls.Count}");
 
-            var rounds = 0;
+            var rounds            = 0;
+            var previousToolCalls = (IReadOnlyList<ToolCall>?)null;
+            var loopDetected      = false;
+
             while (currentResponse.ToolCalls.Count > 0 && rounds < AppDefaults.MaxToolCallRounds)
             {
+                if (AppDefaults.DetectLoop(previousToolCalls, currentResponse.ToolCalls))
+                {
+                    loopDetected = true;
+                    break;
+                }
+                previousToolCalls = currentResponse.ToolCalls;
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
 
@@ -143,15 +152,23 @@ public class ServerChatRunner(
                 currentResponse    = nextResponse.Response;
             }
 
-            if (currentResponse.ToolCalls.Count > 0)
+            if (loopDetected || currentResponse.ToolCalls.Count > 0)
             {
-                var loopGuardMessage =
-                    "Tool-Call-Schleife erkannt und beendet. " +
-                    "Bitte nutze nicht-interaktive Befehle (z. B. 'ps aux --sort=-%cpu | head' statt 'top').";
-                if (opts.Verbose)
-                    logs.Add($"Maximale Tool-Call-Runden erreicht ({AppDefaults.MaxToolCallRounds}).");
+                string guardMessage;
+                if (loopDetected)
+                {
+                    if (opts.Verbose)
+                        logs.Add("Tool-Call-Schleife erkannt (identische Befehle wiederholt).");
+                    guardMessage = AppDefaults.LoopDetectedMessage;
+                }
+                else
+                {
+                    if (opts.Verbose)
+                        logs.Add($"Maximale Tool-Call-Runden erreicht ({AppDefaults.MaxToolCallRounds}).");
+                    guardMessage = AppDefaults.MaxRoundsReachedMessage;
+                }
                 var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
-                    ? loopGuardMessage
+                    ? guardMessage
                     : currentResponse.Content;
                 return new ServerChatResult(responseText, commandResults, logs, usedToolCalls, BuildUsage());
             }

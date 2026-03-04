@@ -113,14 +113,24 @@ public class CliChatRunner(
         string? toolChoiceName,
         CancellationToken ct)
     {
-        var response = initialResponse;
-        var rounds   = 0;
+        var response          = initialResponse;
+        var rounds            = 0;
+        var previousToolCalls = (IReadOnlyList<ToolCall>?)null;
+        var loopDetected      = false;
 
         while (response.ToolCalls.Count > 0 && rounds < AppDefaults.MaxToolCallRounds)
         {
+            if (AppDefaults.DetectLoop(previousToolCalls, response.ToolCalls))
+            {
+                loopDetected = true;
+                break;
+            }
+            previousToolCalls = response.ToolCalls;
+            rounds++;
+
             var toolCalls = response.ToolCalls;
             if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Tool-Call-Runde {rounds + 1}: {toolCalls.Count} Call(s)");
+                Console.Error.WriteLine($"[verbose] Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
 
             var (commands, errors) = ChatOrchestrator.ParseToolCalls(toolCalls);
             if (opts.Verbose)
@@ -138,9 +148,12 @@ public class CliChatRunner(
             Console.WriteLine();
             response = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
             Console.WriteLine();
-
-            rounds++;
         }
+
+        if (loopDetected)
+            Console.Error.WriteLine(AppDefaults.LoopDetectedMessage);
+        else if (response.ToolCalls.Count > 0)
+            Console.Error.WriteLine(AppDefaults.MaxRoundsReachedMessage);
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(

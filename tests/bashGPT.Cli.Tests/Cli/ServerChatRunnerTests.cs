@@ -111,19 +111,17 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_FourConsecutiveToolCalls_ReturnsLoopGuardMessage()
+    public async Task RunServerChatAsync_IdenticalConsecutiveToolCalls_ReturnsLoopDetectedMessage()
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-1")]));
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-2")]));
-        provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-3")]));
-        provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-4")]));
         var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
-        Assert.Contains("Tool-Call-Schleife", result.Response);
-        Assert.Equal(4, provider.CallCount);
+        Assert.Contains("Schleife", result.Response);
+        Assert.Equal(2, provider.CallCount);
     }
 
     [Fact]
@@ -131,15 +129,55 @@ public sealed class ServerChatRunnerTests
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-1")]));
-        provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-2")]));
-        provider.Enqueue(new LlmChatResponse("", [BashCall("top", "tc-3")]));
-        // 4. Antwort hat Tool-Calls UND Content → Content wird zurückgegeben
-        provider.Enqueue(new LlmChatResponse("Eigene Antwort trotz Tool-Call.", [BashCall("top", "tc-4")]));
+        // 2. Antwort hat Tool-Calls UND Content → Content wird zurückgegeben
+        provider.Enqueue(new LlmChatResponse("Eigene Antwort trotz Tool-Call.", [BashCall("top", "tc-2")]));
         var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
 
         Assert.Equal("Eigene Antwort trotz Tool-Call.", result.Response);
+        Assert.Equal(2, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_MaxRoundsReachedWithDifferentCalls_ReturnsMaxRoundsMessage()
+    {
+        // 9 Antworten mit je verschiedenen Befehlen → nach 8 Runden kein Loop, aber MaxRounds erreicht
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd1", "tc-1")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd2", "tc-2")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd3", "tc-3")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd4", "tc-4")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd5", "tc-5")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd6", "tc-6")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd7", "tc-7")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd8", "tc-8")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("cmd9", "tc-9")]));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.DoesNotContain("Schleife", result.Response);
+        Assert.Contains("Maximale Anzahl", result.Response);
+        Assert.Equal(9, provider.CallCount);
+        Assert.True(result.UsedToolCalls);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_DifferentToolCallsEachRound_NoLoopDetected()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("ls",   "tc-1")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("pwd",  "tc-2")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("date", "tc-3")]));
+        provider.Enqueue(new LlmChatResponse("Fertig!", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.Equal("Fertig!", result.Response);
+        Assert.DoesNotContain("Schleife", result.Response);
+        Assert.Equal(4, provider.CallCount);
     }
 
     [Fact]
