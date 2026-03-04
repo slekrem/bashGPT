@@ -278,6 +278,8 @@ export class SettingsView extends LitElement {
       model: provider === 'cerebras' ? cerebrasModel : ollamaModel,
       ollamaHost,
       commandTimeoutSeconds: settings.commandTimeoutSeconds ?? 300,
+      loopDetectionEnabled: settings.loopDetectionEnabled ?? true,
+      maxToolCallRounds: settings.maxToolCallRounds ?? 8,
       cerebras: {
         model: cerebrasModel,
         apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
@@ -452,6 +454,8 @@ export class SettingsView extends LitElement {
       execMode: settings.execMode,
       forceTools: settings.forceTools,
       commandTimeoutSeconds: settings.commandTimeoutSeconds,
+      loopDetectionEnabled: settings.loopDetectionEnabled,
+      maxToolCallRounds: settings.maxToolCallRounds,
       cerebras: {
         model: settings.cerebras.model,
         ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
@@ -859,6 +863,34 @@ export class SettingsView extends LitElement {
             ?disabled=${!s || this._loading}
           />
           <div class="hint">Maximale Laufzeit pro Shell-Befehl. Standard: 300 s (5 min).</div>
+        </div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="loop-detection"
+              .checked=${s?.loopDetectionEnabled ?? true}
+              @change=${(e: Event) => this._setRoot('loopDetectionEnabled', (e.target as HTMLInputElement).checked)}
+              ?disabled=${!s || this._loading}
+            />
+            <label for="loop-detection">Schleifenerkennung</label>
+          </div>
+          <div class="hint">Beendet wiederholende Tool-Call-Schleifen automatisch.</div>
+        </div>
+
+        <div class="field">
+          <label>Max. Tool-Call-Runden</label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            max="32"
+            .value=${s?.maxToolCallRounds?.toString() ?? '8'}
+            @input=${(e: InputEvent) => this._setRoot('maxToolCallRounds', this._parseIntInput((e.target as HTMLInputElement).value) ?? 8)}
+            ?disabled=${!s || this._loading || !(s?.loopDetectionEnabled ?? true)}
+          />
+          <div class="hint">Maximale Anzahl Tool-Call-Runden pro Anfrage. Standard: 8.</div>
         </div>
       </div>
 

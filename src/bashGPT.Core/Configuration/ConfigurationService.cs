@@ -222,6 +222,14 @@ public class ConfigurationService
 
         if (int.TryParse(Environment.GetEnvironmentVariable("BASHGPT_COMMAND_TIMEOUT"), out var t) && t > 0)
             config.CommandTimeoutSeconds = t;
+
+        if (Environment.GetEnvironmentVariable("BASHGPT_LOOP_DETECTION") is { } ld
+            && bool.TryParse(ld, out var ldBool))
+            config.LoopDetectionEnabled = ldBool;
+
+        if (Environment.GetEnvironmentVariable("BASHGPT_MAX_TOOL_CALL_ROUNDS") is { } mr
+            && int.TryParse(mr, out var mrInt) && mrInt > 0)
+            config.MaxToolCallRounds = mrInt;
     }
 
     private static void ApplyDefaultNormalization(AppConfig config)

@@ -25,6 +25,9 @@ public static class AppDefaults
     /// <summary>Präfix für automatisch generierte Session-IDs.</summary>
     public const string SessionIdPrefix = "s-";
 
+    /// <summary>Anzahl aufeinanderfolgend identischer Runden, ab der eine Schleife gemeldet wird.</summary>
+    public const int LoopDetectionConsecutiveThreshold = 1;
+
     /// <summary>Meldung bei echter Tool-Call-Schleife (identische Befehle wiederholen sich).</summary>
     public const string LoopDetectedMessage =
         "Tool-Call-Schleife erkannt und beendet. " +
