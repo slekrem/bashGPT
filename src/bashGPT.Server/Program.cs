@@ -87,7 +87,7 @@ rootCommand.SetAction(async (parseResult, ct) =>
         IncludeDir: parseResult.GetValue(includeDirOpt),
         ExecMode: execMode,
         Verbose: parseResult.GetValue(verboseOpt),
-        ForceTools: parseResult.GetValue(forceToolsOpt));
+        ForceTools: args.Contains("--force-tools") ? true : (bool?)null);
 
     using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };

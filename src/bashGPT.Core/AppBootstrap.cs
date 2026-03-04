@@ -18,12 +18,12 @@ public static class AppBootstrap
         var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama, cerebras")
     };
 
-    public static ExecutionMode ResolveExecutionMode(bool noExec, bool dryRun, bool autoExec) => (noExec, dryRun, autoExec) switch
+    public static ExecutionMode? ResolveExecutionMode(bool noExec, bool dryRun, bool autoExec) => (noExec, dryRun, autoExec) switch
     {
         (true, _, _) => ExecutionMode.NoExec,
         (_, true, _) => ExecutionMode.DryRun,
         (_, _, true) => ExecutionMode.AutoExec,
-        _ => ExecutionMode.Ask,
+        _ => null,
     };
 
     public static SessionStore CreateSessionStore(string? configDir = null)

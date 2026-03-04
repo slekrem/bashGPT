@@ -131,8 +131,16 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         }
         if (!string.IsNullOrEmpty(body.ApiKey)) config.Cerebras.ApiKey = body.ApiKey;
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
-        if (body.ExecMode is not null) state.ExecMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
-        if (body.ForceTools is bool ft) state.ForceTools = ft;
+        if (body.ExecMode is not null && ExecModeConverter.Parse(body.ExecMode) is { } mode)
+        {
+            state.ExecMode = mode;
+            config.DefaultExecMode = mode;
+        }
+        if (body.ForceTools is bool ft)
+        {
+            state.ForceTools = ft;
+            config.DefaultForceTools = ft;
+        }
         if (body.CommandTimeoutSeconds is { } timeout && timeout > 0)
             config.CommandTimeoutSeconds = timeout;
         if (body.LoopDetectionEnabled is { } lde) config.LoopDetectionEnabled = lde;

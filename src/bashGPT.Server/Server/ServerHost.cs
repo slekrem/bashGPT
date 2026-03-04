@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using BashGPT.Cli;
 using BashGPT.Configuration;
+using BashGPT.Shell;
 using BashGPT.Storage;
 
 namespace BashGPT.Server;
@@ -15,12 +16,14 @@ public class ServerHost
     private readonly ChatApiHandler            _chatHandler;
     private readonly StreamingChatApiHandler   _streamingChatHandler;
     private readonly SessionApiHandler         _sessionHandler;
+    private readonly ConfigurationService?     _configService;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null)
     {
+        _configService        = configService;
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
@@ -32,8 +35,12 @@ public class ServerHost
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
     {
-        _state.ExecMode   = options.ExecMode;
-        _state.ForceTools = options.ForceTools;
+        AppConfig? appConfig = null;
+        if (_configService is not null)
+            appConfig = await _configService.LoadAsync();
+
+        _state.ExecMode   = options.ExecMode   ?? appConfig?.DefaultExecMode   ?? ExecutionMode.Ask;
+        _state.ForceTools = options.ForceTools ?? appConfig?.DefaultForceTools ?? false;
 
         var prefix = $"http://127.0.0.1:{options.Port}/";
         using var listener = new HttpListener();
