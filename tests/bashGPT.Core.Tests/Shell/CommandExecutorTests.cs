@@ -112,6 +112,29 @@ public class CommandExecutorTests
         Assert.Contains("rm mit -r oder -f", text);
     }
 
+    // ── ANSI-Strip ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ProcessAsync_StripsAnsiEscapeCodes()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return; // awk-basierter Test läuft nur auf Unix
+
+        var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
+        // awk %c wandelt 27 in das ESC-Zeichen um – keine Backslashes nötig,
+        // damit EscapeForUnixShell die Sequenz nicht zerstört.
+        var cmds = new[] { new ExtractedCommand(
+            @"awk 'BEGIN{printf ""%c[31mhello%c[0m\n"", 27, 27}'",
+            false, null) };
+
+        var results = await exec.ProcessAsync(cmds);
+
+        Assert.Single(results);
+        Assert.True(results[0].WasExecuted);
+        Assert.Contains("hello", results[0].Output);
+        Assert.DoesNotContain("\x1b[", results[0].Output);
+    }
+
     // ── Output-Kürzung ───────────────────────────────────────────────────────
 
     [Fact]

@@ -219,6 +219,9 @@ public class ConfigurationService
         var ollamaSeed = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_SEED");
         if (!string.IsNullOrWhiteSpace(ollamaSeed))
             config.Ollama.Seed = ParseInt(ollamaSeed, "BASHGPT_OLLAMA_SEED");
+
+        if (int.TryParse(Environment.GetEnvironmentVariable("BASHGPT_COMMAND_TIMEOUT"), out var t) && t > 0)
+            config.CommandTimeoutSeconds = t;
     }
 
     private static void ApplyDefaultNormalization(AppConfig config)
