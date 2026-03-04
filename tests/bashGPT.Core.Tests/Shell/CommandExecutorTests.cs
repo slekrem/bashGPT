@@ -112,6 +112,26 @@ public class CommandExecutorTests
         Assert.Contains("rm mit -r oder -f", text);
     }
 
+    // ── ANSI-Strip ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ProcessAsync_StripsAnsiEscapeCodes()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return; // printf mit ANSI-Sequenzen ist auf Windows nicht garantiert
+
+        var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
+        // Gibt "hello" mit rotem ANSI-Farbcode aus
+        var cmds = new[] { new ExtractedCommand(@"printf '\033[31mhello\033[0m'", false, null) };
+
+        var results = await exec.ProcessAsync(cmds);
+
+        Assert.Single(results);
+        Assert.True(results[0].WasExecuted);
+        Assert.Contains("hello", results[0].Output);
+        Assert.DoesNotContain("\x1b[", results[0].Output);
+    }
+
     // ── Output-Kürzung ───────────────────────────────────────────────────────
 
     [Fact]

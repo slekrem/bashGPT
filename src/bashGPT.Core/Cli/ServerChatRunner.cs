@@ -21,6 +21,7 @@ public class ServerChatRunner(
         var commandResults    = new List<CommandResult>();
         var totalInputTokens  = 0;
         var totalOutputTokens = 0;
+        var commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds;
 
         ILlmProvider provider;
         if (providerOverride is not null)
@@ -43,6 +44,7 @@ public class ServerChatRunner(
                     UsedToolCalls: false);
             }
 
+            commandTimeoutSeconds = config.CommandTimeoutSeconds;
             ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
             try
@@ -143,7 +145,8 @@ public class ServerChatRunner(
                 var executor = new CommandExecutor(
                     effectiveExecMode,
                     output: TextWriter.Null,
-                    input:  new StringReader(string.Empty));
+                    input:  new StringReader(string.Empty),
+                    commandTimeoutSeconds: commandTimeoutSeconds);
 
                 var roundResults = await ChatOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls, commands, errors, currentResponse.Content, messages, executor, ct);
@@ -203,7 +206,8 @@ public class ServerChatRunner(
         var fallbackExecutor = new CommandExecutor(
             fallbackExecMode,
             output: TextWriter.Null,
-            input:  new StringReader(string.Empty));
+            input:  new StringReader(string.Empty),
+            commandTimeoutSeconds: commandTimeoutSeconds);
 
         var fallbackResults = await fallbackExecutor.ProcessAsync(fallbackCommands, ct);
         commandResults.AddRange(fallbackResults);

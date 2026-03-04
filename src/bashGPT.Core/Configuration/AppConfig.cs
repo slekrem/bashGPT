@@ -30,6 +30,7 @@ public class CerebrasConfig
 public class AppConfig
 {
     public ProviderType DefaultProvider { get; set; } = ProviderType.Ollama;
+    public int CommandTimeoutSeconds { get; set; } = 300;
     public OllamaConfig Ollama { get; set; } = new();
     public CerebrasConfig Cerebras { get; set; } = new();
 }

@@ -277,6 +277,7 @@ export class SettingsView extends LitElement {
       provider,
       model: provider === 'cerebras' ? cerebrasModel : ollamaModel,
       ollamaHost,
+      commandTimeoutSeconds: settings.commandTimeoutSeconds ?? 300,
       cerebras: {
         model: cerebrasModel,
         apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
@@ -450,6 +451,7 @@ export class SettingsView extends LitElement {
       ollamaHost: settings.ollama.host,
       execMode: settings.execMode,
       forceTools: settings.forceTools,
+      commandTimeoutSeconds: settings.commandTimeoutSeconds,
       cerebras: {
         model: settings.cerebras.model,
         ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
@@ -844,6 +846,19 @@ export class SettingsView extends LitElement {
             />
             <label for="force-tools">Force Tools (Tool-Calling erzwingen)</label>
           </div>
+        </div>
+
+        <div class="field">
+          <label>Befehl-Timeout (Sekunden)</label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            .value=${s?.commandTimeoutSeconds?.toString() ?? '300'}
+            @input=${(e: InputEvent) => this._setRoot('commandTimeoutSeconds', this._parseIntInput((e.target as HTMLInputElement).value) ?? 300)}
+            ?disabled=${!s || this._loading}
+          />
+          <div class="hint">Maximale Laufzeit pro Shell-Befehl. Standard: 300 s (5 min).</div>
         </div>
       </div>
 

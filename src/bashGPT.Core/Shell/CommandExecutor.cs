@@ -15,6 +15,9 @@ public class CommandExecutor(
     int maxOutputChars = AppDefaults.MaxCommandOutputChars,
     int commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds)
 {
+    private static readonly Regex AnsiEscapeRegex =
+        new(@"\x1b\[[0-9;]*[mGKHJABCDfnsu]", RegexOptions.Compiled);
+
     private static readonly Regex InteractiveAlwaysPattern = new(
         @"^\s*(htop|btop|watch|less|more|man|vim|vi|nano|emacs)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -193,7 +196,7 @@ public class CommandExecutor(
             return (-1, $"ERROR: Befehl nach {commandTimeoutSeconds}s abgebrochen.");
         }
 
-        var raw = sb.ToString();
+        var raw = AnsiEscapeRegex.Replace(sb.ToString(), string.Empty);
         var truncated = raw.Length > maxOutputChars
             ? raw[..maxOutputChars] + $"\n… (auf {maxOutputChars} Zeichen gekürzt)"
             : raw;

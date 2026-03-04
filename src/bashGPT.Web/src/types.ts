@@ -71,6 +71,7 @@ export interface Settings {
   ollamaHost?: string
   execMode: ExecMode
   forceTools: boolean
+  commandTimeoutSeconds: number
   cerebras: CerebrasSettings
   ollama: OllamaSettings
 }
