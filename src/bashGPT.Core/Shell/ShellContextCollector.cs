@@ -15,7 +15,10 @@ public class ShellContextCollector
     {
         var pwd    = Directory.GetCurrentDirectory();
         var os     = GetOsDescription();
-        var shell  = System.Environment.GetEnvironmentVariable("SHELL") ?? "(unbekannt)";
+        var shell  = System.Environment.GetEnvironmentVariable("SHELL")
+                  ?? (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                      ? (System.Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe")
+                      : "/bin/sh");
         var git    = await TryCollectGitContextAsync(pwd);
         var dir    = includeDirectoryListing ? GetDirectoryEntries(pwd) : [];
         var env    = GetFilteredEnvironment();
@@ -70,7 +73,10 @@ public class ShellContextCollector
         sb.AppendLine("- Verwende ausschließlich nicht-interaktive Befehle ohne TTY-Anforderung.");
         sb.AppendLine("  Verboten: `top`, `htop`, `btop`, `vim`, `nano`, `less`, `more`, `watch`, `tail -f`.");
         sb.AppendLine("- Halte Ausgaben kurz: filtere mit `head -n 50`, `tail`, `grep` oder ähnlichem.");
-        sb.AppendLine("- Nutze Vollpfade für Systembefehle, wenn ein Namenskonflikt möglich ist (z. B. `/usr/bin/log` statt `log`).");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            sb.AppendLine("- Nutze Vollpfade für Systembefehle, wenn ein Namenskonflikt möglich ist (z. B. `C:\\Windows\\System32\\ping.exe` statt `ping`).");
+        else
+            sb.AppendLine("- Nutze Vollpfade für Systembefehle, wenn ein Namenskonflikt möglich ist (z. B. `/usr/bin/log` statt `log`).");
         sb.AppendLine("- Analysiere Fehlerausgaben und versuche bei Bedarf eine alternative Vorgehensweise.");
         sb.AppendLine("- Führe keine destruktiven Aktionen (rm -rf, Disk-Formatierung etc.) ohne explizite Bestätigung aus.");
 

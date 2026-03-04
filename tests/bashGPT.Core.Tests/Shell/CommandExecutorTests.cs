@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using BashGPT.Shell;
 
 namespace BashGPT.Tests.Shell;
@@ -138,7 +139,10 @@ public class CommandExecutorTests
             maxOutputChars: 10_000,
             commandTimeoutSeconds: 1);
 
-        var cmds = new[] { new ExtractedCommand("sleep 2", false, null) };
+        var sleepCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? "ping -n 3 127.0.0.1 > nul"
+            : "sleep 2";
+        var cmds = new[] { new ExtractedCommand(sleepCmd, false, null) };
         var results = await exec.ProcessAsync(cmds);
 
         Assert.Single(results);
@@ -164,6 +168,9 @@ public class CommandExecutorTests
     [Fact]
     public async Task ProcessAsync_AutoExec_AllowsTopOneShotMode()
     {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return; // top nicht verfügbar auf Windows
+
         var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
         var cmds = new[] { new ExtractedCommand("top -l 1 | head -n 5", false, null) };
 

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -6,8 +7,11 @@ namespace BashGPT.Configuration;
 public class ConfigurationService
 {
     private static readonly string DefaultConfigFile =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".config", "bashgpt", "config.json");
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "bashgpt", "config.json")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".config", "bashgpt", "config.json");
 
     protected virtual string ConfigFile => DefaultConfigFile;
 

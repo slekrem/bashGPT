@@ -6,9 +6,9 @@ public record ExtractedCommand(string Command, bool IsDangerous, string? DangerR
 
 public static class BashCommandExtractor
 {
-    // Trifft ```bash ... ``` und ``` ... ``` (ohne Sprachangabe)
+    // Trifft ```bash ... ```, ```powershell ... ```, ```cmd ... ``` und ``` ... ``` (ohne Sprachangabe)
     private static readonly Regex CodeBlockRegex = new(
-        @"```(?:bash|sh|shell|zsh)?\s*\n(.*?)\n\s*```",
+        @"```(?:bash|sh|shell|zsh|powershell|ps1|cmd|bat|batch)?\s*\n(.*?)\n\s*```",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
     // Muster für gefährliche Befehle
@@ -32,6 +32,14 @@ public static class BashCommandExtractor
             "wget | sh (ungeprüfte Ausführung aus dem Netz)"),
         (new(@":\s*\(\s*\)\s*\{.*:\|:.*\}", RegexOptions.Compiled),
             "Fork-Bomb-Muster"),
+        (new(@"\bformat\s+[a-zA-Z]:", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            "format (Laufwerk formatieren)"),
+        (new(@"\brd\b.*(/s|/q)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            "rd /s /q (Verzeichnis unwiderruflich löschen)"),
+        (new(@"\brmdir\b.*(/s|/q)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            "rmdir /s /q (Verzeichnis unwiderruflich löschen)"),
+        (new(@"\bReg\s+(Delete|Add)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            "Registry-Änderung (kann System beschädigen)"),
     ];
 
     public static IReadOnlyList<ExtractedCommand> Extract(string llmResponse)

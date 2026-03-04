@@ -130,4 +130,61 @@ public class BashCommandExtractorTests
         var cmds = BashCommandExtractor.Extract(md);
         Assert.False(cmds[0].IsDangerous);
     }
+
+    // ── Windows-spezifische Blöcke ───────────────────────────────────────────
+
+    [Fact]
+    public void Extract_PowerShellBlock()
+    {
+        var md = "```powershell\nGet-Process\n```";
+        var cmds = BashCommandExtractor.Extract(md);
+        Assert.Single(cmds);
+        Assert.Equal("Get-Process", cmds[0].Command);
+    }
+
+    [Fact]
+    public void Extract_Ps1Block()
+    {
+        var md = "```ps1\nGet-ChildItem\n```";
+        var cmds = BashCommandExtractor.Extract(md);
+        Assert.Single(cmds);
+        Assert.Equal("Get-ChildItem", cmds[0].Command);
+    }
+
+    [Fact]
+    public void Extract_CmdBlock()
+    {
+        var md = "```cmd\ndir /b\n```";
+        var cmds = BashCommandExtractor.Extract(md);
+        Assert.Single(cmds);
+        Assert.Equal("dir /b", cmds[0].Command);
+    }
+
+    [Fact]
+    public void Extract_BatchBlock()
+    {
+        var md = "```batch\necho hello\n```";
+        var cmds = BashCommandExtractor.Extract(md);
+        Assert.Single(cmds);
+        Assert.Equal("echo hello", cmds[0].Command);
+    }
+
+    // ── Windows Danger Patterns ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("format C:",         "format")]
+    [InlineData("format D: /q",      "format")]
+    [InlineData("rd /s /q C:\\temp", "rd")]
+    [InlineData("rmdir /s /q temp",  "rmdir")]
+    [InlineData("Reg Delete HKLM\\Software\\Test /f", "Registry")]
+    [InlineData("Reg Add HKCU\\Software\\Test /v foo /d bar", "Registry")]
+    public void Extract_WindowsDangerPatterns(string command, string reasonContains)
+    {
+        var md = $"```cmd\n{command}\n```";
+        var cmds = BashCommandExtractor.Extract(md);
+
+        Assert.Single(cmds);
+        Assert.True(cmds[0].IsDangerous);
+        Assert.Contains(reasonContains, cmds[0].DangerReason, StringComparison.OrdinalIgnoreCase);
+    }
 }

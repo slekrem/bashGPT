@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using BashGPT;
@@ -146,14 +147,14 @@ public class CommandExecutor(
 
     private async Task<(int ExitCode, string Output)> RunAsync(string command, CancellationToken ct)
     {
-        var shell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh";
+        var (fileName, arguments) = GetShellArgs(command);
 
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName               = shell,
-                Arguments              = $"-c \"{EscapeForShell(command)}\"",
+                FileName               = fileName,
+                Arguments              = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
@@ -200,8 +201,24 @@ public class CommandExecutor(
         return (process.ExitCode, truncated.TrimEnd());
     }
 
-    private static string EscapeForShell(string command) =>
+    private static (string FileName, string Arguments) GetShellArgs(string command)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var shell = Environment.GetEnvironmentVariable("SHELL"); // Git Bash / WSL
+            if (shell is not null)
+                return (shell, $"-c \"{EscapeForUnixShell(command)}\"");
+            return ("cmd.exe", $"/c \"{EscapeForWindowsCmd(command)}\"");
+        }
+        var unixShell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh";
+        return (unixShell, $"-c \"{EscapeForUnixShell(command)}\"");
+    }
+
+    private static string EscapeForUnixShell(string command) =>
         command.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static string EscapeForWindowsCmd(string command) =>
+        command.Replace("\"", "\\\"");
 
     private static bool TryGetInteractiveReason(string command, out string reason)
     {
@@ -215,7 +232,7 @@ public class CommandExecutor(
 
         if (TopPattern.IsMatch(trimmed) && !IsTopOneShot(trimmed))
         {
-            reason = "Interaktiver 'top'-Aufruf erkannt. Nutze z. B. 'top -l 1' (macOS) oder 'ps aux --sort=-%cpu | head'.";
+            reason = "Interaktiver 'top'-Aufruf erkannt. Nutze z. B. 'top -l 1' (macOS), 'ps aux --sort=-%cpu | head' (Linux) oder 'tasklist' / 'Get-Process' (Windows).";
             return true;
         }
 
@@ -225,9 +242,11 @@ public class CommandExecutor(
             return true;
         }
 
-        if (PingPattern.IsMatch(trimmed) && !trimmed.Contains(" -c ", StringComparison.OrdinalIgnoreCase))
+        var hasPingLimit = trimmed.Contains(" -c ", StringComparison.OrdinalIgnoreCase)
+                        || trimmed.Contains(" -n ", StringComparison.OrdinalIgnoreCase);
+        if (PingPattern.IsMatch(trimmed) && !hasPingLimit)
         {
-            reason = "Dauerlauf bei 'ping' erkannt. Bitte mit Paketlimit ausführen, z. B. 'ping -c 4 <host>'.";
+            reason = "Dauerlauf bei 'ping' erkannt. Bitte mit Paketlimit ausführen, z. B. 'ping -c 4 <host>' (Linux/macOS) oder 'ping -n 4 <host>' (Windows).";
             return true;
         }
 

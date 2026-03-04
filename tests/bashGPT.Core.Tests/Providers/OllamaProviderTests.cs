@@ -182,6 +182,37 @@ public class OllamaProviderTests
     }
 
     [Fact]
+    public async Task ChatAsync_RecoverToolCall_WhenReasoningModelPrefixesJson()
+    {
+        // Ollama HTTP 500, weil ein Reasoning-Modell Denktext vor das JSON geschrieben hat
+        var errorBody = """
+            {"error":{"message":"error parsing tool call: raw='We need to list files. {\"command\":\"ls -la\"}', err=invalid character 'W' looking for beginning of value","type":"api_error","param":null,"code":null}}
+            """;
+        var handler = new TestHttpMessageHandler(errorBody, HttpStatusCode.InternalServerError, contentType: "application/json");
+        var provider = new OllamaProvider(
+            new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
+                Tools: [ToolDefinitions.Bash], Stream: false));
+
+        Assert.Single(result.ToolCalls);
+        Assert.Equal("bash", result.ToolCalls[0].Name);
+        Assert.Contains("ls -la", result.ToolCalls[0].ArgumentsJson);
+    }
+
+    [Fact]
+    public async Task ChatAsync_StillThrows_WhenHttp500IsNotToolCallError()
+    {
+        var provider = CreateProvider("Internal Server Error", HttpStatusCode.InternalServerError);
+
+        await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(
+                new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false)));
+    }
+
+    [Fact]
     public async Task ChatAsync_SendsOpenAiCompatibleRequest()
     {
         var json = """{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}""";
