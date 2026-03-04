@@ -32,10 +32,21 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
 
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
+        var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
+
         HttpResponseMessage response;
         try
         {
-            response = await Http.PostAsJsonAsync(url, openAiRequest, JsonDefaults.Options, ct);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(serialized, Encoding.UTF8, "application/json")
+            };
+            // ResponseHeadersRead ermöglicht echtes Streaming (kein Puffern des Response-Body)
+            response = await Http.SendAsync(httpRequest,
+                request.Stream
+                    ? HttpCompletionOption.ResponseHeadersRead
+                    : HttpCompletionOption.ResponseContentRead,
+                ct);
         }
         catch (HttpRequestException ex)
         {
@@ -155,7 +166,12 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         HttpResponseMessage response;
         try
         {
-            response = await Http.PostAsJsonAsync(url, request, JsonDefaults.Options, ct);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(request, JsonDefaults.Options), Encoding.UTF8, "application/json")
+            };
+            response = await Http.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
         }
         catch (HttpRequestException ex)
         {
