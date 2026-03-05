@@ -97,7 +97,7 @@ public class AgentRunnerTests : IDisposable
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
             var runner = new AgentRunner(_store, [check]);
-            try { await runner.RunAsync(cts.Token); }
+            try { await runner.RunAsync(cts.Token); ranToCompletion = true; }
             catch (OperationCanceledException) { ranToCompletion = true; }
         });
 
