@@ -3,7 +3,7 @@ using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Tests.Cli;
+namespace BashGPT.Cli.Tests;
 
 /// <summary>
 /// Unit-Tests für ServerChatRunner.RunServerChatAsync.

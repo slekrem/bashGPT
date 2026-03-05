@@ -1,6 +1,6 @@
 using BashGPT.Shell;
 
-namespace BashGPT.Tests.Shell;
+namespace BashGPT.Core.Tests.Shell;
 
 public class ShellContextCollectorTests
 {

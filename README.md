@@ -8,6 +8,7 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 - Optionaler Shell-Kontext (Verzeichnis, OS, Shell, Git)
 - Sicherheitsabfrage für gefährliche Befehle
 - Streaming-Antworten
+- **Agent-Modus**: persistente Hintergrund-Checks (Git-Status, HTTP-Health), meldet nur bei Zustandsänderungen
 
 ## Installation
 ```bash
@@ -95,6 +96,33 @@ Hinweis:
 - Die UI bietet Chat-Verlauf, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
 - Im Server-Modus wird `ask` intern als `dry-run` behandelt (kein interaktives Terminal-Prompt im Browser-Flow).
 - `--force-tools` ist standardmäßig deaktiviert. Ohne Flag darf das Modell selbst entscheiden, ob ein Tool-Call nötig ist.
+
+## Agent-Modus
+Persistente Agenten prüfen zyklisch einen Zustand und melden nur bei Änderungen.
+
+```bash
+# Git-Status-Agent: meldet wenn sich etwas im Repo ändert
+ dotnet run --project src/bashGPT.Cli -- agent add git --name mein-repo --path . --every 30
+
+# HTTP-Agent: meldet wenn sich der Statuscode ändert
+ dotnet run --project src/bashGPT.Cli -- agent add http --name mein-api --url https://example.com --every 60
+
+# Übersicht aller Agenten
+ dotnet run --project src/bashGPT.Cli -- agent list
+
+# Detailstatus eines Agenten
+ dotnet run --project src/bashGPT.Cli -- agent status mein-repo
+
+# Runner starten (alle aktiven Agenten, Ctrl+C zum Beenden)
+ dotnet run --project src/bashGPT.Cli -- agent run
+
+# Pausieren / Fortsetzen / Entfernen
+ dotnet run --project src/bashGPT.Cli -- agent pause mein-repo
+ dotnet run --project src/bashGPT.Cli -- agent resume mein-repo
+ dotnet run --project src/bashGPT.Cli -- agent remove mein-repo
+```
+
+Agenten werden in `~/.config/bashgpt/agents.json` gespeichert.
 
 ## Tests
 ```bash

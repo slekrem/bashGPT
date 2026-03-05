@@ -1,5 +1,6 @@
 using System.CommandLine;
 using BashGPT;
+using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Shell;
@@ -7,6 +8,7 @@ using BashGPT.Shell;
 var configService = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
 var cliRunner = new CliChatRunner(configService, contextCollector);
+var agentStore = AgentBootstrap.CreateAgentStore();
 
 var providerOpt = new Option<string?>("--provider", "-p")
 {
@@ -142,5 +144,7 @@ configCommand.Subcommands.Add(configListCommand);
 configCommand.Subcommands.Add(configGetCommand);
 configCommand.Subcommands.Add(configSetCommand);
 rootCommand.Subcommands.Add(configCommand);
+
+rootCommand.Subcommands.Add(AgentCommands.Build(agentStore));
 
 return await rootCommand.Parse(args).InvokeAsync();

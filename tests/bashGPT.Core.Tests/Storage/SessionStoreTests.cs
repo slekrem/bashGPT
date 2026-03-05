@@ -1,6 +1,6 @@
 using BashGPT.Storage;
 
-namespace BashGPT.Tests.Storage;
+namespace BashGPT.Core.Tests.Storage;
 
 public sealed class SessionStoreTests : IDisposable
 {

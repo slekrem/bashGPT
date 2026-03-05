@@ -1,7 +1,7 @@
 using BashGPT.Providers;
 using System.Runtime.CompilerServices;
 
-namespace BashGPT.Tests.Cli;
+namespace BashGPT.Cli.Tests;
 
 /// <summary>
 /// Test-Stub für ILlmProvider – gibt konfigurierbare LlmChatResponse-Objekte zurück,
