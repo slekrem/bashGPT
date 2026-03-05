@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js'
 import './sidebar'
 import './dashboard'
 import './settings-view'
+import './agents-view'
 import './chat-view'
 import { resetHistory } from '../api'
 import type { AppView, Session } from '../types'
@@ -188,6 +189,10 @@ export class ChatApp extends LitElement {
             <bashgpt-settings-view
               @clear-history=${this._onClearHistory}
             ></bashgpt-settings-view>
+          ` : ''}
+
+          ${this._view === 'agents' ? html`
+            <bashgpt-agents-view></bashgpt-agents-view>
           ` : ''}
 
           <bashgpt-chat-view

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Shell;
@@ -16,12 +17,14 @@ public class ServerHost
     private readonly ChatApiHandler            _chatHandler;
     private readonly StreamingChatApiHandler   _streamingChatHandler;
     private readonly SessionApiHandler         _sessionHandler;
+    private readonly AgentApiHandler           _agentHandler;
     private readonly ConfigurationService?     _configService;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
-        SessionStore? sessionStore = null)
+        SessionStore? sessionStore = null,
+        AgentStore? agentStore = null)
     {
         _configService        = configService;
         _state                = new ServerState();
@@ -31,6 +34,7 @@ public class ServerHost
         _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
+        _agentHandler         = new AgentApiHandler(agentStore);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
@@ -146,6 +150,9 @@ public class ServerHost
 
             if (path.StartsWith("/api/sessions", StringComparison.Ordinal))
             { await _sessionHandler.HandleAsync(ctx, ct); return; }
+
+            if (path.StartsWith("/api/agents", StringComparison.Ordinal))
+            { await _agentHandler.HandleAsync(ctx, ct); return; }
 
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
         }

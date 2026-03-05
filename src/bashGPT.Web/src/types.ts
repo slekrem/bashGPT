@@ -93,7 +93,22 @@ export interface FullShellContext {
   git?: GitContext | null
 }
 
-export type AppView = 'dashboard' | 'chat' | 'settings'
+export type AgentType = 'gitstatus' | 'httpstatus'
+
+export interface Agent {
+  id: string
+  name: string
+  type: AgentType
+  path?: string
+  url?: string
+  intervalSeconds: number
+  isActive: boolean
+  lastRun?: string
+  lastMessage?: string
+  lastCheckSucceeded: boolean
+}
+
+export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents'
 
 export type ChatStatus = 'idle' | 'loading' | 'error'
 

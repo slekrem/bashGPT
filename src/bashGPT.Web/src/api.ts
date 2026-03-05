@@ -1,4 +1,4 @@
-import type { ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
+import type { Agent, ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
 import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -236,4 +236,46 @@ export async function testConnection(): Promise<{ ok: boolean; latencyMs?: numbe
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
+}
+
+// ── Agents API ────────────────────────────────────────────────────────────────
+
+export async function getAgents(): Promise<Agent[]> {
+  try {
+    const res = await fetch('/api/agents')
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data.agents) ? data.agents : []
+  } catch { return [] }
+}
+
+export async function createAgent(payload: {
+  name: string
+  type: 'git' | 'http'
+  path?: string
+  url?: string
+  intervalSeconds?: number
+}): Promise<Agent> {
+  const res = await fetch('/api/agents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  await assertOk(res)
+  return res.json()
+}
+
+export async function patchAgent(id: string, patch: { isActive: boolean }): Promise<Agent> {
+  const res = await fetch(`/api/agents/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  await assertOk(res)
+  return res.json()
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' })
+  await assertOk(res)
 }
