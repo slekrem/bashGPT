@@ -310,18 +310,24 @@ export class AgentsView extends LitElement {
 
   private async _saveEdit() {
     this._editError = ''
+    const agent = this._agents.find(a => a.id === this._editingId)
+    if (!agent) { this._editError = 'Agent nicht gefunden.'; return }
     if (!this._editName.trim()) { this._editError = 'Name ist erforderlich.'; return }
-    if (!this._editLoopInstruction.trim()) { this._editError = 'Loop-Anweisung ist erforderlich.'; return }
+    if (agent.type === 'llmagent' && !this._editLoopInstruction.trim()) {
+      this._editError = 'Loop-Anweisung ist erforderlich.'
+      return
+    }
 
     this._editSaving = true
     try {
-      const updated = await patchAgent(this._editingId!, {
+      const patch = {
         name:            this._editName.trim(),
         intervalSeconds: this._editInterval,
         systemPrompt:    this._editSystemPrompt.trim() || null,
-        loopInstruction: this._editLoopInstruction.trim(),
+        ...(agent.type === 'llmagent' ? { loopInstruction: this._editLoopInstruction.trim() } : {}),
         execMode:        this._editExecMode,
-      })
+      }
+      const updated = await patchAgent(this._editingId!, patch)
       this._agents   = this._agents.map(a => a.id === updated.id ? updated : a)
       this._editingId = null
     } catch (e) {

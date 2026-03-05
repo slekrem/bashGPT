@@ -158,8 +158,16 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
 
         if (body?.IsActive is bool active)
             agent.IsActive = active;
-        if (body?.Name is { Length: > 0 } name)
-            agent.Name = name.Trim();
+        if (body?.Name is not null)
+        {
+            var trimmedName = body.Name.Trim();
+            if (trimmedName.Length == 0)
+            {
+                await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "name darf nicht leer sein." }, statusCode: 400);
+                return;
+            }
+            agent.Name = trimmedName;
+        }
         if (body?.IntervalSeconds is int interval && interval > 0)
             agent.IntervalSeconds = interval;
         if (body?.SystemPrompt is not null)
