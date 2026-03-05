@@ -24,11 +24,28 @@ public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionS
             ? "Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
             : agent.SystemPrompt;
 
-        var messages = new List<ChatMessage>
+        // Bisherige Session als Kontext laden
+        SessionRecord? existingSession = null;
+        if (sessionStore is not null)
         {
-            new(ChatRole.System, systemPrompt),
-            new(ChatRole.User, agent.LoopInstruction),
-        };
+            try { existingSession = await sessionStore.LoadAsync($"agent-llm-{agent.Id}"); }
+            catch { /* ignorieren */ }
+        }
+
+        var messages = new List<ChatMessage> { new(ChatRole.System, systemPrompt) };
+
+        if (existingSession is not null)
+        {
+            foreach (var msg in existingSession.Messages)
+            {
+                if (msg.Role == "user")
+                    messages.Add(new(ChatRole.User, msg.Content));
+                else if (msg.Role == "assistant")
+                    messages.Add(new(ChatRole.Assistant, msg.Content));
+            }
+        }
+
+        messages.Add(new(ChatRole.User, agent.LoopInstruction));
 
         var tools = new[] { ToolDefinitions.Bash };
         var lastContent = "";
