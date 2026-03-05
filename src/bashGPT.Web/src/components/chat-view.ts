@@ -105,7 +105,6 @@ export class ChatView extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      scroll-behavior: smooth;
     }
 
     .empty-state {
@@ -306,7 +305,34 @@ export class ChatView extends LitElement {
       statusText: hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : ''),
       statusError: false,
     }
-    this._scrollToBottom()
+  }
+
+  refreshFromAgent(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
+    this._historyLoadSeq++
+    const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
+    const prevScrollTop = chatEl?.scrollTop ?? 0
+
+    const newMessages = messages.map((m, index) => ({
+      id: this._chat.messages[index]?.id ?? this._idCounter++,
+      role: m.role,
+      content: m.content,
+      commands: m.commands,
+      execMode: m.execMode,
+      usage: m.usage,
+    }))
+    this._chat = {
+      ...this._chat,
+      messages: newMessages,
+      tokenUsage: this._sumTokenUsage(newMessages),
+      shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
+    }
+
+    void this.updateComplete.then(() => {
+      const updatedChatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
+      if (!updatedChatEl) return
+      const maxScrollTop = Math.max(0, updatedChatEl.scrollHeight - updatedChatEl.clientHeight)
+      updatedChatEl.scrollTop = Math.min(prevScrollTop, maxScrollTop)
+    })
   }
 
   /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
@@ -398,7 +424,6 @@ export class ChatView extends LitElement {
       statusText:  'Denke…',
       statusError: false,
     }
-    this._scrollToBottom()
     this.dispatchEvent(new CustomEvent('chat-started', { bubbles: true, composed: true }))
 
     try {
@@ -413,7 +438,6 @@ export class ChatView extends LitElement {
               m.id === assistantId ? { ...m, content: this._streamingContent } : m
             ),
           }
-          this._scrollToBottom()
         },
         onToolCall: data => {
           this._chat = { ...this._chat, statusText: `Führe aus: ${data.command}` }
@@ -481,7 +505,6 @@ export class ChatView extends LitElement {
       this._emitMessagesChanged()
     } finally {
       this._chat = { ...this._chat, loading: false }
-      this._scrollToBottom()
     }
   }
 
@@ -491,13 +514,6 @@ export class ChatView extends LitElement {
     if (!prompt) return
     textarea.value = ''
     await this._sendPrompt(prompt)
-  }
-
-  private _scrollToBottom() {
-    requestAnimationFrame(() => {
-      const chat = this.shadowRoot?.querySelector('#chat')
-      if (chat) chat.scrollTop = chat.scrollHeight
-    })
   }
 
   private _onKeydown(e: KeyboardEvent) {
