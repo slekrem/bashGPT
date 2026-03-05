@@ -1,7 +1,7 @@
 using BashGPT.Configuration;
 using BashGPT.Shell;
 
-namespace BashGPT.Tests.Configuration;
+namespace BashGPT.Core.Tests.Configuration;
 
 public class ConfigurationServiceTests : IDisposable
 {

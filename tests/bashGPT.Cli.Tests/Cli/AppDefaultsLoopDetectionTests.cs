@@ -1,6 +1,6 @@
 using BashGPT.Providers;
 
-namespace BashGPT.Tests.Cli;
+namespace BashGPT.Cli.Tests;
 
 /// <summary>
 /// Unit-Tests für AppDefaults.DetectLoop.

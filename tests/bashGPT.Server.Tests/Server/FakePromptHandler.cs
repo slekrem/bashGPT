@@ -1,7 +1,7 @@
 using BashGPT.Cli;
 using BashGPT.Shell;
 
-namespace BashGPT.Tests.Server;
+namespace BashGPT.Server.Tests;
 
 /// <summary>
 /// Test-Stub für IPromptHandler – gibt konfigurierbare Dummy-Antworten zurück

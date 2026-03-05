@@ -1,7 +1,7 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
 
-namespace BashGPT.Tests.Providers;
+namespace BashGPT.Core.Tests.Providers;
 
 public class ProviderAbstractionTests
 {

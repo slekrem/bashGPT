@@ -3,7 +3,7 @@ using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Tests.Cli;
+namespace BashGPT.Cli.Tests;
 
 /// <summary>
 /// Tests für SSE-Streaming-Callbacks in ServerChatRunner (OnToken / OnEvent).
