@@ -1,6 +1,6 @@
 using BashGPT.Agents;
 
-namespace BashGPT.Tests.Agents;
+namespace BashGPT.Agents.Tests;
 
 public class AgentRunnerTests : IDisposable
 {
