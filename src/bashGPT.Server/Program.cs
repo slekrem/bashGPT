@@ -11,7 +11,8 @@ var contextCollector = new ShellContextCollector();
 var serverRunner = new ServerChatRunner(configService, contextCollector);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var agentStore = AgentBootstrap.CreateAgentStore();
-var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentStore);
+var toolRegistry = AgentBootstrap.CreateToolRegistry();
+var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentStore, toolRegistry);
 
 var providerOpt = new Option<string?>("--provider", "-p")
 {

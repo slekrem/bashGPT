@@ -105,10 +105,22 @@ export interface Agent {
   systemPrompt?: string
   loopInstruction?: string
   execMode?: string
+  enabledTools: string[]
   isActive: boolean
   lastRun?: string
   lastMessage?: string
   lastCheckSucceeded: boolean
+}
+
+export interface ToolInfo {
+  name: string
+  description: string
+  parameters: Array<{
+    name: string
+    type: string
+    description: string
+    required: boolean
+  }>
 }
 
 export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents'

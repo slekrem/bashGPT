@@ -1,3 +1,6 @@
+using BashGPT.Tools.Execution;
+using BashGPT.Tools.Shell;
+
 namespace BashGPT.Agents;
 
 public static class AgentBootstrap
@@ -12,4 +15,6 @@ public static class AgentBootstrap
         var agentsFile = Path.Combine(baseDir, "agents.json");
         return new AgentStore(agentsFile);
     }
+
+    public static ToolRegistry CreateToolRegistry() => new([new ShellExecTool()]);
 }

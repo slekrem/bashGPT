@@ -1,12 +1,13 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
-import type { Agent } from '../types'
-import { getAgents, createAgent, patchAgent, deleteAgent } from '../api'
+import type { Agent, ToolInfo } from '../types'
+import { getAgents, createAgent, patchAgent, deleteAgent, getTools } from '../api'
 
 @customElement('bashgpt-agents-view')
 export class AgentsView extends LitElement {
   @state() private _agents: Agent[] = []
+  @state() private _availableTools: ToolInfo[] = []
   @state() private _loading = true
   @state() private _error = ''
   @state() private _showForm = false
@@ -15,6 +16,7 @@ export class AgentsView extends LitElement {
   @state() private _formSystemPrompt = ''
   @state() private _formLoopInstruction = ''
   @state() private _formExecMode = 'no-exec'
+  @state() private _formEnabledTools: string[] = []
   @state() private _formError = ''
   @state() private _saving = false
 
@@ -24,6 +26,7 @@ export class AgentsView extends LitElement {
   @state() private _editSystemPrompt = ''
   @state() private _editLoopInstruction = ''
   @state() private _editExecMode = 'no-exec'
+  @state() private _editEnabledTools: string[] = []
   @state() private _editError = ''
   @state() private _editSaving = false
 
@@ -265,6 +268,36 @@ export class AgentsView extends LitElement {
       border-radius: 8px;
       border: 1px solid #7f1d1d;
     }
+
+    .tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .tool-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+
+    .tool-item input[type="checkbox"] {
+      accent-color: #22c55e;
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+
+    .tool-desc {
+      font-size: 11px;
+      color: #475569;
+    }
   `
 
   async connectedCallback() {
@@ -276,7 +309,7 @@ export class AgentsView extends LitElement {
     this._loading = true
     this._error = ''
     try {
-      this._agents = await getAgents()
+      [this._agents, this._availableTools] = await Promise.all([getAgents(), getTools()])
     } catch (e) {
       this._error = e instanceof Error ? e.message : String(e)
     } finally {
@@ -294,13 +327,14 @@ export class AgentsView extends LitElement {
   }
 
   private _startEdit(a: Agent) {
-    this._editingId        = a.id
-    this._editName         = a.name
-    this._editInterval     = a.intervalSeconds
-    this._editSystemPrompt = a.systemPrompt ?? ''
+    this._editingId           = a.id
+    this._editName            = a.name
+    this._editInterval        = a.intervalSeconds
+    this._editSystemPrompt    = a.systemPrompt ?? ''
     this._editLoopInstruction = a.loopInstruction ?? ''
-    this._editExecMode     = a.execMode ?? 'no-exec'
-    this._editError        = ''
+    this._editExecMode        = a.execMode ?? 'no-exec'
+    this._editEnabledTools    = [...(a.enabledTools ?? [])]
+    this._editError           = ''
   }
 
   private _cancelEdit() {
@@ -326,6 +360,7 @@ export class AgentsView extends LitElement {
         systemPrompt:    this._editSystemPrompt.trim() || null,
         ...(agent.type === 'llmagent' ? { loopInstruction: this._editLoopInstruction.trim() } : {}),
         execMode:        this._editExecMode,
+        enabledTools:    this._editEnabledTools,
       }
       const updated = await patchAgent(this._editingId!, patch)
       this._agents   = this._agents.map(a => a.id === updated.id ? updated : a)
@@ -361,6 +396,7 @@ export class AgentsView extends LitElement {
         systemPrompt:    this._formSystemPrompt.trim() || undefined,
         loopInstruction: this._formLoopInstruction.trim(),
         execMode:        this._formExecMode,
+        enabledTools:    this._formEnabledTools,
       })
       this._agents = [...this._agents, agent]
       this._resetForm()
@@ -378,7 +414,39 @@ export class AgentsView extends LitElement {
     this._formSystemPrompt = ''
     this._formLoopInstruction = ''
     this._formExecMode = 'no-exec'
+    this._formEnabledTools = []
     this._formError = ''
+  }
+
+  private _toggleTool(name: string, checked: boolean, target: 'form' | 'edit') {
+    const current = target === 'form' ? this._formEnabledTools : this._editEnabledTools
+    const updated = checked ? [...current, name] : current.filter(n => n !== name)
+    if (target === 'form') this._formEnabledTools = updated
+    else this._editEnabledTools = updated
+  }
+
+  private _renderToolList(selected: string[], target: 'form' | 'edit') {
+    if (this._availableTools.length === 0) return ''
+    return html`
+      <div class="form-row">
+        <label>Tools</label>
+        <div class="tool-list">
+          ${this._availableTools.map(t => html`
+            <label class="tool-item">
+              <input
+                type="checkbox"
+                .checked=${selected.includes(t.name)}
+                @change=${(e: Event) => this._toggleTool(t.name, (e.target as HTMLInputElement).checked, target)}
+              />
+              <span>
+                <strong>${t.name}</strong>
+                <span class="tool-desc"> — ${t.description}</span>
+              </span>
+            </label>
+          `)}
+        </div>
+      </div>
+    `
   }
 
   private _formatDate(iso?: string) {
@@ -497,6 +565,8 @@ export class AgentsView extends LitElement {
           />
         </div>
 
+        ${this._renderToolList(this._formEnabledTools, 'form')}
+
         ${this._formError ? html`<div class="form-error">${this._formError}</div>` : ''}
 
         <div class="form-actions">
@@ -558,6 +628,8 @@ export class AgentsView extends LitElement {
             @input=${(e: Event) => { this._editInterval = parseInt((e.target as HTMLInputElement).value) || 60 }}
           />
         </div>
+
+        ${this._renderToolList(this._editEnabledTools, 'edit')}
 
         ${this._editError ? html`<div class="form-error">${this._editError}</div>` : ''}
 

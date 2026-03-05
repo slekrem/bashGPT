@@ -11,7 +11,7 @@ public class ShellExecToolTests
         var args = new Dictionary<string, object?> { ["command"] = command };
         if (cwd is not null) args["cwd"] = cwd;
         if (timeoutMs is not null) args["timeoutMs"] = timeoutMs;
-        return new ToolCall("shell.exec", JsonSerializer.Serialize(args));
+        return new ToolCall("shell_exec", JsonSerializer.Serialize(args));
     }
 
     [Fact]

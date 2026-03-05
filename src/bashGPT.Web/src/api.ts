@@ -1,4 +1,4 @@
-import type { Agent, ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings } from './types'
+import type { Agent, ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings, ToolInfo } from './types'
 import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -258,6 +258,7 @@ export async function createAgent(payload: {
   systemPrompt?: string
   loopInstruction?: string
   execMode?: string
+  enabledTools?: string[]
 }): Promise<Agent> {
   const res = await fetch('/api/agents', {
     method: 'POST',
@@ -275,6 +276,7 @@ export async function patchAgent(id: string, patch: {
   systemPrompt?: string | null
   loopInstruction?: string
   execMode?: string
+  enabledTools?: string[]
 }): Promise<Agent> {
   const res = await fetch(`/api/agents/${id}`, {
     method: 'PATCH',
@@ -288,4 +290,15 @@ export async function patchAgent(id: string, patch: {
 export async function deleteAgent(id: string): Promise<void> {
   const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' })
   await assertOk(res)
+}
+
+// ── Tools API ─────────────────────────────────────────────────────────────────
+
+export async function getTools(): Promise<ToolInfo[]> {
+  try {
+    const res = await fetch('/api/tools')
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data.tools) ? data.tools : []
+  } catch { return [] }
 }

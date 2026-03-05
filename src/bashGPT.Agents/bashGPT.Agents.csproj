@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\bashGPT.Core\bashGPT.Core.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools\bashGPT.Tools.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
   </ItemGroup>
 
 </Project>

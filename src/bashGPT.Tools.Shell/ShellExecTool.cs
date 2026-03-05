@@ -19,7 +19,7 @@ public sealed class ShellExecTool : ITool
     }
 
     public ToolDefinition Definition { get; } = new(
-        Name: "shell.exec",
+        Name: "shell_exec",
         Description: "Executes a shell command and returns stdout, stderr, exit code, duration and timeout status.",
         Parameters:
         [
