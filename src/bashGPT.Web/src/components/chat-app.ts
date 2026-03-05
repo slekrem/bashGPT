@@ -86,9 +86,11 @@ export class ChatApp extends LitElement {
       }
       chatView.loadSnapshot?.(data.messages, data.shellContext,
         'Archivierte Session – Nachricht senden, um fortzufahren')
+      chatView.scrollToBottom?.()
     } else {
       chatView.beforeSend = undefined
       chatView.loadSnapshot?.(data.messages, data.shellContext)
+      chatView.scrollToBottom?.()
     }
   }
 

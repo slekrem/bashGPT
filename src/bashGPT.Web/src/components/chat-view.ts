@@ -307,6 +307,15 @@ export class ChatView extends LitElement {
     }
   }
 
+  /** Öffentlich: Chat direkt zur letzten Nachricht scrollen */
+  scrollToBottom() {
+    void this.updateComplete.then(() => {
+      const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
+      if (!chatEl) return
+      chatEl.scrollTop = chatEl.scrollHeight
+    })
+  }
+
   refreshFromAgent(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
     this._historyLoadSeq++
     const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
