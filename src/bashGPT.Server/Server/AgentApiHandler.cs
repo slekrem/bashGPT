@@ -158,6 +158,16 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
 
         if (body?.IsActive is bool active)
             agent.IsActive = active;
+        if (body?.Name is { Length: > 0 } name)
+            agent.Name = name.Trim();
+        if (body?.IntervalSeconds is int interval && interval > 0)
+            agent.IntervalSeconds = interval;
+        if (body?.SystemPrompt is not null)
+            agent.SystemPrompt = body.SystemPrompt.Trim().Length > 0 ? body.SystemPrompt.Trim() : null;
+        if (body?.LoopInstruction is { Length: > 0 } loop)
+            agent.LoopInstruction = loop.Trim();
+        if (body?.ExecMode is not null)
+            agent.ExecMode = body.ExecMode.Trim();
 
         await agentStore!.UpsertAsync(agent);
         await ApiResponse.WriteJsonAsync(ctx.Response, ToDto(agent));
@@ -202,5 +212,11 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
         string? LoopInstruction,
         string? ExecMode);
 
-    private sealed record PatchAgentRequest(bool? IsActive);
+    private sealed record PatchAgentRequest(
+        bool?   IsActive,
+        string? Name,
+        int?    IntervalSeconds,
+        string? SystemPrompt,
+        string? LoopInstruction,
+        string? ExecMode);
 }

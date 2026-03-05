@@ -268,7 +268,14 @@ export async function createAgent(payload: {
   return res.json()
 }
 
-export async function patchAgent(id: string, patch: { isActive: boolean }): Promise<Agent> {
+export async function patchAgent(id: string, patch: {
+  isActive?: boolean
+  name?: string
+  intervalSeconds?: number
+  systemPrompt?: string | null
+  loopInstruction?: string
+  execMode?: string
+}): Promise<Agent> {
   const res = await fetch(`/api/agents/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

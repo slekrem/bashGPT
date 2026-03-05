@@ -18,6 +18,15 @@ export class AgentsView extends LitElement {
   @state() private _formError = ''
   @state() private _saving = false
 
+  @state() private _editingId: string | null = null
+  @state() private _editName = ''
+  @state() private _editInterval = 60
+  @state() private _editSystemPrompt = ''
+  @state() private _editLoopInstruction = ''
+  @state() private _editExecMode = 'no-exec'
+  @state() private _editError = ''
+  @state() private _editSaving = false
+
   static styles = css`
     :host {
       display: flex;
@@ -284,6 +293,44 @@ export class AgentsView extends LitElement {
     }
   }
 
+  private _startEdit(a: Agent) {
+    this._editingId        = a.id
+    this._editName         = a.name
+    this._editInterval     = a.intervalSeconds
+    this._editSystemPrompt = a.systemPrompt ?? ''
+    this._editLoopInstruction = a.loopInstruction ?? ''
+    this._editExecMode     = a.execMode ?? 'no-exec'
+    this._editError        = ''
+  }
+
+  private _cancelEdit() {
+    this._editingId = null
+    this._editError = ''
+  }
+
+  private async _saveEdit() {
+    this._editError = ''
+    if (!this._editName.trim()) { this._editError = 'Name ist erforderlich.'; return }
+    if (!this._editLoopInstruction.trim()) { this._editError = 'Loop-Anweisung ist erforderlich.'; return }
+
+    this._editSaving = true
+    try {
+      const updated = await patchAgent(this._editingId!, {
+        name:            this._editName.trim(),
+        intervalSeconds: this._editInterval,
+        systemPrompt:    this._editSystemPrompt.trim() || null,
+        loopInstruction: this._editLoopInstruction.trim(),
+        execMode:        this._editExecMode,
+      })
+      this._agents   = this._agents.map(a => a.id === updated.id ? updated : a)
+      this._editingId = null
+    } catch (e) {
+      this._editError = e instanceof Error ? e.message : String(e)
+    } finally {
+      this._editSaving = false
+    }
+  }
+
   private async _delete(agent: Agent) {
     if (!confirm(`Agent "${agent.name}" wirklich löschen?`)) return
     try {
@@ -380,12 +427,14 @@ export class AgentsView extends LitElement {
           <div class="agent-last">Letzter Check: ${this._formatDate(a.lastRun)}</div>
         </div>
         <div class="agent-actions">
+          <button class="btn-ghost" @click=${() => this._startEdit(a)}>Bearbeiten</button>
           <button class="btn-ghost" @click=${() => this._toggleActive(a)}>
             ${a.isActive ? 'Pausieren' : 'Fortsetzen'}
           </button>
           <button class="btn-danger" @click=${() => this._delete(a)}>Löschen</button>
         </div>
       </div>
+      ${this._editingId === a.id ? this._renderEditForm() : ''}
     `
   }
 
@@ -448,6 +497,68 @@ export class AgentsView extends LitElement {
           <button class="btn-ghost" @click=${this._resetForm}>Abbrechen</button>
           <button class="btn-primary" ?disabled=${this._saving} @click=${this._submit}>
             ${this._saving ? 'Speichern…' : 'Agent erstellen'}
+          </button>
+        </div>
+      </div>
+    `
+  }
+
+  private _renderEditForm() {
+    return html`
+      <div class="form-card" style="margin-top: 8px;">
+        <h3>Agent bearbeiten</h3>
+
+        <div class="form-row">
+          <label>Name</label>
+          <input
+            type="text"
+            .value=${this._editName}
+            @input=${(e: Event) => { this._editName = (e.target as HTMLInputElement).value }}
+          />
+        </div>
+
+        <div class="form-row">
+          <label>System-Prompt (optional)</label>
+          <textarea
+            placeholder="Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
+            .value=${this._editSystemPrompt}
+            @input=${(e: Event) => { this._editSystemPrompt = (e.target as HTMLTextAreaElement).value }}
+          ></textarea>
+        </div>
+        <div class="form-row">
+          <label>Loop-Anweisung</label>
+          <textarea
+            .value=${this._editLoopInstruction}
+            @input=${(e: Event) => { this._editLoopInstruction = (e.target as HTMLTextAreaElement).value }}
+          ></textarea>
+        </div>
+        <div class="form-row">
+          <label>Ausführungsmodus</label>
+          <select
+            .value=${this._editExecMode}
+            @change=${(e: Event) => { this._editExecMode = (e.target as HTMLSelectElement).value }}
+          >
+            <option value="no-exec">no-exec – Kein Befehl ausführen</option>
+            <option value="dry-run">dry-run – Befehle anzeigen, nicht ausführen</option>
+            <option value="auto-exec">auto-exec – Befehle automatisch ausführen</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Intervall (Sekunden)</label>
+          <input
+            type="number"
+            min="10"
+            .value=${String(this._editInterval)}
+            @input=${(e: Event) => { this._editInterval = parseInt((e.target as HTMLInputElement).value) || 60 }}
+          />
+        </div>
+
+        ${this._editError ? html`<div class="form-error">${this._editError}</div>` : ''}
+
+        <div class="form-actions">
+          <button class="btn-ghost" @click=${this._cancelEdit}>Abbrechen</button>
+          <button class="btn-primary" ?disabled=${this._editSaving} @click=${this._saveEdit}>
+            ${this._editSaving ? 'Speichern…' : 'Speichern'}
           </button>
         </div>
       </div>
