@@ -251,10 +251,13 @@ export async function getAgents(): Promise<Agent[]> {
 
 export async function createAgent(payload: {
   name: string
-  type: 'git' | 'http'
+  type: 'git' | 'http' | 'llm'
   path?: string
   url?: string
   intervalSeconds?: number
+  systemPrompt?: string
+  loopInstruction?: string
+  execMode?: string
 }): Promise<Agent> {
   const res = await fetch('/api/agents', {
     method: 'POST',

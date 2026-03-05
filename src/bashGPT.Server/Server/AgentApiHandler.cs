@@ -84,14 +84,15 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
 
         var type = body.Type?.ToLowerInvariant() switch
         {
-            "git" or "gitstatus" => AgentCheckType.GitStatus,
+            "git" or "gitstatus"   => AgentCheckType.GitStatus,
             "http" or "httpstatus" => AgentCheckType.HttpStatus,
+            "llm" or "llmagent"    => AgentCheckType.LlmAgent,
             _ => (AgentCheckType?)null
         };
 
         if (type is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git' oder 'http' sein." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http' oder 'llm' sein." }, statusCode: 400);
             return;
         }
 
@@ -107,6 +108,12 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
             return;
         }
 
+        if (type == AgentCheckType.LlmAgent && string.IsNullOrWhiteSpace(body.LoopInstruction))
+        {
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für LLM-Agenten erforderlich." }, statusCode: 400);
+            return;
+        }
+
         var agent = new AgentRecord
         {
             Id              = Guid.NewGuid().ToString("N")[..8],
@@ -115,6 +122,9 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
             Path            = body.Path?.Trim(),
             Url             = body.Url?.Trim(),
             IntervalSeconds = body.IntervalSeconds is > 0 ? body.IntervalSeconds.Value : 60,
+            SystemPrompt    = body.SystemPrompt?.Trim(),
+            LoopInstruction = body.LoopInstruction?.Trim(),
+            ExecMode        = body.ExecMode?.Trim(),
             IsActive        = true,
         };
 
@@ -165,15 +175,18 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
 
     private static object ToDto(AgentRecord a) => new
     {
-        id              = a.Id,
-        name            = a.Name,
-        type            = a.Type.ToString().ToLower(),
-        path            = a.Path,
-        url             = a.Url,
-        intervalSeconds = a.IntervalSeconds,
-        isActive        = a.IsActive,
-        lastRun         = a.LastRun,
-        lastMessage     = a.LastMessage,
+        id                 = a.Id,
+        name               = a.Name,
+        type               = a.Type.ToString().ToLower(),
+        path               = a.Path,
+        url                = a.Url,
+        intervalSeconds    = a.IntervalSeconds,
+        systemPrompt       = a.SystemPrompt,
+        loopInstruction    = a.LoopInstruction,
+        execMode           = a.ExecMode,
+        isActive           = a.IsActive,
+        lastRun            = a.LastRun,
+        lastMessage        = a.LastMessage,
         lastCheckSucceeded = a.LastCheckSucceeded,
     };
 
@@ -184,7 +197,10 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
         string? Type,
         string? Path,
         string? Url,
-        int? IntervalSeconds);
+        int? IntervalSeconds,
+        string? SystemPrompt,
+        string? LoopInstruction,
+        string? ExecMode);
 
     private sealed record PatchAgentRequest(bool? IsActive);
 }

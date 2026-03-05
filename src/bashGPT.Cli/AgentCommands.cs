@@ -371,7 +371,7 @@ public static class AgentCommands
 
             var sessionStore = AppBootstrap.CreateSessionStore();
             var runner = new AgentRunner(store,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()],
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(provider, sessionStore)],
                 provider,
                 sessionStore);
 

@@ -76,7 +76,7 @@ public class ServerHost
                 catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
 
             var runner = new AgentRunner(_agentStore,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()],
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore)],
                 agentProvider, _sessionStore);
             _ = Task.Run(() => runner.RunAsync(ct), ct);
             Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");

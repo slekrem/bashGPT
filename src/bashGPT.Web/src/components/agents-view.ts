@@ -10,11 +10,14 @@ export class AgentsView extends LitElement {
   @state() private _loading = true
   @state() private _error = ''
   @state() private _showForm = false
-  @state() private _formType: 'git' | 'http' = 'git'
+  @state() private _formType: 'git' | 'http' | 'llm' = 'git'
   @state() private _formName = ''
   @state() private _formPath = ''
   @state() private _formUrl = ''
   @state() private _formInterval = 60
+  @state() private _formSystemPrompt = ''
+  @state() private _formLoopInstruction = ''
+  @state() private _formExecMode = 'no-exec'
   @state() private _formError = ''
   @state() private _saving = false
 
@@ -196,7 +199,7 @@ export class AgentsView extends LitElement {
       color: #94a3b8;
     }
 
-    input, select {
+    input, select, textarea {
       background: #020617;
       border: 1px solid #1e293b;
       border-radius: 6px;
@@ -207,7 +210,8 @@ export class AgentsView extends LitElement {
       outline: none;
       transition: border-color 0.12s;
     }
-    input:focus, select:focus { border-color: #22c55e; }
+    input:focus, select:focus, textarea:focus { border-color: #22c55e; }
+    textarea { resize: vertical; min-height: 72px; }
 
     .type-tabs {
       display: flex;
@@ -298,6 +302,7 @@ export class AgentsView extends LitElement {
     if (!this._formName.trim()) { this._formError = 'Name ist erforderlich.'; return }
     if (this._formType === 'git' && !this._formPath.trim()) { this._formError = 'Pfad ist erforderlich.'; return }
     if (this._formType === 'http' && !this._formUrl.trim()) { this._formError = 'URL ist erforderlich.'; return }
+    if (this._formType === 'llm' && !this._formLoopInstruction.trim()) { this._formError = 'Loop-Anweisung ist erforderlich.'; return }
 
     this._saving = true
     try {
@@ -307,6 +312,9 @@ export class AgentsView extends LitElement {
         path: this._formType === 'git' ? this._formPath.trim() : undefined,
         url:  this._formType === 'http' ? this._formUrl.trim() : undefined,
         intervalSeconds: this._formInterval,
+        systemPrompt:    this._formType === 'llm' && this._formSystemPrompt.trim() ? this._formSystemPrompt.trim() : undefined,
+        loopInstruction: this._formType === 'llm' ? this._formLoopInstruction.trim() : undefined,
+        execMode:        this._formType === 'llm' ? this._formExecMode : undefined,
       })
       this._agents = [...this._agents, agent]
       this._resetForm()
@@ -323,6 +331,9 @@ export class AgentsView extends LitElement {
     this._formPath = ''
     this._formUrl = ''
     this._formInterval = 60
+    this._formSystemPrompt = ''
+    this._formLoopInstruction = ''
+    this._formExecMode = 'no-exec'
     this._formError = ''
   }
 
@@ -360,8 +371,8 @@ export class AgentsView extends LitElement {
   }
 
   private _renderAgent(a: Agent) {
-    const icon = a.type === 'gitstatus' ? '⎇' : '🌐'
-    const meta = a.type === 'gitstatus' ? a.path : a.url
+    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : '🌐'
+    const meta = a.type === 'gitstatus' ? a.path : a.type === 'llmagent' ? (a.loopInstruction ?? '') : a.url
     const badgeClass = !a.isActive ? 'badge-inactive' : !a.lastCheckSucceeded ? 'badge-fail' : 'badge-active'
     const badgeLabel = !a.isActive ? 'Pausiert' : !a.lastCheckSucceeded ? 'Fehler' : 'Aktiv'
 
@@ -401,6 +412,10 @@ export class AgentsView extends LitElement {
             class="type-tab ${this._formType === 'http' ? 'active' : ''}"
             @click=${() => { this._formType = 'http' }}
           >🌐 HTTP-Status</button>
+          <button
+            class="type-tab ${this._formType === 'llm' ? 'active' : ''}"
+            @click=${() => { this._formType = 'llm' }}
+          >🤖 LLM-Agent</button>
         </div>
 
         <div class="form-row">
@@ -423,7 +438,7 @@ export class AgentsView extends LitElement {
               @input=${(e: Event) => { this._formPath = (e.target as HTMLInputElement).value }}
             />
           </div>
-        ` : html`
+        ` : this._formType === 'http' ? html`
           <div class="form-row">
             <label>URL</label>
             <input
@@ -432,6 +447,34 @@ export class AgentsView extends LitElement {
               .value=${this._formUrl}
               @input=${(e: Event) => { this._formUrl = (e.target as HTMLInputElement).value }}
             />
+          </div>
+        ` : html`
+          <div class="form-row">
+            <label>System-Prompt (optional)</label>
+            <textarea
+              placeholder="Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
+              .value=${this._formSystemPrompt}
+              @input=${(e: Event) => { this._formSystemPrompt = (e.target as HTMLTextAreaElement).value }}
+            ></textarea>
+          </div>
+          <div class="form-row">
+            <label>Loop-Anweisung</label>
+            <textarea
+              placeholder="z.B. Prüfe den Festplattenverbrauch und berichte über kritische Partitionen."
+              .value=${this._formLoopInstruction}
+              @input=${(e: Event) => { this._formLoopInstruction = (e.target as HTMLTextAreaElement).value }}
+            ></textarea>
+          </div>
+          <div class="form-row">
+            <label>Ausführungsmodus</label>
+            <select
+              .value=${this._formExecMode}
+              @change=${(e: Event) => { this._formExecMode = (e.target as HTMLSelectElement).value }}
+            >
+              <option value="no-exec">no-exec – Kein Befehl ausführen</option>
+              <option value="dry-run">dry-run – Befehle anzeigen, nicht ausführen</option>
+              <option value="auto-exec">auto-exec – Befehle automatisch ausführen</option>
+            </select>
           </div>
         `}
 

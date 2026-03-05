@@ -93,7 +93,7 @@ export interface FullShellContext {
   git?: GitContext | null
 }
 
-export type AgentType = 'gitstatus' | 'httpstatus'
+export type AgentType = 'gitstatus' | 'httpstatus' | 'bitcoinprice' | 'llmagent'
 
 export interface Agent {
   id: string
@@ -102,6 +102,9 @@ export interface Agent {
   path?: string
   url?: string
   intervalSeconds: number
+  systemPrompt?: string
+  loopInstruction?: string
+  execMode?: string
   isActive: boolean
   lastRun?: string
   lastMessage?: string
