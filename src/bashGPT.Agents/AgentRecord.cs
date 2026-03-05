@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace BashGPT.Agents;
 
-public enum AgentCheckType { GitStatus, HttpStatus, BitcoinPrice }
+public enum AgentCheckType { GitStatus, HttpStatus, BitcoinPrice, LlmAgent }
 
 public sealed class AgentsFile
 {
@@ -21,6 +21,8 @@ public sealed class AgentRecord
     public string? Url { get; set; }
     public int IntervalSeconds { get; set; } = 30;
     public string? SystemPrompt { get; set; }
+    public string? LoopInstruction { get; set; }
+    public string? ExecMode { get; set; }
     public bool IsActive { get; set; } = true;
 
     // Runtime-State

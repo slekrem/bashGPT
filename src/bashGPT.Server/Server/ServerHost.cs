@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Net;
+using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
+using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Storage;
 
@@ -16,14 +18,20 @@ public class ServerHost
     private readonly ChatApiHandler            _chatHandler;
     private readonly StreamingChatApiHandler   _streamingChatHandler;
     private readonly SessionApiHandler         _sessionHandler;
+    private readonly AgentApiHandler           _agentHandler;
     private readonly ConfigurationService?     _configService;
+    private readonly AgentStore?               _agentStore;
+    private readonly SessionStore?             _sessionStore;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
-        SessionStore? sessionStore = null)
+        SessionStore? sessionStore = null,
+        AgentStore? agentStore = null)
     {
         _configService        = configService;
+        _agentStore           = agentStore;
+        _sessionStore         = sessionStore;
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
@@ -31,6 +39,7 @@ public class ServerHost
         _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
+        _agentHandler         = new AgentApiHandler(agentStore);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
@@ -58,6 +67,20 @@ public class ServerHost
 
         Console.WriteLine($"bashGPT Server läuft auf {prefix}");
         Console.WriteLine("Beenden mit Ctrl+C");
+
+        if (_agentStore is not null)
+        {
+            ILlmProvider? agentProvider = null;
+            if (_configService is not null)
+                try { agentProvider = ProviderFactory.Create(appConfig ?? await _configService.LoadAsync()); }
+                catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
+
+            var runner = new AgentRunner(_agentStore,
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore)],
+                agentProvider, _sessionStore);
+            _ = Task.Run(() => runner.RunAsync(ct), ct);
+            Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");
+        }
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);
@@ -146,6 +169,9 @@ public class ServerHost
 
             if (path.StartsWith("/api/sessions", StringComparison.Ordinal))
             { await _sessionHandler.HandleAsync(ctx, ct); return; }
+
+            if (path.StartsWith("/api/agents", StringComparison.Ordinal))
+            { await _agentHandler.HandleAsync(ctx, ct); return; }
 
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
         }

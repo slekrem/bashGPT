@@ -3,8 +3,9 @@ import { customElement, state } from 'lit/decorators.js'
 import './sidebar'
 import './dashboard'
 import './settings-view'
+import './agents-view'
 import './chat-view'
-import { resetHistory } from '../api'
+import { resetHistory, getSessions, getSession } from '../api'
 import type { AppView, Session } from '../types'
 import { LIVE_SESSION_ID, type SnapshotMessage } from '../session-history'
 import { SessionManager } from '../session-manager'
@@ -20,6 +21,9 @@ export class ChatApp extends LitElement {
   @state() private _chatReadOnly = false
 
   private readonly _sm = new SessionManager()
+  private _pollInterval: ReturnType<typeof setInterval> | null = null
+  private _pollInFlight = false
+  private _agentSessionUpdatedAt: string | null = null
 
   static styles = chatAppStyles
 
@@ -30,6 +34,52 @@ export class ChatApp extends LitElement {
     this._activeSessionId = activeId
     await this.updateComplete
     if (activeId) await this._loadSessionIntoView(activeId)
+    this._pollInterval = setInterval(() => this._pollAgentUpdates(), 5_000)
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    if (this._pollInterval !== null) {
+      clearInterval(this._pollInterval)
+      this._pollInterval = null
+    }
+  }
+
+  private async _pollAgentUpdates() {
+    if (this._pollInFlight) return
+    this._pollInFlight = true
+
+    try {
+      // Sessions-Liste aktualisieren
+      const fresh = await getSessions()
+      if (fresh) {
+        // Nur updaten wenn sich etwas geändert hat (per updatedAt-Vergleich)
+        const changed = fresh.some(f => {
+          const existing = this._sessions.find(s => s.id === f.id)
+          return !existing || existing.updatedAt !== f.updatedAt
+        }) || fresh.length !== this._sessions.length
+        if (changed) this._sessions = fresh
+      }
+
+      // Wenn die aktive Session eine Agent-Session ist, nur bei Änderung neu laden
+      const id = this._activeSessionId
+      if (!id?.startsWith('agent-') || this._view !== 'chat') return
+
+      const sessionMeta = fresh?.find(s => s.id === id)
+      if (!sessionMeta || (this._agentSessionUpdatedAt && sessionMeta.updatedAt <= this._agentSessionUpdatedAt)) return
+
+      const data = await getSession(id)
+      if (!data) return
+
+      // Während des Fetches kann der User Session/View gewechselt haben.
+      if (this._activeSessionId !== id || this._view !== 'chat') return
+
+      this._agentSessionUpdatedAt = sessionMeta.updatedAt
+      const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+      chatView?.refreshFromAgent?.(data.messages, data.shellContext)
+    } finally {
+      this._pollInFlight = false
+    }
   }
 
   // ── Session helpers ───────────────────────────────────────────────────────
@@ -48,9 +98,11 @@ export class ChatApp extends LitElement {
       }
       chatView.loadSnapshot?.(data.messages, data.shellContext,
         'Archivierte Session – Nachricht senden, um fortzufahren')
+      chatView.scrollToBottom?.()
     } else {
       chatView.beforeSend = undefined
       chatView.loadSnapshot?.(data.messages, data.shellContext)
+      chatView.scrollToBottom?.()
     }
   }
 
@@ -94,6 +146,7 @@ export class ChatApp extends LitElement {
 
   private async _onSessionSelect(e: CustomEvent<{ id: string }>) {
     this._activeSessionId = e.detail.id
+    this._agentSessionUpdatedAt = null
     this._view = 'chat'
     this._mobileMenuOpen = false
     await this._loadSessionIntoView(e.detail.id)
@@ -188,6 +241,10 @@ export class ChatApp extends LitElement {
             <bashgpt-settings-view
               @clear-history=${this._onClearHistory}
             ></bashgpt-settings-view>
+          ` : ''}
+
+          ${this._view === 'agents' ? html`
+            <bashgpt-agents-view></bashgpt-agents-view>
           ` : ''}
 
           <bashgpt-chat-view
