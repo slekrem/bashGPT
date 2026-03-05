@@ -3,6 +3,7 @@ using System.Net;
 using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
+using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Storage;
 
@@ -19,6 +20,8 @@ public class ServerHost
     private readonly SessionApiHandler         _sessionHandler;
     private readonly AgentApiHandler           _agentHandler;
     private readonly ConfigurationService?     _configService;
+    private readonly AgentStore?               _agentStore;
+    private readonly SessionStore?             _sessionStore;
 
     public ServerHost(
         IPromptHandler handler,
@@ -27,6 +30,8 @@ public class ServerHost
         AgentStore? agentStore = null)
     {
         _configService        = configService;
+        _agentStore           = agentStore;
+        _sessionStore         = sessionStore;
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
@@ -62,6 +67,20 @@ public class ServerHost
 
         Console.WriteLine($"bashGPT Server läuft auf {prefix}");
         Console.WriteLine("Beenden mit Ctrl+C");
+
+        if (_agentStore is not null)
+        {
+            ILlmProvider? agentProvider = null;
+            if (_configService is not null)
+                try { agentProvider = ProviderFactory.Create(appConfig ?? await _configService.LoadAsync()); }
+                catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
+
+            var runner = new AgentRunner(_agentStore,
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck()],
+                agentProvider, _sessionStore);
+            _ = Task.Run(() => runner.RunAsync(ct), ct);
+            Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");
+        }
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);
