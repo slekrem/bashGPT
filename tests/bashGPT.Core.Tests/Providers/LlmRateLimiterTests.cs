@@ -1,4 +1,5 @@
 using BashGPT.Providers;
+using System.Reflection;
 
 namespace BashGPT.Core.Tests.Providers;
 
@@ -58,6 +59,22 @@ public class LlmRateLimiterTests
         Assert.True(sw.ElapsedMilliseconds < 500, "Ohne Limit sollten 50 Aufrufe nicht blockieren.");
     }
 
+    [Fact]
+    public async Task WaitAsync_OldWindowEntries_AreDequeued()
+    {
+        var limiter = new LlmRateLimiter(maxRequestsPerMinute: 1, minIntervalMs: 0);
+        var windowField = typeof(LlmRateLimiter).GetField("_window", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(windowField);
+
+        var window = Assert.IsType<Queue<DateTime>>(windowField!.GetValue(limiter));
+        window.Enqueue(DateTime.UtcNow.AddMinutes(-2));
+
+        await limiter.WaitAsync();
+
+        Assert.Single(window);
+        Assert.True(window.Peek() > DateTime.UtcNow.AddSeconds(-5));
+    }
+
     // ── MinIntervalMs ────────────────────────────────────────────────────────
 
     [Fact]
@@ -115,6 +132,35 @@ public class LlmRateLimiterTests
     }
 
     [Fact]
+    public async Task RateLimitedProvider_ChatAsync_CallsInnerProvider()
+    {
+        var inner = new FakeLlmProvider();
+        var limiter = new LlmRateLimiter(maxRequestsPerMinute: 10, minIntervalMs: 0);
+        var provider = new RateLimitedLlmProvider(inner, limiter);
+
+        var response = await provider.ChatAsync(new LlmChatRequest(
+            Messages: [new ChatMessage(ChatRole.User, "Hi")]));
+
+        Assert.Equal("ok", response.Content);
+        Assert.Equal(1, inner.ChatCallCount);
+    }
+
+    [Fact]
+    public async Task RateLimitedProvider_StreamAsync_CallsInnerProvider_AndYieldsTokens()
+    {
+        var inner = new FakeLlmProvider();
+        var limiter = new LlmRateLimiter(maxRequestsPerMinute: 10, minIntervalMs: 0);
+        var provider = new RateLimitedLlmProvider(inner, limiter);
+
+        var tokens = new List<string>();
+        await foreach (var token in provider.StreamAsync([new ChatMessage(ChatRole.User, "Hi")]))
+            tokens.Add(token);
+
+        Assert.Equal(1, inner.StreamCallCount);
+        Assert.Equal(["a", "b"], tokens);
+    }
+
+    [Fact]
     public void RateLimitedProvider_ExposesInnerNameAndModel()
     {
         var inner = new FakeLlmProvider();
@@ -132,9 +178,14 @@ public class LlmRateLimiterTests
         public string Name  => "fake";
         public string Model => "fake-model";
         public int CompleteCallCount { get; private set; }
+        public int ChatCallCount { get; private set; }
+        public int StreamCallCount { get; private set; }
 
         public Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
-            => Task.FromResult(new LlmChatResponse("ok", []));
+        {
+            ChatCallCount++;
+            return Task.FromResult(new LlmChatResponse("ok", []));
+        }
 
         public Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
         {
@@ -146,7 +197,11 @@ public class LlmRateLimiterTests
         public async IAsyncEnumerable<string> StreamAsync(
             IEnumerable<ChatMessage> messages,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-        { yield break; }
+        {
+            StreamCallCount++;
+            yield return "a";
+            yield return "b";
+        }
 #pragma warning restore CS1998
     }
 }
