@@ -348,6 +348,56 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
+    public async Task RunServerChatAsync_WhenConfigLoadFails_ReturnsConfigurationError()
+    {
+        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
+        try
+        {
+            await File.WriteAllTextAsync(configPath, "{ invalid-json ");
+            var configService = new TestConfigurationService(configPath);
+            var sut = new ServerChatRunner(configService, new ShellContextCollector());
+
+            var result = await sut.RunServerChatAsync(Opts());
+
+            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.False(result.UsedToolCalls);
+            Assert.Empty(result.Commands);
+        }
+        finally
+        {
+            if (File.Exists(configPath))
+                File.Delete(configPath);
+        }
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WhenProviderFactoryThrows_ReturnsProviderError()
+    {
+        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
+        try
+        {
+            await File.WriteAllTextAsync(configPath, """
+            {
+              "defaultProvider": 999
+            }
+            """);
+            var configService = new TestConfigurationService(configPath);
+            var sut = new ServerChatRunner(configService, new ShellContextCollector());
+
+            var result = await sut.RunServerChatAsync(Opts());
+
+            Assert.Contains("Provider-Fehler:", result.Response);
+            Assert.False(result.UsedToolCalls);
+            Assert.Empty(result.Commands);
+        }
+        finally
+        {
+            if (File.Exists(configPath))
+                File.Delete(configPath);
+        }
+    }
+
+    [Fact]
     public async Task RunServerChatAsync_VerboseToolRound_LogsParsedToolCommand()
     {
         var provider = new FakeLlmProvider();
@@ -361,6 +411,21 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
+    public async Task RunServerChatAsync_ToolRoundNextResponseError_ReturnsErrorAndKeepsCommands()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("echo hi", "tc-1")]));
+        provider.ExceptionForCall = call => call == 2 ? new LlmProviderException("kaputt") : null;
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.Equal("Fehler: kaputt", result.Response);
+        Assert.True(result.UsedToolCalls);
+        Assert.NotEmpty(result.Commands);
+    }
+
+    [Fact]
     public async Task RunServerChatAsync_FallbackWithAskExecMode_UsesDryRun()
     {
         var provider = new FakeLlmProvider();
@@ -371,6 +436,39 @@ public sealed class ServerChatRunnerTests
 
         Assert.Single(result.Commands);
         Assert.False(result.Commands[0].WasExecuted);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackFollowUpError_ReturnsError()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", []));
+        provider.ExceptionForCall = call => call == 2 ? new LlmProviderException("follow-up failed") : null;
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.AutoExec));
+
+        Assert.Equal("Fehler: follow-up failed", result.Response);
+        Assert.Single(result.Commands);
+        Assert.True(result.Commands[0].WasExecuted);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackFollowUpSuccess_AccumulatesUsageAndReturnsFollowUpContent()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", [], new TokenUsage(3, 2)));
+        provider.Enqueue(new LlmChatResponse("Finale Antwort", [], new TokenUsage(5, 4)));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.AutoExec));
+
+        Assert.Equal("Finale Antwort", result.Response);
+        Assert.Single(result.Commands);
+        Assert.True(result.Commands[0].WasExecuted);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(8, result.Usage!.InputTokens);
+        Assert.Equal(6, result.Usage.OutputTokens);
     }
 
     [Fact]
