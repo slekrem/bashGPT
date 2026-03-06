@@ -13,6 +13,9 @@ public class ServerChatRunner(
     ShellContextCollector contextCollector,
     ILlmProvider? providerOverride = null) : IPromptHandler
 {
+    // Shared across all requests so the rate limit is truly global per process.
+    private LlmRateLimiter? _sharedLimiter;
+    private readonly object _limiterLock = new();
     public async Task<ServerChatResult> RunServerChatAsync(
         ServerChatOptions opts,
         CancellationToken ct = default)
@@ -53,7 +56,7 @@ public class ServerChatRunner(
 
             try
             {
-                provider = ProviderFactory.Create(config, opts.Provider);
+                provider = ProviderFactory.Create(config, opts.Provider, GetOrCreateLimiter(config));
             }
             catch (Exception ex)
             {
@@ -245,5 +248,16 @@ public class ServerChatRunner(
         TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
             ? new TokenUsage(totalInputTokens, totalOutputTokens)
             : null;
+    }
+
+    private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)
+    {
+        if (!config.RateLimiting.Enabled) return null;
+        lock (_limiterLock)
+        {
+            return _sharedLimiter ??= new LlmRateLimiter(
+                config.RateLimiting.MaxRequestsPerMinute,
+                config.RateLimiting.AgentRequestDelayMs);
+        }
     }
 }

@@ -9,7 +9,10 @@ public static class ProviderFactory
     /// Erstellt den konfigurierten Provider. Ein optionaler <paramref name="overrideType"/>
     /// (z. B. aus einem CLI-Flag) hat Vorrang vor der Config.
     /// </summary>
-    public static ILlmProvider Create(AppConfig config, ProviderType? overrideType = null)
+    public static ILlmProvider Create(
+        AppConfig config,
+        ProviderType? overrideType = null,
+        LlmRateLimiter? sharedLimiter = null)
     {
         var type = overrideType ?? config.DefaultProvider;
 
@@ -22,7 +25,7 @@ public static class ProviderFactory
 
         if (config.RateLimiting.Enabled)
         {
-            var limiter = new LlmRateLimiter(
+            var limiter = sharedLimiter ?? new LlmRateLimiter(
                 config.RateLimiting.MaxRequestsPerMinute,
                 config.RateLimiting.AgentRequestDelayMs);
             provider = new RateLimitedLlmProvider(provider, limiter);

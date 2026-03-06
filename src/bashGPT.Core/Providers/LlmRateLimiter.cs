@@ -59,7 +59,8 @@ public sealed class LlmRateLimiter
 
                 if (delay is null)
                 {
-                    _window.Enqueue(now);
+                    if (_maxRequestsPerMinute > 0)
+                        _window.Enqueue(now);
                     _lastRequestTime = now;
                     return;
                 }

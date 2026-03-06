@@ -142,11 +142,11 @@ public class LlmRateLimiterTests
             return Task.FromResult("ok");
         }
 
+#pragma warning disable CS1998
         public async IAsyncEnumerable<string> StreamAsync(
             IEnumerable<ChatMessage> messages,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-        {
-            if (false) yield return string.Empty; // compiler: IAsyncEnumerable without await
-        }
+        { yield break; }
+#pragma warning restore CS1998
     }
 }
