@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using BashGPT.Agents;
+using BashGPT.Agents.Dev;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
@@ -82,7 +83,7 @@ public class ServerHost
                 catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
 
             var runner = new AgentRunner(_agentStore,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry)],
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry), new DevAgentCheck(agentProvider, _sessionStore, _toolRegistry)],
                 agentProvider, _sessionStore);
             _ = Task.Run(() => runner.RunAsync(ct), ct);
             Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");
