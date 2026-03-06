@@ -2,6 +2,7 @@ using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
+using System.Reflection;
 
 namespace BashGPT.Cli.Tests;
 
@@ -22,13 +23,14 @@ public sealed class ServerChatRunnerTests
         ExecutionMode execMode = ExecutionMode.NoExec,
         bool verbose = false,
         bool forceTools = false,
+        bool noContext = true,
         IReadOnlyList<ChatMessage>? history = null) =>
         new(
             Prompt:     prompt,
             History:    history ?? [],
             Provider:   null,
             Model:      null,
-            NoContext:  true,
+            NoContext:  noContext,
             IncludeDir: false,
             ExecMode:   execMode,
             Verbose:    verbose,
@@ -318,5 +320,202 @@ public sealed class ServerChatRunnerTests
             m.Role == ChatRole.User && m.Content == "Frühere Frage");
         Assert.Contains(provider.LastRequestMessages!, m =>
             m.Role == ChatRole.Assistant && m.Content == "Frühere Antwort");
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WithoutProviderOverride_UsesConfigProvider_AndCollectsContext()
+    {
+        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
+        try
+        {
+            var configService = new TestConfigurationService(configPath);
+            var config = await configService.LoadAsync();
+            config.DefaultProvider = ProviderType.Cerebras;
+            config.Cerebras.ApiKey = null;
+            await configService.SaveAsync(config);
+
+            var sut = new ServerChatRunner(configService, new ShellContextCollector());
+            var result = await sut.RunServerChatAsync(Opts(noContext: false, verbose: true));
+
+            Assert.Contains("Kein Cerebras API-Key konfiguriert", result.Response);
+            Assert.Contains(result.Logs, l => l.StartsWith("Kontext gesammelt:", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (File.Exists(configPath))
+                File.Delete(configPath);
+        }
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WhenConfigLoadFails_ReturnsConfigurationError()
+    {
+        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
+        try
+        {
+            await File.WriteAllTextAsync(configPath, "{ invalid-json ");
+            var configService = new TestConfigurationService(configPath);
+            var sut = new ServerChatRunner(configService, new ShellContextCollector());
+
+            var result = await sut.RunServerChatAsync(Opts());
+
+            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.False(result.UsedToolCalls);
+            Assert.Empty(result.Commands);
+        }
+        finally
+        {
+            if (File.Exists(configPath))
+                File.Delete(configPath);
+        }
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WhenProviderFactoryThrows_ReturnsProviderError()
+    {
+        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
+        try
+        {
+            await File.WriteAllTextAsync(configPath, """
+            {
+              "defaultProvider": 999
+            }
+            """);
+            var configService = new TestConfigurationService(configPath);
+            var sut = new ServerChatRunner(configService, new ShellContextCollector());
+
+            var result = await sut.RunServerChatAsync(Opts());
+
+            Assert.Contains("Provider-Fehler:", result.Response);
+            Assert.False(result.UsedToolCalls);
+            Assert.Empty(result.Commands);
+        }
+        finally
+        {
+            if (File.Exists(configPath))
+                File.Delete(configPath);
+        }
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_VerboseToolRound_LogsParsedToolCommand()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("echo hi", "tc-1")]));
+        provider.Enqueue(new LlmChatResponse("fertig", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun, verbose: true));
+
+        Assert.Contains(result.Logs, l => l.Contains("Tool 'bash' -> echo hi", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_ToolRoundNextResponseError_ReturnsErrorAndKeepsCommands()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("echo hi", "tc-1")]));
+        provider.ExceptionForCall = call => call == 2 ? new LlmProviderException("kaputt") : null;
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.Equal("Fehler: kaputt", result.Response);
+        Assert.True(result.UsedToolCalls);
+        Assert.NotEmpty(result.Commands);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackWithAskExecMode_UsesDryRun()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.Ask));
+
+        Assert.Single(result.Commands);
+        Assert.False(result.Commands[0].WasExecuted);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackFollowUpError_ReturnsError()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", []));
+        provider.ExceptionForCall = call => call == 2 ? new LlmProviderException("follow-up failed") : null;
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.AutoExec));
+
+        Assert.Equal("Fehler: follow-up failed", result.Response);
+        Assert.Single(result.Commands);
+        Assert.True(result.Commands[0].WasExecuted);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackFollowUpSuccess_AccumulatesUsageAndReturnsFollowUpContent()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", [], new TokenUsage(3, 2)));
+        provider.Enqueue(new LlmChatResponse("Finale Antwort", [], new TokenUsage(5, 4)));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.AutoExec));
+
+        Assert.Equal("Finale Antwort", result.Response);
+        Assert.Single(result.Commands);
+        Assert.True(result.Commands[0].WasExecuted);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(8, result.Usage!.InputTokens);
+        Assert.Equal(6, result.Usage.OutputTokens);
+    }
+
+    [Fact]
+    public void GetOrCreateLimiter_ReusesAndRecreates_ByConfig()
+    {
+        var sut = new ServerChatRunner(new ConfigurationService(), new ShellContextCollector());
+        var method = typeof(ServerChatRunner).GetMethod("GetOrCreateLimiter", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var config1 = new AppConfig();
+        config1.RateLimiting.Enabled = true;
+        config1.RateLimiting.MaxRequestsPerMinute = 10;
+        config1.RateLimiting.AgentRequestDelayMs = 100;
+
+        var limiter1 = method!.Invoke(sut, [config1]);
+        var limiter2 = method.Invoke(sut, [config1]);
+        Assert.Same(limiter1, limiter2);
+
+        var config2 = new AppConfig();
+        config2.RateLimiting.Enabled = true;
+        config2.RateLimiting.MaxRequestsPerMinute = 11;
+        config2.RateLimiting.AgentRequestDelayMs = 100;
+
+        var limiter3 = method.Invoke(sut, [config2]);
+        Assert.NotSame(limiter1, limiter3);
+
+        var config3 = new AppConfig();
+        config3.RateLimiting.Enabled = true;
+        config3.RateLimiting.MaxRequestsPerMinute = 11;
+        config3.RateLimiting.AgentRequestDelayMs = 101;
+
+        var limiter4 = method.Invoke(sut, [config3]);
+        Assert.NotSame(limiter3, limiter4);
+    }
+
+    [Fact]
+    public void GetOrCreateLimiter_Disabled_ReturnsNull()
+    {
+        var sut = new ServerChatRunner(new ConfigurationService(), new ShellContextCollector());
+        var method = typeof(ServerChatRunner).GetMethod("GetOrCreateLimiter", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var config = new AppConfig();
+        config.RateLimiting.Enabled = false;
+
+        var limiter = method!.Invoke(sut, [config]);
+
+        Assert.Null(limiter);
     }
 }

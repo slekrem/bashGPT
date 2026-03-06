@@ -16,6 +16,7 @@ internal sealed class FakeLlmProvider : ILlmProvider
 
     public int CallCount { get; private set; }
     public Exception? NextException { get; set; }
+    public Func<int, Exception?>? ExceptionForCall { get; set; }
     public IReadOnlyList<ChatMessage>? LastRequestMessages { get; private set; }
 
     public void Enqueue(LlmChatResponse response) => _queue.Enqueue(response);
@@ -24,6 +25,9 @@ internal sealed class FakeLlmProvider : ILlmProvider
     {
         LastRequestMessages = request.Messages.ToList();
         CallCount++;
+
+        if (ExceptionForCall?.Invoke(CallCount) is { } exForCall)
+            throw exForCall;
 
         if (NextException is not null)
             throw NextException;

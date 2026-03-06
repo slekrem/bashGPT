@@ -1,5 +1,6 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BashGPT.Core.Tests.Providers;
 
@@ -39,6 +40,52 @@ public class ProviderAbstractionTests
         var provider = ProviderFactory.Create(config, overrideType: ProviderType.Cerebras);
 
         Assert.Equal("Cerebras", provider.Name);
+    }
+
+    [Fact]
+    public void ProviderFactory_Create_WhenRateLimitingEnabled_WrapsProvider()
+    {
+        var config = new AppConfig
+        {
+            DefaultProvider = ProviderType.Ollama,
+            RateLimiting = new RateLimitingConfig { Enabled = true, MaxRequestsPerMinute = 30, AgentRequestDelayMs = 500 }
+        };
+
+        var provider = ProviderFactory.Create(config);
+
+        Assert.IsType<RateLimitedLlmProvider>(provider);
+    }
+
+    [Fact]
+    public void ProviderFactory_Create_WhenRateLimitingDisabled_ReturnsPlainProvider()
+    {
+        var config = new AppConfig
+        {
+            DefaultProvider = ProviderType.Ollama,
+            RateLimiting = new RateLimitingConfig { Enabled = false, MaxRequestsPerMinute = 30, AgentRequestDelayMs = 500 }
+        };
+
+        var provider = ProviderFactory.Create(config);
+
+        Assert.IsType<OllamaProvider>(provider);
+    }
+
+    [Fact]
+    public void AddBashGptProviders_RegistersSingletonLlmProvider()
+    {
+        var services = new ServiceCollection();
+        var config = new AppConfig
+        {
+            DefaultProvider = ProviderType.Ollama,
+            RateLimiting = new RateLimitingConfig { Enabled = false }
+        };
+
+        services.AddBashGptProviders(config);
+        using var scope = services.BuildServiceProvider().CreateScope();
+        var provider1 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
+        var provider2 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
+
+        Assert.Same(provider1, provider2);
     }
 
     // Name/Model und Implementierungsdetails der Provider werden

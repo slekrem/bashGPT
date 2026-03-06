@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Reflection;
 using BashGPT.Configuration;
 using BashGPT.Server;
 using BashGPT.Shell;
@@ -119,6 +120,13 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         Assert.Equal("ollama", provider.GetString());
     }
 
+    [Fact]
+    public async Task Unknown_Settings_Route_Returns404()
+    {
+        var response = await _client.GetAsync("/api/settings/unknown");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     // ── PUT /api/settings ───────────────────────────────────────────────────
 
     [Fact]
@@ -134,6 +142,39 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var config = await _configService.LoadAsync();
         Assert.Equal(ProviderType.Cerebras, config.DefaultProvider);
         Assert.Equal("test-model", config.Cerebras.Model);
+    }
+
+    [Fact]
+    public async Task Put_Settings_WithNullBody_Returns400()
+    {
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent("null", Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, putResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_Settings_RateLimiting_IsPersisted()
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            rateLimiting = new
+            {
+                enabled = true,
+                maxRequestsPerMinute = 7,
+                agentRequestDelayMs = 321
+            }
+        });
+
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var config = await _configService.LoadAsync();
+        Assert.True(config.RateLimiting.Enabled);
+        Assert.Equal(7, config.RateLimiting.MaxRequestsPerMinute);
+        Assert.Equal(321, config.RateLimiting.AgentRequestDelayMs);
     }
 
     [Fact]
@@ -357,6 +398,112 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
             Assert.True(json.TryGetProperty("latencyMs", out _));
         else
             Assert.True(json.TryGetProperty("error", out _));
+    }
+
+    [Fact]
+    public async Task Post_SettingsTest_CerebrasWithoutKey_ReturnsOkFalse()
+    {
+        var config = await _configService.LoadAsync();
+        config.DefaultProvider = ProviderType.Cerebras;
+        config.Cerebras.ApiKey = null;
+        await _configService.SaveAsync(config);
+
+        var response = await _client.PostAsync("/api/settings/test", null);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(payload.GetProperty("ok").GetBoolean());
+        Assert.Contains("Kein Cerebras API-Key", payload.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Put_Settings_WithoutConfigService_Returns503()
+    {
+        var port = GetFreePort();
+        var serverNoConfig = new ServerHost(_handler);
+        using var cts = new CancellationTokenSource();
+        var options = new ServerOptions(port, true, null, null, true, false, null, false, null);
+        var task = serverNoConfig.RunAsync(options, cts.Token);
+        var url = $"http://127.0.0.1:{port}";
+        await WaitForServerAsync(url);
+
+        using var client = new HttpClient { BaseAddress = new Uri(url) };
+        var response = await client.PutAsync("/api/settings",
+            new StringContent("{}", Encoding.UTF8, "application/json"));
+
+        await cts.CancelAsync();
+        try
+        {
+            using var probe = new HttpClient();
+            await probe.GetAsync($"{url}/");
+        }
+        catch { }
+        try { await task.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_SettingsTest_WithoutConfigService_Returns503()
+    {
+        var port = GetFreePort();
+        var serverNoConfig = new ServerHost(_handler);
+        using var cts = new CancellationTokenSource();
+        var options = new ServerOptions(port, true, null, null, true, false, null, false, null);
+        var task = serverNoConfig.RunAsync(options, cts.Token);
+        var url = $"http://127.0.0.1:{port}";
+        await WaitForServerAsync(url);
+
+        using var client = new HttpClient { BaseAddress = new Uri(url) };
+        var response = await client.PostAsync("/api/settings/test", null);
+
+        await cts.CancelAsync();
+        try
+        {
+            using var probe = new HttpClient();
+            await probe.GetAsync($"{url}/");
+        }
+        catch { }
+        try { await task.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public void SettingsApiHandler_TryGetCerebrasApiRoot_HandlesExpectedInputs()
+    {
+        var method = typeof(ServerHost).Assembly
+            .GetType("BashGPT.Server.SettingsApiHandler")!
+            .GetMethod("TryGetCerebrasApiRoot", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var fromNull = (string)method!.Invoke(null, [null])!;
+        var fromInvalid = (string)method.Invoke(null, ["not-a-url"])!;
+        var fromValid = (string)method.Invoke(null, ["https://api.cerebras.ai/v1/chat/completions"])!;
+
+        Assert.Equal("https://api.cerebras.ai", fromNull);
+        Assert.Equal("https://api.cerebras.ai", fromInvalid);
+        Assert.Equal("https://api.cerebras.ai", fromValid);
+    }
+
+    [Fact]
+    public async Task SettingsApiHandler_TryResolveCerebrasContextWindowAsync_HandlesEarlyExitAndCancelledToken()
+    {
+        var type = typeof(ServerHost).Assembly.GetType("BashGPT.Server.SettingsApiHandler")!;
+        var method = type.GetMethod("TryResolveCerebrasContextWindowAsync", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var config = new AppConfig();
+
+        var whitespaceTask = (Task<int?>)method!.Invoke(null, [config, " ", CancellationToken.None])!;
+        var whitespaceResult = await whitespaceTask;
+        Assert.Null(whitespaceResult);
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var cancelledTask = (Task<int?>)method.Invoke(null, [config, "llama", cts.Token])!;
+        var cancelledResult = await cancelledTask;
+        Assert.Null(cancelledResult);
     }
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────

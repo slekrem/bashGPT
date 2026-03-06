@@ -9,16 +9,29 @@ public static class ProviderFactory
     /// Erstellt den konfigurierten Provider. Ein optionaler <paramref name="overrideType"/>
     /// (z. B. aus einem CLI-Flag) hat Vorrang vor der Config.
     /// </summary>
-    public static ILlmProvider Create(AppConfig config, ProviderType? overrideType = null)
+    public static ILlmProvider Create(
+        AppConfig config,
+        ProviderType? overrideType = null,
+        LlmRateLimiter? sharedLimiter = null)
     {
         var type = overrideType ?? config.DefaultProvider;
 
-        return type switch
+        ILlmProvider provider = type switch
         {
             ProviderType.Ollama   => new OllamaProvider(config.Ollama),
             ProviderType.Cerebras => new CerebrasProvider(config.Cerebras),
             _                     => throw new ArgumentOutOfRangeException(nameof(type), type, null)
         };
+
+        if (config.RateLimiting.Enabled)
+        {
+            var limiter = sharedLimiter ?? new LlmRateLimiter(
+                config.RateLimiting.MaxRequestsPerMinute,
+                config.RateLimiting.AgentRequestDelayMs);
+            provider = new RateLimitedLlmProvider(provider, limiter);
+        }
+
+        return provider;
     }
 
     /// <summary>

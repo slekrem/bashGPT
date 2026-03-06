@@ -280,6 +280,11 @@ export class SettingsView extends LitElement {
       commandTimeoutSeconds: settings.commandTimeoutSeconds ?? 300,
       loopDetectionEnabled: settings.loopDetectionEnabled ?? true,
       maxToolCallRounds: settings.maxToolCallRounds ?? 8,
+      rateLimiting: {
+        enabled: settings.rateLimiting?.enabled ?? true,
+        maxRequestsPerMinute: settings.rateLimiting?.maxRequestsPerMinute ?? 30,
+        agentRequestDelayMs: settings.rateLimiting?.agentRequestDelayMs ?? 500,
+      },
       cerebras: {
         model: cerebrasModel,
         apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
@@ -456,6 +461,7 @@ export class SettingsView extends LitElement {
       commandTimeoutSeconds: settings.commandTimeoutSeconds,
       loopDetectionEnabled: settings.loopDetectionEnabled,
       maxToolCallRounds: settings.maxToolCallRounds,
+      rateLimiting: settings.rateLimiting,
       cerebras: {
         model: settings.cerebras.model,
         ...(cerebrasApiKey ? { apiKey: cerebrasApiKey } : {}),
@@ -891,6 +897,51 @@ export class SettingsView extends LitElement {
             ?disabled=${!s || this._loading || !(s?.loopDetectionEnabled ?? true)}
           />
           <div class="hint">Maximale Anzahl Tool-Call-Runden pro Anfrage. Standard: 8.</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Rate Limiting</div>
+
+        <div class="field">
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="rate-limit-enabled"
+              .checked=${s?.rateLimiting?.enabled ?? false}
+              @change=${(e: Event) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), enabled: (e.target as HTMLInputElement).checked })}
+              ?disabled=${!s || this._loading}
+            />
+            <label for="rate-limit-enabled">Rate Limiting aktivieren</label>
+          </div>
+          <div class="hint">Begrenzt LLM-Anfragen global – schützt vor 429-Fehlern bei vielen Agenten.</div>
+        </div>
+
+        <div class="field">
+          <label>Max. Anfragen pro Minute</label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            max="600"
+            .value=${s?.rateLimiting?.maxRequestsPerMinute?.toString() ?? '30'}
+            @input=${(e: InputEvent) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), maxRequestsPerMinute: this._parseIntInput((e.target as HTMLInputElement).value) ?? 30 })}
+            ?disabled=${!s || this._loading || !(s?.rateLimiting?.enabled ?? false)}
+          />
+          <div class="hint">Gleitendes Fenster über 60 Sekunden. Standard: 30.</div>
+        </div>
+
+        <div class="field">
+          <label>Mindestabstand zwischen Anfragen (ms)</label>
+          <input
+            type="number"
+            step="100"
+            min="0"
+            .value=${s?.rateLimiting?.agentRequestDelayMs?.toString() ?? '500'}
+            @input=${(e: InputEvent) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), agentRequestDelayMs: this._parseIntInput((e.target as HTMLInputElement).value) ?? 500 })}
+            ?disabled=${!s || this._loading || !(s?.rateLimiting?.enabled ?? false)}
+          />
+          <div class="hint">Minimale Pause zwischen zwei aufeinanderfolgenden LLM-Aufrufen. Standard: 500 ms.</div>
         </div>
       </div>
 
