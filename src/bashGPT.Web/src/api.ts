@@ -251,7 +251,7 @@ export async function getAgents(): Promise<Agent[]> {
 
 export async function createAgent(payload: {
   name: string
-  type: 'git' | 'http' | 'llm'
+  type: 'git' | 'http' | 'llm' | 'dev'
   path?: string
   url?: string
   intervalSeconds?: number
@@ -270,6 +270,7 @@ export async function createAgent(payload: {
 }
 
 export async function patchAgent(id: string, patch: {
+  path?: string
   isActive?: boolean
   name?: string
   intervalSeconds?: number

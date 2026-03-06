@@ -88,12 +88,13 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             "git" or "gitstatus"   => AgentCheckType.GitStatus,
             "http" or "httpstatus" => AgentCheckType.HttpStatus,
             "llm" or "llmagent"    => AgentCheckType.LlmAgent,
+            "dev" or "devagent"    => AgentCheckType.DevAgent,
             _ => (AgentCheckType?)null
         };
 
         if (type is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http' oder 'llm' sein." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http', 'llm' oder 'dev' sein." }, statusCode: 400);
             return;
         }
 
@@ -112,6 +113,12 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
         if (type == AgentCheckType.LlmAgent && string.IsNullOrWhiteSpace(body.LoopInstruction))
         {
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für LLM-Agenten erforderlich." }, statusCode: 400);
+            return;
+        }
+
+        if (type == AgentCheckType.DevAgent && string.IsNullOrWhiteSpace(body.Path))
+        {
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "path (Repository-Pfad) ist für Dev-Agenten erforderlich." }, statusCode: 400);
             return;
         }
 
@@ -176,6 +183,8 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             agent.SystemPrompt = body.SystemPrompt.Trim().Length > 0 ? body.SystemPrompt.Trim() : null;
         if (body?.LoopInstruction is { Length: > 0 } loop)
             agent.LoopInstruction = loop.Trim();
+        if (body?.Path is { Length: > 0 } newPath)
+            agent.Path = newPath.Trim();
         if (body?.ExecMode is not null)
             agent.ExecMode = body.ExecMode.Trim();
         if (body?.EnabledTools is not null)
@@ -229,6 +238,7 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
     private sealed record PatchAgentRequest(
         bool?   IsActive,
         string? Name,
+        string? Path,
         int?    IntervalSeconds,
         string? SystemPrompt,
         string? LoopInstruction,
