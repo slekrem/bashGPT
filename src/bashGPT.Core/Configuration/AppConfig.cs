@@ -29,6 +29,13 @@ public class CerebrasConfig
     public string? ReasoningEffort { get; set; } = "medium";
 }
 
+public class RateLimitingConfig
+{
+    public bool Enabled { get; set; } = true;
+    public int MaxRequestsPerMinute { get; set; } = 30;
+    public int AgentRequestDelayMs { get; set; } = 500;
+}
+
 public class AppConfig
 {
     public ProviderType DefaultProvider { get; set; } = ProviderType.Ollama;
@@ -39,4 +46,5 @@ public class AppConfig
     public bool DefaultForceTools { get; set; } = false;
     public OllamaConfig Ollama { get; set; } = new();
     public CerebrasConfig Cerebras { get; set; } = new();
+    public RateLimitingConfig RateLimiting { get; set; } = new();
 }

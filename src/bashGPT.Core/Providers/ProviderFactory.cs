@@ -13,12 +13,22 @@ public static class ProviderFactory
     {
         var type = overrideType ?? config.DefaultProvider;
 
-        return type switch
+        ILlmProvider provider = type switch
         {
             ProviderType.Ollama   => new OllamaProvider(config.Ollama),
             ProviderType.Cerebras => new CerebrasProvider(config.Cerebras),
             _                     => throw new ArgumentOutOfRangeException(nameof(type), type, null)
         };
+
+        if (config.RateLimiting.Enabled)
+        {
+            var limiter = new LlmRateLimiter(
+                config.RateLimiting.MaxRequestsPerMinute,
+                config.RateLimiting.AgentRequestDelayMs);
+            provider = new RateLimitedLlmProvider(provider, limiter);
+        }
+
+        return provider;
     }
 
     /// <summary>
