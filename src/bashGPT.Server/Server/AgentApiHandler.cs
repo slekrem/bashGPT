@@ -2,10 +2,11 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BashGPT.Agents;
+using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
-internal sealed class AgentApiHandler(AgentStore? agentStore)
+internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? toolRegistry = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -125,6 +126,7 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
             SystemPrompt    = body.SystemPrompt?.Trim(),
             LoopInstruction = body.LoopInstruction?.Trim(),
             ExecMode        = body.ExecMode?.Trim(),
+            EnabledTools    = FilterEnabledTools(body.EnabledTools),
             IsActive        = true,
         };
 
@@ -176,6 +178,8 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
             agent.LoopInstruction = loop.Trim();
         if (body?.ExecMode is not null)
             agent.ExecMode = body.ExecMode.Trim();
+        if (body?.EnabledTools is not null)
+            agent.EnabledTools = FilterEnabledTools(body.EnabledTools);
 
         await agentStore!.UpsertAsync(agent);
         await ApiResponse.WriteJsonAsync(ctx.Response, ToDto(agent));
@@ -202,6 +206,7 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
         systemPrompt       = a.SystemPrompt,
         loopInstruction    = a.LoopInstruction,
         execMode           = a.ExecMode,
+        enabledTools       = a.EnabledTools,
         isActive           = a.IsActive,
         lastRun            = a.LastRun,
         lastMessage        = a.LastMessage,
@@ -218,7 +223,8 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
         int? IntervalSeconds,
         string? SystemPrompt,
         string? LoopInstruction,
-        string? ExecMode);
+        string? ExecMode,
+        List<string>? EnabledTools = null);
 
     private sealed record PatchAgentRequest(
         bool?   IsActive,
@@ -226,5 +232,15 @@ internal sealed class AgentApiHandler(AgentStore? agentStore)
         int?    IntervalSeconds,
         string? SystemPrompt,
         string? LoopInstruction,
-        string? ExecMode);
+        string? ExecMode,
+        List<string>? EnabledTools = null);
+
+    private List<string> FilterEnabledTools(List<string>? requested)
+    {
+        if (requested is null || requested.Count == 0)
+            return [];
+        if (toolRegistry is null)
+            return requested;
+        return requested.Where(n => toolRegistry.TryGet(n, out _)).ToList();
+    }
 }

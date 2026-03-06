@@ -1,10 +1,12 @@
 using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Storage;
+using BashGPT.Tools.Abstractions;
+using BashGPT.Tools.Execution;
 
 namespace BashGPT.Agents;
 
-public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionStore = null) : IAgentCheck
+public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionStore = null, ToolRegistry? toolRegistry = null) : IAgentCheck
 {
     private const int MaxRounds = 5;
 
@@ -47,7 +49,10 @@ public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionS
 
         messages.Add(new(ChatRole.User, agent.LoopInstruction));
 
-        var tools = new[] { ToolDefinitions.Bash };
+        var enabledITools = BuildEnabledTools(agent);
+        var tools = enabledITools.Count > 0
+            ? enabledITools.Select(t => ToLlmToolDefinition(t.Definition)).ToArray()
+            : [ToolDefinitions.Bash];
         var lastContent = "";
         var commandsThisRun = new List<SessionCommand>();
 
@@ -69,7 +74,19 @@ public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionS
             foreach (var call in response.ToolCalls)
             {
                 string toolResult;
-                if (ToolCallParsing.TryGetCommand(call, out var command, out var parseError))
+                if (enabledITools.Count > 0 && toolRegistry is not null && toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
+                {
+                    var iResult = await iTool.ExecuteAsync(new BashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
+                    toolResult = iResult.Content;
+                    commandsThisRun.Add(new SessionCommand
+                    {
+                        Command     = call.Name,
+                        Output      = toolResult,
+                        ExitCode    = iResult.Success ? 0 : 1,
+                        WasExecuted = true,
+                    });
+                }
+                else if (ToolCallParsing.TryGetCommand(call, out var command, out var parseError))
                 {
                     toolResult = await ExecuteCommandAsync(executor, command, execMode, ct);
                     var (exitCode, wasExecuted) = ParseToolResult(toolResult);
@@ -172,4 +189,34 @@ public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionS
         "dry-run"   or "dryrun"   => ExecutionMode.DryRun,
         _                         => ExecutionMode.NoExec,
     };
+
+    private List<ITool> BuildEnabledTools(AgentRecord agent)
+    {
+        if (toolRegistry is null || agent.EnabledTools.Count == 0)
+            return [];
+        var result = new List<ITool>();
+        foreach (var name in agent.EnabledTools)
+            if (toolRegistry.TryGet(name, out var t) && t is not null)
+                result.Add(t);
+        return result;
+    }
+
+    private static BashGPT.Providers.ToolDefinition ToLlmToolDefinition(BashGPT.Tools.Abstractions.ToolDefinition def)
+    {
+        var required = def.Parameters
+            .Where(p => p.Required)
+            .Select(p => p.Name)
+            .ToArray();
+
+        var properties = def.Parameters.ToDictionary(
+            p => p.Name,
+            p => p.Type == "object"
+                ? (object)new { type = p.Type, description = p.Description, additionalProperties = new { type = "string" } }
+                : (object)new { type = p.Type, description = p.Description });
+
+        return new BashGPT.Providers.ToolDefinition(
+            Name: def.Name,
+            Description: def.Description,
+            Parameters: new { type = "object", properties, required });
+    }
 }

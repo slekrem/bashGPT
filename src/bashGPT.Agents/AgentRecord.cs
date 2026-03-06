@@ -23,6 +23,7 @@ public sealed class AgentRecord
     public string? SystemPrompt { get; set; }
     public string? LoopInstruction { get; set; }
     public string? ExecMode { get; set; }
+    public List<string> EnabledTools { get; set; } = [];
     public bool IsActive { get; set; } = true;
 
     // Runtime-State

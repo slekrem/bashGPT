@@ -6,6 +6,7 @@ using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Storage;
+using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
@@ -19,19 +20,23 @@ public class ServerHost
     private readonly StreamingChatApiHandler   _streamingChatHandler;
     private readonly SessionApiHandler         _sessionHandler;
     private readonly AgentApiHandler           _agentHandler;
+    private readonly ToolApiHandler            _toolHandler;
     private readonly ConfigurationService?     _configService;
     private readonly AgentStore?               _agentStore;
     private readonly SessionStore?             _sessionStore;
+    private readonly ToolRegistry?             _toolRegistry;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null,
-        AgentStore? agentStore = null)
+        AgentStore? agentStore = null,
+        ToolRegistry? toolRegistry = null)
     {
         _configService        = configService;
         _agentStore           = agentStore;
         _sessionStore         = sessionStore;
+        _toolRegistry         = toolRegistry;
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
@@ -39,7 +44,8 @@ public class ServerHost
         _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
-        _agentHandler         = new AgentApiHandler(agentStore);
+        _agentHandler         = new AgentApiHandler(agentStore, toolRegistry);
+        _toolHandler          = new ToolApiHandler(toolRegistry);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
@@ -76,7 +82,7 @@ public class ServerHost
                 catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
 
             var runner = new AgentRunner(_agentStore,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore)],
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry)],
                 agentProvider, _sessionStore);
             _ = Task.Run(() => runner.RunAsync(ct), ct);
             Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");
@@ -169,6 +175,9 @@ public class ServerHost
 
             if (path.StartsWith("/api/sessions", StringComparison.Ordinal))
             { await _sessionHandler.HandleAsync(ctx, ct); return; }
+
+            if (req.HttpMethod == "GET" && path == "/api/tools")
+            { await _toolHandler.HandleAsync(ctx.Response, ct); return; }
 
             if (path.StartsWith("/api/agents", StringComparison.Ordinal))
             { await _agentHandler.HandleAsync(ctx, ct); return; }
