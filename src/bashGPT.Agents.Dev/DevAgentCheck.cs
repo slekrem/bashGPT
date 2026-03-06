@@ -56,60 +56,83 @@ public sealed class DevAgentCheck(
 
         var lastContent = "";
         var commandsThisRun = new List<SessionCommand>();
+        string? providerError = null;
 
-        for (var round = 0; round < MaxRounds; round++)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-
-            var response = await provider.ChatAsync(
-                new LlmChatRequest(messages, Tools: tools, Stream: false), ct);
-
-            lastContent = response.Content;
-
-            if (response.ToolCalls.Count == 0)
-                break;
-
-            messages.Add(ChatMessage.AssistantWithToolCalls(response.ToolCalls, response.Content));
-
-            foreach (var call in response.ToolCalls)
+            for (var round = 0; round < MaxRounds; round++)
             {
-                string toolResult;
-                if (enabledITools.Count > 0 && toolRegistry is not null && toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
-                {
-                    var input = InjectRepoCwd(call.ArgumentsJson ?? "{}", repoPath);
-                    var iResult = await iTool.ExecuteAsync(new BashGPT.Tools.Abstractions.ToolCall(call.Name, input), ct);
-                    toolResult = iResult.Content;
-                    commandsThisRun.Add(new SessionCommand
-                    {
-                        Command     = call.Name,
-                        Output      = toolResult,
-                        ExitCode    = iResult.Success ? 0 : 1,
-                        WasExecuted = true,
-                    });
-                }
-                else if (ToolCallParsing.TryGetCommand(call, out var command, out var parseError))
-                {
-                    toolResult = await ExecuteCommandAsync(executor, command, repoPath, execMode, ct);
-                    var (exitCode, wasExecuted) = ParseToolResult(toolResult);
-                    commandsThisRun.Add(new SessionCommand
-                    {
-                        Command     = command,
-                        Output      = toolResult,
-                        ExitCode    = exitCode,
-                        WasExecuted = wasExecuted,
-                    });
-                }
-                else
-                {
-                    toolResult = $"Fehler: {parseError}";
-                }
+                ct.ThrowIfCancellationRequested();
 
-                messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
+                var response = await provider.ChatAsync(
+                    new LlmChatRequest(messages, Tools: tools, Stream: false), ct);
+
+                lastContent = response.Content;
+
+                if (response.ToolCalls.Count == 0)
+                    break;
+
+                messages.Add(ChatMessage.AssistantWithToolCalls(response.ToolCalls, response.Content));
+
+                foreach (var call in response.ToolCalls)
+                {
+                    string toolResult;
+                    if (enabledITools.Count > 0 && toolRegistry is not null && toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
+                    {
+                        var input = InjectRepoCwd(call.ArgumentsJson ?? "{}", repoPath);
+                        var iResult = await iTool.ExecuteAsync(new Tools.Abstractions.ToolCall(call.Name, input), ct);
+                        toolResult = iResult.Content;
+                        commandsThisRun.Add(new SessionCommand
+                        {
+                            Command     = call.Name,
+                            Output      = toolResult,
+                            ExitCode    = iResult.Success ? 0 : 1,
+                            WasExecuted = true,
+                        });
+                    }
+                    else if (ToolCallParsing.TryGetCommand(call, out var command, out var parseError))
+                    {
+                        toolResult = await ExecuteCommandAsync(executor, command, repoPath, execMode, ct);
+                        var (exitCode, wasExecuted) = ParseToolResult(toolResult);
+                        commandsThisRun.Add(new SessionCommand
+                        {
+                            Command     = command,
+                            Output      = toolResult,
+                            ExitCode    = exitCode,
+                            WasExecuted = wasExecuted,
+                        });
+                    }
+                    else
+                    {
+                        toolResult = $"Fehler: {parseError}";
+                    }
+
+                    messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            providerError = ex.Message;
+            Console.Error.WriteLine($"[ERROR] Dev-Agent '{agent.Name}' – Provider-Fehler: {ex.Message}");
+        }
+        finally
+        {
+            if (sessionStore is not null && (!string.IsNullOrEmpty(lastContent) || commandsThisRun.Count > 0 || providerError is not null))
+            {
+                var content = providerError is not null
+                    ? $"{(string.IsNullOrEmpty(lastContent) ? "" : lastContent + "\n\n")}[Fehler: {providerError}]"
+                    : lastContent;
+                await PersistToSessionAsync(agent, agent.LoopInstruction, content, commandsThisRun, ct);
             }
         }
 
-        if (sessionStore is not null && (!string.IsNullOrEmpty(lastContent) || commandsThisRun.Count > 0))
-            await PersistToSessionAsync(agent, agent.LoopInstruction, lastContent, commandsThisRun, ct);
+        if (providerError is not null)
+            return new AgentCheckResult("error", Changed: false, $"Provider-Fehler: {providerError}", Success: false);
 
         var hash = string.IsNullOrEmpty(lastContent)
             ? "empty"
