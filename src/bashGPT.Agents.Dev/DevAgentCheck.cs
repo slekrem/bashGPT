@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using BashGPT.Agents;
 using BashGPT.Providers;
 using BashGPT.Shell;
@@ -32,7 +35,7 @@ public sealed class DevAgentCheck(
         if (provider is null)
             return new AgentCheckResult("noprovider", Changed: false, "Kein LLM-Provider konfiguriert.", Success: false);
 
-        var repoPath = agent.Path!;
+        var repoPath = agent.Path;
         var systemPrompt = string.IsNullOrWhiteSpace(agent.SystemPrompt)
             ? DefaultSystemPrompt
             : agent.SystemPrompt;
@@ -105,14 +108,14 @@ public sealed class DevAgentCheck(
             }
         }
 
-        if (sessionStore is not null && !string.IsNullOrEmpty(lastContent))
-            await PersistToSessionAsync(agent, agent.LoopInstruction!, lastContent, commandsThisRun, ct);
+        if (sessionStore is not null && (!string.IsNullOrEmpty(lastContent) || commandsThisRun.Count > 0))
+            await PersistToSessionAsync(agent, agent.LoopInstruction, lastContent, commandsThisRun, ct);
 
         var hash = string.IsNullOrEmpty(lastContent)
             ? "empty"
             : Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(lastContent)))[..16];
+                SHA256.HashData(
+                    Encoding.UTF8.GetBytes(lastContent)))[..16];
 
         return new AgentCheckResult(hash, Changed: false, lastContent, Success: true);
     }
@@ -122,19 +125,26 @@ public sealed class DevAgentCheck(
     {
         try
         {
-            var doc = System.Text.Json.JsonDocument.Parse(argumentsJson);
+            var doc = JsonDocument.Parse(argumentsJson);
             var root = doc.RootElement;
-            if (root.ValueKind != System.Text.Json.JsonValueKind.Object)
+            if (root.ValueKind != JsonValueKind.Object)
                 return argumentsJson;
 
             // cwd schon gesetzt → unverändert
-            if (root.TryGetProperty("cwd", out var cwd) && cwd.ValueKind == System.Text.Json.JsonValueKind.String
+            if (root.TryGetProperty("cwd", out var cwd) && cwd.ValueKind == JsonValueKind.String
                 && !string.IsNullOrWhiteSpace(cwd.GetString()))
                 return argumentsJson;
 
-            var dict = root.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value.ToString());
-            dict["cwd"] = repoPath;
-            return System.Text.Json.JsonSerializer.Serialize(dict);
+            // JsonElement als raw-Value erhalten, damit Typen (number, bool) erhalten bleiben
+            using var ms = new MemoryStream();
+            using var writer = new Utf8JsonWriter(ms);
+            writer.WriteStartObject();
+            foreach (var prop in root.EnumerateObject())
+                prop.WriteTo(writer);
+            writer.WriteString("cwd", repoPath);
+            writer.WriteEndObject();
+            writer.Flush();
+            return Encoding.UTF8.GetString(ms.ToArray());
         }
         catch
         {
@@ -212,7 +222,7 @@ public sealed class DevAgentCheck(
     }
 
     private async Task PersistToSessionAsync(
-        AgentRecord agent, string userMsg, string assistantMsg,
+        AgentRecord agent, string? userMsg, string assistantMsg,
         List<SessionCommand> commands, CancellationToken ct)
     {
         try
@@ -228,7 +238,7 @@ public sealed class DevAgentCheck(
                 UpdatedAt = now,
             };
 
-            session.Messages.Add(new SessionMessage { Role = "user",      Content = userMsg });
+            session.Messages.Add(new SessionMessage { Role = "user",      Content = userMsg ?? "" });
             session.Messages.Add(new SessionMessage
             {
                 Role     = "assistant",
