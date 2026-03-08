@@ -105,6 +105,30 @@ internal sealed class ChatApiHandler(
                 Messages     = allMessages,
                 ShellContext = shellCtx,
             });
+
+            await sessionStore.SaveRequestAsync(body.SessionId, new SessionRequestRecord
+            {
+                Timestamp = now,
+                Prompt    = body.Prompt.Trim(),
+                ExecMode  = body.ExecMode,
+                Response  = result.Response,
+                Commands  = result.Commands.Count > 0
+                    ? result.Commands.Select(c => new SessionCommand
+                      {
+                          Command     = c.Command,
+                          ExitCode    = c.ExitCode,
+                          Output      = c.Output,
+                          WasExecuted = c.WasExecuted,
+                      }).ToList()
+                    : null,
+                Usage = result.Usage is null ? null : new SessionTokenUsage
+                {
+                    InputTokens       = result.Usage.InputTokens,
+                    OutputTokens      = result.Usage.OutputTokens,
+                    TotalTokens       = result.Usage.TotalTokens,
+                    CachedInputTokens = result.Usage.CachedInputTokens,
+                },
+            });
         }
         else
         {

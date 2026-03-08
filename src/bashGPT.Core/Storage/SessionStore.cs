@@ -170,6 +170,25 @@ public class SessionStore
         }
     }
 
+    /// <summary>
+    /// Speichert eine Request-Dokumentation unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;.json.
+    /// Kein globaler Lock nötig – jeder Request bekommt einen eindeutigen Zeitstempel.
+    /// </summary>
+    public async Task SaveRequestAsync(string sessionId, SessionRequestRecord record)
+    {
+        var dir = Path.Combine(SessionDir(sessionId), "requests");
+        Directory.CreateDirectory(dir);
+
+        // Zeitstempel als Dateiname: ISO 8601, Doppelpunkte ersetzt durch Bindestriche
+        var filename = record.Timestamp.Replace(":", "-").Replace("+", "+") + ".json";
+        var path     = Path.Combine(dir, filename);
+        var tmp      = path + ".tmp";
+        var json     = JsonSerializer.Serialize(record, JsonOptions);
+
+        await File.WriteAllTextAsync(tmp, json);
+        File.Move(tmp, path, overwrite: true);
+    }
+
     // ── Interne Hilfsmethoden ─────────────────────────────────────────────────
 
     private string SessionDir(string id)         => Path.Combine(_sessionsDir, id);

@@ -83,3 +83,17 @@ public sealed class SessionTokenUsage
     public int? TotalTokens { get; set; }
     public int? CachedInputTokens { get; set; }
 }
+
+/// <summary>
+/// Dokumentation einer einzelnen POST-Anfrage, gespeichert unter
+/// sessions/&lt;id&gt;/requests/&lt;timestamp&gt;.json.
+/// </summary>
+public sealed class SessionRequestRecord
+{
+    public string  Timestamp { get; set; } = string.Empty;
+    public string  Prompt    { get; set; } = string.Empty;
+    public string? ExecMode  { get; set; }
+    public string  Response  { get; set; } = string.Empty;
+    public List<SessionCommand>?    Commands { get; set; }
+    public SessionTokenUsage?       Usage    { get; set; }
+}

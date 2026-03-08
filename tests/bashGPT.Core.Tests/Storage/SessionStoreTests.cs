@@ -452,6 +452,78 @@ public sealed class SessionStoreTests : IDisposable
         }
     }
 
+    // ── SaveRequestAsync ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveRequestAsync_CreatesRequestsDir()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1", "requests")));
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_WritesFileWithTimestampName()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Single(files);
+        Assert.Contains("2026-03-08T15-30-00.000Z", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_PreservesContent()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var record = new SessionRequestRecord
+        {
+            Timestamp = "2026-03-08T15:30:00.000Z",
+            Prompt    = "Was ist die Antwort?",
+            ExecMode  = "noExec",
+            Response  = "42.",
+        };
+        await store.SaveRequestAsync("s1", record);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json").Single();
+        var json    = await File.ReadAllTextAsync(file);
+        Assert.Contains("Was ist die Antwort?", json);
+        Assert.Contains("42.", json);
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_MultipleRequests_AllFilesSaved()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:31:00.000Z"));
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:32:00.000Z"));
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(3, files.Length);
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        // Auch ohne vorherigen Upsert soll kein Fehler auftreten
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z")));
+        Assert.Null(ex);
+    }
+
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private static SessionRecord MakeSession(
@@ -471,5 +543,12 @@ public sealed class SessionStoreTests : IDisposable
     {
         Role    = role,
         Content = content,
+    };
+
+    private static SessionRequestRecord MakeRequest(string timestamp) => new()
+    {
+        Timestamp = timestamp,
+        Prompt    = "Test-Prompt",
+        Response  = "Test-Antwort",
     };
 }
