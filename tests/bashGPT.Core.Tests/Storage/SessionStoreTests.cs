@@ -49,8 +49,8 @@ public sealed class SessionStoreTests : IDisposable
 
         // index.json muss existieren, aber keine Messages enthalten
         Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
-        // Inhalt ist in der Einzeldatei
-        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        // Inhalt ist im eigenen Session-Ordner
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
 
         var sessions = await store.LoadAllAsync();
         Assert.Empty(sessions[0].Messages);
@@ -85,7 +85,8 @@ public sealed class SessionStoreTests : IDisposable
         await store.UpsertAsync(MakeSession("s1"));
 
         Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
-        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
     }
 
     [Fact]
@@ -117,8 +118,8 @@ public sealed class SessionStoreTests : IDisposable
         var store = CreateStore();
         await store.UpsertAsync(MakeSession("s1"));
 
-        // Einzeldatei manuell löschen → LoadAsync soll null zurückgeben
-        File.Delete(Path.Combine(SessionsDir, "s1.json"));
+        // content.json manuell löschen → LoadAsync soll null zurückgeben
+        File.Delete(Path.Combine(SessionsDir, "s1", "content.json"));
 
         var result = await store.LoadAsync("s1");
         Assert.Null(result);
@@ -182,10 +183,10 @@ public sealed class SessionStoreTests : IDisposable
                 updatedAt: $"2026-01-{i + 1:D2}T00:00:00Z"));
         }
 
-        // Die ältesten 3 Sessions sollen keine Einzeldateien mehr haben
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s00.json")));
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s01.json")));
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s02.json")));
+        // Die ältesten 3 Sessions sollen keine Ordner mehr haben
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s00")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s01")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s02")));
     }
 
     // ── DeleteAsync ───────────────────────────────────────────────────────────
@@ -205,16 +206,16 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_RemovesContentFile()
+    public async Task DeleteAsync_RemovesSessionDir()
     {
         var store = CreateStore();
         await store.UpsertAsync(MakeSession("s1"));
 
-        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1")));
 
         await store.DeleteAsync("s1");
 
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s1")));
     }
 
     [Fact]
@@ -244,7 +245,7 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ClearAsync_RemovesAllContentFiles()
+    public async Task ClearAsync_RemovesAllSessionDirs()
     {
         var store = CreateStore();
         await store.UpsertAsync(MakeSession("s1"));
@@ -252,8 +253,8 @@ public sealed class SessionStoreTests : IDisposable
 
         await store.ClearAsync();
 
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s1.json")));
-        Assert.False(File.Exists(Path.Combine(SessionsDir, "s2.json")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s1")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s2")));
     }
 
     // ── Migration von sessions.json (Legacy) ──────────────────────────────────
@@ -279,8 +280,8 @@ public sealed class SessionStoreTests : IDisposable
 
         Assert.Equal(2, sessions.Count);
         Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
-        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
-        Assert.True(File.Exists(Path.Combine(SessionsDir, "s2.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s2", "content.json")));
     }
 
     [Fact]

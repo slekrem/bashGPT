@@ -123,7 +123,7 @@ public class SessionStore
 
             // Überzählige Einzeldateien löschen
             foreach (var removed in sorted.Skip(MaxSessions))
-                TryDeleteContentFile(removed.Id);
+                TryDeleteSessionDir(removed.Id);
 
             index.Sessions = [.. sorted.Take(MaxSessions)];
             await WriteIndexInternalAsync(index);
@@ -140,7 +140,7 @@ public class SessionStore
         await _lock.WaitAsync();
         try
         {
-            TryDeleteContentFile(id);
+            TryDeleteSessionDir(id);
 
             var index = await ReadIndexInternalAsync();
             index.Sessions.RemoveAll(e => e.Id == id);
@@ -160,7 +160,7 @@ public class SessionStore
         {
             var index = await ReadIndexInternalAsync();
             foreach (var entry in index.Sessions)
-                TryDeleteContentFile(entry.Id);
+                TryDeleteSessionDir(entry.Id);
 
             await WriteIndexInternalAsync(new SessionIndex());
         }
@@ -172,7 +172,8 @@ public class SessionStore
 
     // ── Interne Hilfsmethoden ─────────────────────────────────────────────────
 
-    private string ContentFilePath(string id) => Path.Combine(_sessionsDir, $"{id}.json");
+    private string SessionDir(string id)         => Path.Combine(_sessionsDir, id);
+    private string ContentFilePath(string id)    => Path.Combine(_sessionsDir, id, "content.json");
 
     private async Task<SessionIndex> ReadIndexAsync()
     {
@@ -234,7 +235,8 @@ public class SessionStore
 
     private async Task WriteContentInternalAsync(string id, SessionContent content)
     {
-        Directory.CreateDirectory(_sessionsDir);
+        var dir  = SessionDir(id);
+        Directory.CreateDirectory(dir);
         var path = ContentFilePath(id);
         var tmp  = path + ".tmp";
         var json = JsonSerializer.Serialize(content, JsonOptions);
@@ -242,10 +244,10 @@ public class SessionStore
         File.Move(tmp, path, overwrite: true);
     }
 
-    private void TryDeleteContentFile(string id)
+    private void TryDeleteSessionDir(string id)
     {
-        try { File.Delete(ContentFilePath(id)); }
-        catch { /* ignorieren – Datei evtl. nicht vorhanden */ }
+        try { Directory.Delete(SessionDir(id), recursive: true); }
+        catch { /* ignorieren – Ordner evtl. nicht vorhanden */ }
     }
 
     // ── Migration ─────────────────────────────────────────────────────────────
