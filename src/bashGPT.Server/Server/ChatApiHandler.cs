@@ -106,7 +106,7 @@ internal sealed class ChatApiHandler(
                 ShellContext = shellCtx,
             });
 
-            await sessionStore.SaveRequestAsync(body.SessionId, new SessionRequestRecord
+            var reqRecord = new SessionRequestRecord
             {
                 Timestamp = now,
                 Request   = new SessionRequestData  { Prompt = body.Prompt.Trim(), ExecMode = body.ExecMode },
@@ -130,7 +130,10 @@ internal sealed class ChatApiHandler(
                         CachedInputTokens = result.Usage.CachedInputTokens,
                     },
                 },
-            });
+            };
+            await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
+            if (result.FirstLlmRequestJson is not null)
+                await sessionStore.SaveLlmRequestAsync(body.SessionId, now, result.FirstLlmRequestJson);
         }
         else
         {

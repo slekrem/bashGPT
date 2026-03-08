@@ -523,6 +523,72 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Null(ex);
     }
 
+    // ── SaveLlmRequestAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_CreatesLlmFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json");
+        Assert.Single(files);
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_FileNameContainsTimestampAndLlmSuffix()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json");
+        Assert.Contains("2026-03-08T15-30-00.000Z-llm.json", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_PreservesContent()
+    {
+        var store    = CreateStore();
+        const string llmJson = "{\"model\":\"llama3\",\"messages\":[]}";
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", llmJson);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json").Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Equal(llmJson, content);
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_SeparateFromRequestFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var ts = "2026-03-08T15:30:00.000Z";
+        await store.SaveRequestAsync("s1", MakeRequest(ts));
+        await store.SaveLlmRequestAsync("s1", ts, "{\"model\":\"test\"}");
+
+        var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(2, allFiles.Length);
+        Assert.Single(allFiles, f => !f.EndsWith("-llm.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm.json"));
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{}"));
+        Assert.Null(ex);
+    }
+
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private static SessionRecord MakeSession(

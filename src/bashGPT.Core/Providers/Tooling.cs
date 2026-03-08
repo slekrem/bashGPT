@@ -32,7 +32,8 @@ public record LlmChatRequest(
     string? ToolChoiceName = null,
     bool? ParallelToolCalls = null,
     bool Stream = true,
-    Action<string>? OnToken = null);
+    Action<string>? OnToken = null,
+    Action<string>? OnRequestJson = null);
 
 public record TokenUsage(
     int InputTokens,

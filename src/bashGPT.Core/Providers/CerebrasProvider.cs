@@ -53,6 +53,7 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
 
         // Serialisierung einmalig außerhalb der Retry-Schleife
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
+        request.OnRequestJson?.Invoke(serialized);
         var url = $"{config.BaseUrl.TrimEnd('/')}/chat/completions";
 
         HttpResponseMessage response = null!;

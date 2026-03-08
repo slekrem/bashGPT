@@ -37,7 +37,8 @@ internal static class ChatOrchestrator
         IReadOnlyList<ToolDefinition> tools,
         string? toolChoiceName,
         CancellationToken ct,
-        Action<string>? onToken = null)
+        Action<string>? onToken = null,
+        Action<string>? onRequestJson = null)
     {
         try
         {
@@ -49,7 +50,8 @@ internal static class ChatOrchestrator
                     ToolChoiceName: toolChoiceName,
                     ParallelToolCalls: false,
                     Stream: true,
-                    OnToken: token => { tokenBuffer.Append(token); onToken?.Invoke(token); }),
+                    OnToken: token => { tokenBuffer.Append(token); onToken?.Invoke(token); },
+                    OnRequestJson: onRequestJson),
                 ct);
 
             if (string.IsNullOrWhiteSpace(response.Content) && tokenBuffer.Length > 0)

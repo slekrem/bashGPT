@@ -180,12 +180,29 @@ public class SessionStore
         Directory.CreateDirectory(dir);
 
         // Zeitstempel als Dateiname: ISO 8601, Doppelpunkte ersetzt durch Bindestriche
-        var filename = record.Timestamp.Replace(":", "-").Replace("+", "+") + ".json";
-        var path     = Path.Combine(dir, filename);
+        var safeName = record.Timestamp.Replace(":", "-").Replace("+", "+");
+        var path     = Path.Combine(dir, safeName + ".json");
         var tmp      = path + ".tmp";
         var json     = JsonSerializer.Serialize(record, JsonOptions);
 
         await File.WriteAllTextAsync(tmp, json);
+        File.Move(tmp, path, overwrite: true);
+    }
+
+    /// <summary>
+    /// Speichert den rohen LLM-Request-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm.json.
+    /// Der Inhalt ist das JSON, das tatsächlich an den Provider gesendet wurde.
+    /// </summary>
+    public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
+    {
+        var dir = Path.Combine(SessionDir(sessionId), "requests");
+        Directory.CreateDirectory(dir);
+
+        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
+        var path     = Path.Combine(dir, safeName + "-llm.json");
+        var tmp      = path + ".tmp";
+
+        await File.WriteAllTextAsync(tmp, llmRequestJson);
         File.Move(tmp, path, overwrite: true);
     }
 

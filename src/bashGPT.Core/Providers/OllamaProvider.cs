@@ -33,6 +33,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
+        request.OnRequestJson?.Invoke(serialized);
 
         HttpResponseMessage response;
         try

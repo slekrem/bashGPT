@@ -91,11 +91,14 @@ public class ServerChatRunner(
 
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
-        var tools          = new[] { ToolDefinitions.Bash };
-        var toolChoiceName = opts.ForceTools ? "bash" : null;
-        var usedToolCalls  = false;
+        var tools            = new[] { ToolDefinitions.Bash };
+        var toolChoiceName   = opts.ForceTools ? "bash" : null;
+        var usedToolCalls    = false;
+        string? firstRequestJson = null;
 
-        var firstResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
+        var firstResponse = await ChatOrchestrator.ChatOnceAsync(
+            provider, messages, tools, toolChoiceName, ct, opts.OnToken,
+            onRequestJson: json => firstRequestJson ??= json);
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -205,10 +208,10 @@ public class ServerChatRunner(
                 var responseText = string.IsNullOrWhiteSpace(currentResponse.Content)
                     ? guardMessage
                     : currentResponse.Content;
-                return new ServerChatResult(responseText, commandResults, logs, usedToolCalls, BuildUsage());
+                return BuildResult(responseText, commandResults, usedToolCalls);
             }
 
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
+            return BuildResult(currentResponse.Content, commandResults, usedToolCalls);
         }
 
         // Fallback: Befehle aus Text-Codeblöcken extrahieren
@@ -217,7 +220,7 @@ public class ServerChatRunner(
             logs.Add($"Fallback aktiv: {fallbackCommands.Count} Befehl(e) aus Text-Codeblöcken extrahiert");
 
         if (fallbackCommands.Count == 0 || opts.ExecMode == ExecutionMode.NoExec)
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
+            return BuildResult(currentResponse.Content, commandResults, usedToolCalls);
 
         var fallbackExecMode = opts.ExecMode == ExecutionMode.Ask
             ? ExecutionMode.DryRun
@@ -234,7 +237,7 @@ public class ServerChatRunner(
 
         var executed = fallbackResults.Where(r => r.WasExecuted).ToList();
         if (executed.Count == 0)
-            return new ServerChatResult(currentResponse.Content, commandResults, logs, usedToolCalls, BuildUsage());
+            return BuildResult(currentResponse.Content, commandResults, usedToolCalls);
 
         var followUp = CommandExecutor.BuildFollowUpContext(fallbackResults);
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
@@ -242,15 +245,18 @@ public class ServerChatRunner(
 
         var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
         if (followUpResponse.Error is not null)
-            return new ServerChatResult(followUpResponse.Error, commandResults, logs, usedToolCalls, BuildUsage());
+            return BuildResult(followUpResponse.Error, commandResults, usedToolCalls);
 
         totalInputTokens  += followUpResponse.Response.Usage?.InputTokens  ?? 0;
         totalOutputTokens += followUpResponse.Response.Usage?.OutputTokens ?? 0;
-        return new ServerChatResult(followUpResponse.Response.Content, commandResults, logs, usedToolCalls, BuildUsage());
+        return BuildResult(followUpResponse.Response.Content, commandResults, usedToolCalls);
 
         TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
             ? new TokenUsage(totalInputTokens, totalOutputTokens)
             : null;
+
+        ServerChatResult BuildResult(string content, IReadOnlyList<CommandResult> cmds, bool toolCalls)
+            => new(content, cmds, logs, toolCalls, BuildUsage(), firstRequestJson);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)
