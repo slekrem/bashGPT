@@ -1,12 +1,42 @@
 namespace BashGPT.Storage;
 
 /// <summary>
-/// Wurzel-Dokument für ~/.config/bashgpt/sessions.json
+/// Wurzel-Dokument für ~/.config/bashgpt/sessions.json (Legacy – nur noch für Migration).
 /// </summary>
 public sealed class SessionsFile
 {
     public int Version { get; set; } = 1;
     public List<SessionRecord> Sessions { get; set; } = [];
+}
+
+/// <summary>
+/// Schlanker Index-Eintrag für sessions/index.json (ohne Messages).
+/// </summary>
+public sealed class SessionIndexEntry
+{
+    public string Id        { get; set; } = string.Empty;
+    public string Title     { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Wurzel-Dokument für sessions/index.json.
+/// </summary>
+public sealed class SessionIndex
+{
+    public int Version { get; set; } = 1;
+    public List<SessionIndexEntry> Sessions { get; set; } = [];
+}
+
+/// <summary>
+/// Inhalt einer einzelnen Session-Datei sessions/&lt;id&gt;.json.
+/// </summary>
+public sealed class SessionContent
+{
+    public int Version { get; set; } = 1;
+    public List<SessionMessage> Messages { get; set; } = [];
+    public SessionShellContext? ShellContext { get; set; }
 }
 
 /// <summary>

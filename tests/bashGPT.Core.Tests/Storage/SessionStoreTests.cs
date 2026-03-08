@@ -5,7 +5,8 @@ namespace BashGPT.Core.Tests.Storage;
 public sealed class SessionStoreTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"bashgpt-test-{Guid.NewGuid()}");
-    private string SessionsFile => Path.Combine(_tempDir, "sessions.json");
+    private string SessionsDir  => Path.Combine(_tempDir, "sessions");
+    private string LegacyFile   => Path.Combine(_tempDir, "sessions.json");
 
     public SessionStoreTests() => Directory.CreateDirectory(_tempDir);
 
@@ -15,8 +16,8 @@ public sealed class SessionStoreTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
     }
 
-    private SessionStore CreateStore(string? legacyHistoryFile = null)
-        => new(SessionsFile, legacyHistoryFile);
+    private SessionStore CreateStore(string? legacyHistoryFile = null, string? legacySessionsFile = null)
+        => new(SessionsDir, legacyHistoryFile, legacySessionsFile);
 
     // ── LoadAllAsync ──────────────────────────────────────────────────────────
 
@@ -38,6 +39,21 @@ public sealed class SessionStoreTests : IDisposable
 
         Assert.Single(sessions);
         Assert.Empty(sessions[0].Messages); // Messages werden nicht zurückgegeben
+    }
+
+    [Fact]
+    public async Task LoadAllAsync_ReadsOnlyIndexFile_ContentFileSeparate()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1", messages: [MakeMessage("user", "hallo")]));
+
+        // index.json muss existieren, aber keine Messages enthalten
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        // Inhalt ist in der Einzeldatei
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions[0].Messages);
     }
 
     // ── UpsertAsync / LoadAsync ───────────────────────────────────────────────
@@ -63,6 +79,16 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task UpsertAsync_WritesIndexAndContentFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+    }
+
+    [Fact]
     public async Task UpsertAsync_ExistingId_UpdatesEntry()
     {
         var store = CreateStore();
@@ -83,6 +109,32 @@ public sealed class SessionStoreTests : IDisposable
         var store = CreateStore();
         var result = await store.LoadAsync("nicht-vorhanden");
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoadAsync_MissingContentFile_ReturnsNull()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        // Einzeldatei manuell löschen → LoadAsync soll null zurückgeben
+        File.Delete(Path.Combine(SessionsDir, "s1.json"));
+
+        var result = await store.LoadAsync("s1");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ReadsContentFile_IncludesMessages()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1", messages: [MakeMessage("user", "Hallo")]));
+
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Single(loaded.Messages);
+        Assert.Equal("Hallo", loaded.Messages[0].Content);
     }
 
     // ── Sortierung & MaxSessions ──────────────────────────────────────────────
@@ -118,6 +170,24 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Equal(SessionStore.MaxSessions, sessions.Count);
     }
 
+    [Fact]
+    public async Task UpsertAsync_ExceedsMaxSessions_DeletesOldestContentFiles()
+    {
+        var store = CreateStore();
+
+        for (var i = 0; i < SessionStore.MaxSessions + 3; i++)
+        {
+            await store.UpsertAsync(MakeSession(
+                $"s{i:D2}",
+                updatedAt: $"2026-01-{i + 1:D2}T00:00:00Z"));
+        }
+
+        // Die ältesten 3 Sessions sollen keine Einzeldateien mehr haben
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s00.json")));
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s01.json")));
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s02.json")));
+    }
+
     // ── DeleteAsync ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -132,6 +202,19 @@ public sealed class SessionStoreTests : IDisposable
         var sessions = await store.LoadAllAsync();
         Assert.Single(sessions);
         Assert.Equal("s2", sessions[0].Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesContentFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+
+        await store.DeleteAsync("s1");
+
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s1.json")));
     }
 
     [Fact]
@@ -160,20 +243,141 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Empty(await store.LoadAllAsync());
     }
 
+    [Fact]
+    public async Task ClearAsync_RemovesAllContentFiles()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+        await store.UpsertAsync(MakeSession("s2"));
+
+        await store.ClearAsync();
+
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        Assert.False(File.Exists(Path.Combine(SessionsDir, "s2.json")));
+    }
+
+    // ── Migration von sessions.json (Legacy) ──────────────────────────────────
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_CreatesIndexAndContentFiles()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "Erste", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [{ "role": "user", "content": "Hallo" }] },
+                { "id": "s2", "title": "Zweite", "createdAt": "2026-01-02T00:00:00Z", "updatedAt": "2026-01-02T00:00:00Z",
+                  "messages": [] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+
+        Assert.Equal(2, sessions.Count);
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s2.json")));
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_PreservesMessages()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "Erste", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [{ "role": "user", "content": "Migrierter Inhalt" }] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store  = CreateStore(legacySessionsFile: LegacyFile);
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Single(loaded.Messages);
+        Assert.Equal("Migrierter Inhalt", loaded.Messages[0].Content);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_RenamesOldFile()
+    {
+        var legacyJson = """
+            { "version": 1, "sessions": [] }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store = CreateStore(legacySessionsFile: LegacyFile);
+        await store.LoadAllAsync();
+
+        Assert.False(File.Exists(LegacyFile));
+        Assert.True(File.Exists(LegacyFile + ".migrated"));
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_IsIdempotent()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "T", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        // Erster Start → Migration
+        var store1 = CreateStore(legacySessionsFile: LegacyFile);
+        await store1.LoadAllAsync();
+
+        // Zweiter Start → kein LegacyFile mehr, index.json existiert bereits
+        var store2   = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store2.LoadAllAsync();
+
+        Assert.Single(sessions);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_MissingFile_ReturnsEmpty()
+    {
+        // LegacyFile existiert nicht
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_CorruptFile_ReturnsEmpty()
+    {
+        await File.WriteAllTextAsync(LegacyFile, "das ist kein json {{{");
+
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions);
+    }
+
     // ── Migration von history.json ────────────────────────────────────────────
 
     [Fact]
     public async Task LoadAllAsync_WithLegacyHistoryFile_MigratesMessages()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, """
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, """
             [
               { "role": "user",      "content": "Hallo Welt" },
               { "role": "assistant", "content": "Hallo zurück!" }
             ]
             """);
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store    = CreateStore(legacyHistoryFile: legacyHistoryFile);
         var sessions = await store.LoadAllAsync();
 
         Assert.Single(sessions);
@@ -189,26 +393,26 @@ public sealed class SessionStoreTests : IDisposable
     [Fact]
     public async Task LoadAllAsync_WithEmptyLegacyFile_ReturnsEmpty()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, "[]");
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, "[]");
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store = CreateStore(legacyHistoryFile: legacyHistoryFile);
         Assert.Empty(await store.LoadAllAsync());
     }
 
     [Fact]
     public async Task LoadAllAsync_MigrationRunsOnlyOnce_NoSessionsDuplicated()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, """
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, """
             [{ "role": "user", "content": "Test" }]
             """);
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store = CreateStore(legacyHistoryFile: legacyHistoryFile);
 
         // Erster Aufruf → Migration
         await store.LoadAllAsync();
-        // Zweiter Aufruf → sessions.json existiert bereits, keine erneute Migration
+        // Zweiter Aufruf → index.json existiert bereits, keine erneute Migration
         var sessions = await store.LoadAllAsync();
 
         Assert.Single(sessions);
@@ -229,6 +433,22 @@ public sealed class SessionStoreTests : IDisposable
 
         var sessions = await store.LoadAllAsync();
         Assert.Equal(10, sessions.Count);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ConcurrentWritesDifferentSessions_NoDataLoss()
+    {
+        var store = CreateStore();
+
+        await Task.WhenAll(Enumerable.Range(0, 5)
+            .Select(i => store.UpsertAsync(MakeSession($"s{i}", messages: [MakeMessage("user", $"msg{i}")]))));
+
+        for (var i = 0; i < 5; i++)
+        {
+            var loaded = await store.LoadAsync($"s{i}");
+            Assert.NotNull(loaded);
+            Assert.Single(loaded.Messages);
+        }
     }
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
