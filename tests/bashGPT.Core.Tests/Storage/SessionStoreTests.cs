@@ -419,6 +419,51 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Single(sessions);
     }
 
+    // ── Session-ID-Validierung (Path-Traversal-Schutz) ───────────────────────
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../etc/passwd")]
+    [InlineData("../../secret")]
+    [InlineData("s1/../../etc")]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("abc def")]
+    [InlineData("abc/def")]
+    [InlineData("abc\\def")]
+    public async Task LoadAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() => store.LoadAsync(invalidId));
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../evil")]
+    public async Task DeleteAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() => store.DeleteAsync(invalidId));
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../evil")]
+    public async Task SaveRequestAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.SaveRequestAsync(invalidId, MakeRequest("2026-03-08T15:30:00.000Z")));
+    }
+
+    [Fact]
+    public async Task LoadAsync_ValidSessionId_DoesNotThrow()
+    {
+        var store = CreateStore();
+        var ex = await Record.ExceptionAsync(() => store.LoadAsync("valid-session_123"));
+        Assert.Null(ex); // null weil Session nicht existiert, aber keine Exception
+    }
+
     // ── Parallelität (basic smoke test) ──────────────────────────────────────
 
     [Fact]

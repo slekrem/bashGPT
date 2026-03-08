@@ -95,7 +95,8 @@ internal sealed class ChatApiHandler(
             var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
             if (title.Length > 40) title = title[..40] + "…";
 
-            var now = DateTime.UtcNow.ToString("o");
+            var now        = DateTime.UtcNow.ToString("o");
+            var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
             await sessionStore.UpsertAsync(new SessionRecord
             {
                 Id           = body.SessionId,
@@ -108,7 +109,7 @@ internal sealed class ChatApiHandler(
 
             var reqRecord = new SessionRequestRecord
             {
-                Timestamp = now,
+                Timestamp = requestKey,
                 Request   = new SessionRequestData  { Prompt = body.Prompt.Trim(), ExecMode = body.ExecMode },
                 Response  = new SessionResponseData
                 {
@@ -133,9 +134,9 @@ internal sealed class ChatApiHandler(
             };
             await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
             if (result.FirstLlmRequestJson is not null)
-                await sessionStore.SaveLlmRequestAsync(body.SessionId, now, result.FirstLlmRequestJson);
+                await sessionStore.SaveLlmRequestAsync(body.SessionId, requestKey, result.FirstLlmRequestJson);
             if (result.FirstLlmResponseJson is not null)
-                await sessionStore.SaveLlmResponseAsync(body.SessionId, now, result.FirstLlmResponseJson);
+                await sessionStore.SaveLlmResponseAsync(body.SessionId, requestKey, result.FirstLlmResponseJson);
         }
         else
         {

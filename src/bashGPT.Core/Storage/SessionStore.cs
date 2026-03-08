@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace BashGPT.Storage;
 
@@ -62,6 +63,7 @@ public class SessionStore
     /// <summary>Lädt eine einzelne Session mit allen Messages.</summary>
     public async Task<SessionRecord?> LoadAsync(string id)
     {
+        ValidateSessionId(id);
         var index = await ReadIndexAsync();
         var entry = index.Sessions.FirstOrDefault(e => e.Id == id);
         if (entry is null) return null;
@@ -86,6 +88,7 @@ public class SessionStore
     /// </summary>
     public async Task UpsertAsync(SessionRecord session)
     {
+        ValidateSessionId(session.Id);
         await _lock.WaitAsync();
         try
         {
@@ -137,6 +140,7 @@ public class SessionStore
     /// <summary>Löscht eine Session anhand ihrer ID.</summary>
     public async Task DeleteAsync(string id)
     {
+        ValidateSessionId(id);
         await _lock.WaitAsync();
         try
         {
@@ -176,6 +180,7 @@ public class SessionStore
     /// </summary>
     public async Task SaveRequestAsync(string sessionId, SessionRequestRecord record)
     {
+        ValidateSessionId(sessionId);
         var dir = Path.Combine(SessionDir(sessionId), "requests");
         Directory.CreateDirectory(dir);
 
@@ -195,6 +200,7 @@ public class SessionStore
     /// </summary>
     public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
     {
+        ValidateSessionId(sessionId);
         var dir = Path.Combine(SessionDir(sessionId), "requests");
         Directory.CreateDirectory(dir);
 
@@ -212,6 +218,7 @@ public class SessionStore
     /// </summary>
     public async Task SaveLlmResponseAsync(string sessionId, string timestamp, string llmResponseJson)
     {
+        ValidateSessionId(sessionId);
         var dir = Path.Combine(SessionDir(sessionId), "requests");
         Directory.CreateDirectory(dir);
 
@@ -224,6 +231,24 @@ public class SessionStore
     }
 
     // ── Interne Hilfsmethoden ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Wirft ArgumentException, wenn <paramref name="id"/> nicht der erlaubten
+    /// Zeichen-Whitelist entspricht oder außerhalb von <see cref="_sessionsDir"/> liegen würde.
+    /// Erlaubt: Buchstaben, Ziffern, Bindestrich, Unterstrich (1–128 Zeichen).
+    /// </summary>
+    private static readonly Regex ValidIdPattern = new(@"^[a-zA-Z0-9_-]{1,128}$", RegexOptions.Compiled);
+
+    private void ValidateSessionId(string id)
+    {
+        if (!ValidIdPattern.IsMatch(id))
+            throw new ArgumentException($"Ungültige Session-ID: '{id}'.", nameof(id));
+
+        var root    = Path.GetFullPath(_sessionsDir) + Path.DirectorySeparatorChar;
+        var target  = Path.GetFullPath(Path.Combine(_sessionsDir, id)) + Path.DirectorySeparatorChar;
+        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"Session-ID '{id}' führt außerhalb des erlaubten Verzeichnisses.", nameof(id));
+    }
 
     private string SessionDir(string id)         => Path.Combine(_sessionsDir, id);
     private string ContentFilePath(string id)    => Path.Combine(_sessionsDir, id, "content.json");
