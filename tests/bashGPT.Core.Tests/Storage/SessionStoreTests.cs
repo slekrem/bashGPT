@@ -533,7 +533,7 @@ public sealed class SessionStoreTests : IDisposable
 
         await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
 
-        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json");
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json");
         Assert.Single(files);
     }
 
@@ -545,8 +545,8 @@ public sealed class SessionStoreTests : IDisposable
 
         await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
 
-        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json");
-        Assert.Contains("2026-03-08T15-30-00.000Z-llm.json", Path.GetFileName(files[0]));
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json");
+        Assert.Contains("2026-03-08T15-30-00.000Z-llm-request.json", Path.GetFileName(files[0]));
     }
 
     [Fact]
@@ -558,7 +558,7 @@ public sealed class SessionStoreTests : IDisposable
 
         await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", llmJson);
 
-        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm.json").Single();
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json").Single();
         var content = await File.ReadAllTextAsync(file);
         Assert.Equal(llmJson, content);
     }
@@ -575,8 +575,8 @@ public sealed class SessionStoreTests : IDisposable
 
         var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
         Assert.Equal(2, allFiles.Length);
-        Assert.Single(allFiles, f => !f.EndsWith("-llm.json"));
-        Assert.Single(allFiles, f => f.EndsWith("-llm.json"));
+        Assert.Single(allFiles, f => !f.EndsWith("-llm-request.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-request.json"));
     }
 
     [Fact]
@@ -643,7 +643,7 @@ public sealed class SessionStoreTests : IDisposable
         var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
         Assert.Equal(3, allFiles.Length);
         Assert.Single(allFiles, f => !f.Contains("-llm"));
-        Assert.Single(allFiles, f => f.EndsWith("-llm.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-request.json"));
         Assert.Single(allFiles, f => f.EndsWith("-llm-response.json"));
     }
 

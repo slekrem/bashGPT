@@ -190,7 +190,7 @@ public class SessionStore
     }
 
     /// <summary>
-    /// Speichert den rohen LLM-Request-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm.json.
+    /// Speichert den rohen LLM-Request-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-request.json.
     /// Der Inhalt ist das JSON, das tatsächlich an den Provider gesendet wurde.
     /// </summary>
     public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
@@ -199,7 +199,7 @@ public class SessionStore
         Directory.CreateDirectory(dir);
 
         var safeName = timestamp.Replace(":", "-").Replace("+", "+");
-        var path     = Path.Combine(dir, safeName + "-llm.json");
+        var path     = Path.Combine(dir, safeName + "-llm-request.json");
         var tmp      = path + ".tmp";
 
         await File.WriteAllTextAsync(tmp, llmRequestJson);
