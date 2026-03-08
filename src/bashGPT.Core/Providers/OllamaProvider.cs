@@ -33,6 +33,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
+        request.OnRequestJson?.Invoke(serialized);
 
         HttpResponseMessage response;
         try
@@ -78,6 +79,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         if (!request.Stream)
         {
             var json = await response.Content.ReadAsStringAsync(ct);
+            request.OnResponseJson?.Invoke(json);
             var full = JsonSerializer.Deserialize<OpenAiChatResponse>(json, JsonDefaults.Options);
             var message = full?.Choices?.FirstOrDefault()?.Message;
             var content = message?.Content ?? "";
@@ -92,6 +94,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
 
         var contentBuilder = new StringBuilder();
         var toolBuilder = new Dictionary<int, ToolCallBuilder>();
+        var rawLines = new StringBuilder();
         OpenAiUsage? streamUsage = null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -103,6 +106,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             if (string.IsNullOrWhiteSpace(line)) continue;
 
             if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+
+            rawLines.AppendLine(line);
 
             var json = line["data:".Length..].Trim();
             if (json == "[DONE]") break;
@@ -134,6 +139,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             if (chunk?.Usage is not null)
                 streamUsage = chunk.Usage;
         }
+
+        request.OnResponseJson?.Invoke(rawLines.ToString());
 
         var toolCallsFinal = toolBuilder
             .OrderBy(kvp => kvp.Key)

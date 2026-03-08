@@ -5,7 +5,8 @@ namespace BashGPT.Core.Tests.Storage;
 public sealed class SessionStoreTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"bashgpt-test-{Guid.NewGuid()}");
-    private string SessionsFile => Path.Combine(_tempDir, "sessions.json");
+    private string SessionsDir  => Path.Combine(_tempDir, "sessions");
+    private string LegacyFile   => Path.Combine(_tempDir, "sessions.json");
 
     public SessionStoreTests() => Directory.CreateDirectory(_tempDir);
 
@@ -15,8 +16,8 @@ public sealed class SessionStoreTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
     }
 
-    private SessionStore CreateStore(string? legacyHistoryFile = null)
-        => new(SessionsFile, legacyHistoryFile);
+    private SessionStore CreateStore(string? legacyHistoryFile = null, string? legacySessionsFile = null)
+        => new(SessionsDir, legacyHistoryFile, legacySessionsFile);
 
     // ── LoadAllAsync ──────────────────────────────────────────────────────────
 
@@ -38,6 +39,21 @@ public sealed class SessionStoreTests : IDisposable
 
         Assert.Single(sessions);
         Assert.Empty(sessions[0].Messages); // Messages werden nicht zurückgegeben
+    }
+
+    [Fact]
+    public async Task LoadAllAsync_ReadsOnlyIndexFile_ContentFileSeparate()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1", messages: [MakeMessage("user", "hallo")]));
+
+        // index.json muss existieren, aber keine Messages enthalten
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        // Inhalt ist im eigenen Session-Ordner
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
+
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions[0].Messages);
     }
 
     // ── UpsertAsync / LoadAsync ───────────────────────────────────────────────
@@ -63,6 +79,17 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task UpsertAsync_WritesIndexAndContentFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
+    }
+
+    [Fact]
     public async Task UpsertAsync_ExistingId_UpdatesEntry()
     {
         var store = CreateStore();
@@ -83,6 +110,32 @@ public sealed class SessionStoreTests : IDisposable
         var store = CreateStore();
         var result = await store.LoadAsync("nicht-vorhanden");
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoadAsync_MissingContentFile_ReturnsNull()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        // content.json manuell löschen → LoadAsync soll null zurückgeben
+        File.Delete(Path.Combine(SessionsDir, "s1", "content.json"));
+
+        var result = await store.LoadAsync("s1");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ReadsContentFile_IncludesMessages()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1", messages: [MakeMessage("user", "Hallo")]));
+
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Single(loaded.Messages);
+        Assert.Equal("Hallo", loaded.Messages[0].Content);
     }
 
     // ── Sortierung & MaxSessions ──────────────────────────────────────────────
@@ -118,6 +171,24 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Equal(SessionStore.MaxSessions, sessions.Count);
     }
 
+    [Fact]
+    public async Task UpsertAsync_ExceedsMaxSessions_DeletesOldestContentFiles()
+    {
+        var store = CreateStore();
+
+        for (var i = 0; i < SessionStore.MaxSessions + 3; i++)
+        {
+            await store.UpsertAsync(MakeSession(
+                $"s{i:D2}",
+                updatedAt: $"2026-01-{i + 1:D2}T00:00:00Z"));
+        }
+
+        // Die ältesten 3 Sessions sollen keine Ordner mehr haben
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s00")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s01")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s02")));
+    }
+
     // ── DeleteAsync ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -132,6 +203,19 @@ public sealed class SessionStoreTests : IDisposable
         var sessions = await store.LoadAllAsync();
         Assert.Single(sessions);
         Assert.Equal("s2", sessions[0].Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesSessionDir()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1")));
+
+        await store.DeleteAsync("s1");
+
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s1")));
     }
 
     [Fact]
@@ -160,20 +244,141 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Empty(await store.LoadAllAsync());
     }
 
+    [Fact]
+    public async Task ClearAsync_RemovesAllSessionDirs()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+        await store.UpsertAsync(MakeSession("s2"));
+
+        await store.ClearAsync();
+
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s1")));
+        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s2")));
+    }
+
+    // ── Migration von sessions.json (Legacy) ──────────────────────────────────
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_CreatesIndexAndContentFiles()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "Erste", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [{ "role": "user", "content": "Hallo" }] },
+                { "id": "s2", "title": "Zweite", "createdAt": "2026-01-02T00:00:00Z", "updatedAt": "2026-01-02T00:00:00Z",
+                  "messages": [] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+
+        Assert.Equal(2, sessions.Count);
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "index.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s1", "content.json")));
+        Assert.True(File.Exists(Path.Combine(SessionsDir, "s2", "content.json")));
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_PreservesMessages()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "Erste", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [{ "role": "user", "content": "Migrierter Inhalt" }] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store  = CreateStore(legacySessionsFile: LegacyFile);
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Single(loaded.Messages);
+        Assert.Equal("Migrierter Inhalt", loaded.Messages[0].Content);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_RenamesOldFile()
+    {
+        var legacyJson = """
+            { "version": 1, "sessions": [] }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        var store = CreateStore(legacySessionsFile: LegacyFile);
+        await store.LoadAllAsync();
+
+        Assert.False(File.Exists(LegacyFile));
+        Assert.True(File.Exists(LegacyFile + ".migrated"));
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_IsIdempotent()
+    {
+        var legacyJson = """
+            {
+              "version": 1,
+              "sessions": [
+                { "id": "s1", "title": "T", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+                  "messages": [] }
+              ]
+            }
+            """;
+        await File.WriteAllTextAsync(LegacyFile, legacyJson);
+
+        // Erster Start → Migration
+        var store1 = CreateStore(legacySessionsFile: LegacyFile);
+        await store1.LoadAllAsync();
+
+        // Zweiter Start → kein LegacyFile mehr, index.json existiert bereits
+        var store2   = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store2.LoadAllAsync();
+
+        Assert.Single(sessions);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_MissingFile_ReturnsEmpty()
+    {
+        // LegacyFile existiert nicht
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions);
+    }
+
+    [Fact]
+    public async Task MigrateFromLegacySessions_CorruptFile_ReturnsEmpty()
+    {
+        await File.WriteAllTextAsync(LegacyFile, "das ist kein json {{{");
+
+        var store    = CreateStore(legacySessionsFile: LegacyFile);
+        var sessions = await store.LoadAllAsync();
+        Assert.Empty(sessions);
+    }
+
     // ── Migration von history.json ────────────────────────────────────────────
 
     [Fact]
     public async Task LoadAllAsync_WithLegacyHistoryFile_MigratesMessages()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, """
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, """
             [
               { "role": "user",      "content": "Hallo Welt" },
               { "role": "assistant", "content": "Hallo zurück!" }
             ]
             """);
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store    = CreateStore(legacyHistoryFile: legacyHistoryFile);
         var sessions = await store.LoadAllAsync();
 
         Assert.Single(sessions);
@@ -189,29 +394,74 @@ public sealed class SessionStoreTests : IDisposable
     [Fact]
     public async Task LoadAllAsync_WithEmptyLegacyFile_ReturnsEmpty()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, "[]");
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, "[]");
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store = CreateStore(legacyHistoryFile: legacyHistoryFile);
         Assert.Empty(await store.LoadAllAsync());
     }
 
     [Fact]
     public async Task LoadAllAsync_MigrationRunsOnlyOnce_NoSessionsDuplicated()
     {
-        var legacyFile = Path.Combine(_tempDir, "history.json");
-        await File.WriteAllTextAsync(legacyFile, """
+        var legacyHistoryFile = Path.Combine(_tempDir, "history.json");
+        await File.WriteAllTextAsync(legacyHistoryFile, """
             [{ "role": "user", "content": "Test" }]
             """);
 
-        var store = CreateStore(legacyHistoryFile: legacyFile);
+        var store = CreateStore(legacyHistoryFile: legacyHistoryFile);
 
         // Erster Aufruf → Migration
         await store.LoadAllAsync();
-        // Zweiter Aufruf → sessions.json existiert bereits, keine erneute Migration
+        // Zweiter Aufruf → index.json existiert bereits, keine erneute Migration
         var sessions = await store.LoadAllAsync();
 
         Assert.Single(sessions);
+    }
+
+    // ── Session-ID-Validierung (Path-Traversal-Schutz) ───────────────────────
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../etc/passwd")]
+    [InlineData("../../secret")]
+    [InlineData("s1/../../etc")]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("abc def")]
+    [InlineData("abc/def")]
+    [InlineData("abc\\def")]
+    public async Task LoadAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() => store.LoadAsync(invalidId));
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../evil")]
+    public async Task DeleteAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() => store.DeleteAsync(invalidId));
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../evil")]
+    public async Task SaveRequestAsync_InvalidSessionId_ThrowsArgumentException(string invalidId)
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.SaveRequestAsync(invalidId, MakeRequest("2026-03-08T15:30:00.000Z")));
+    }
+
+    [Fact]
+    public async Task LoadAsync_ValidSessionId_DoesNotThrow()
+    {
+        var store = CreateStore();
+        var ex = await Record.ExceptionAsync(() => store.LoadAsync("valid-session_123"));
+        Assert.Null(ex); // null weil Session nicht existiert, aber keine Exception
     }
 
     // ── Parallelität (basic smoke test) ──────────────────────────────────────
@@ -229,6 +479,227 @@ public sealed class SessionStoreTests : IDisposable
 
         var sessions = await store.LoadAllAsync();
         Assert.Equal(10, sessions.Count);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ConcurrentWritesDifferentSessions_NoDataLoss()
+    {
+        var store = CreateStore();
+
+        await Task.WhenAll(Enumerable.Range(0, 5)
+            .Select(i => store.UpsertAsync(MakeSession($"s{i}", messages: [MakeMessage("user", $"msg{i}")]))));
+
+        for (var i = 0; i < 5; i++)
+        {
+            var loaded = await store.LoadAsync($"s{i}");
+            Assert.NotNull(loaded);
+            Assert.Single(loaded.Messages);
+        }
+    }
+
+    // ── SaveRequestAsync ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveRequestAsync_CreatesRequestsDir()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s1", "requests")));
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_WritesFileWithTimestampName()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Single(files);
+        Assert.Contains("2026-03-08T15-30-00.000Z", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_PreservesContent()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var record = new SessionRequestRecord
+        {
+            Timestamp = "2026-03-08T15:30:00.000Z",
+            Request   = new SessionRequestData  { Prompt = "Was ist die Antwort?", ExecMode = "noExec" },
+            Response  = new SessionResponseData { Content = "42." },
+        };
+        await store.SaveRequestAsync("s1", record);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json").Single();
+        var json    = await File.ReadAllTextAsync(file);
+        Assert.Contains("Was ist die Antwort?", json);
+        Assert.Contains("42.", json);
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_MultipleRequests_AllFilesSaved()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z"));
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:31:00.000Z"));
+        await store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:32:00.000Z"));
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(3, files.Length);
+    }
+
+    [Fact]
+    public async Task SaveRequestAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        // Auch ohne vorherigen Upsert soll kein Fehler auftreten
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveRequestAsync("s1", MakeRequest("2026-03-08T15:30:00.000Z")));
+        Assert.Null(ex);
+    }
+
+    // ── SaveLlmRequestAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_CreatesLlmFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json");
+        Assert.Single(files);
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_FileNameContainsTimestampAndLlmSuffix()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{\"model\":\"test\"}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json");
+        Assert.Contains("2026-03-08T15-30-00.000Z-llm-request.json", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_PreservesContent()
+    {
+        var store    = CreateStore();
+        const string llmJson = "{\"model\":\"llama3\",\"messages\":[]}";
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", llmJson);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-request.json").Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Equal(llmJson, content);
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_SeparateFromRequestFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var ts = "2026-03-08T15:30:00.000Z";
+        await store.SaveRequestAsync("s1", MakeRequest(ts));
+        await store.SaveLlmRequestAsync("s1", ts, "{\"model\":\"test\"}");
+
+        var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(2, allFiles.Length);
+        Assert.Single(allFiles, f => !f.EndsWith("-llm-request.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-request.json"));
+    }
+
+    [Fact]
+    public async Task SaveLlmRequestAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveLlmRequestAsync("s1", "2026-03-08T15:30:00.000Z", "{}"));
+        Assert.Null(ex);
+    }
+
+    // ── SaveLlmResponseAsync ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_CreatesResponseFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {\"choices\":[]}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json");
+        Assert.Single(files);
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_FileNameContainsTimestampAndSuffix()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json");
+        Assert.Contains("2026-03-08T15-30-00.000Z-llm-response.json", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_PreservesContent()
+    {
+        var store       = CreateStore();
+        const string raw = "data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\ndata: [DONE]";
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", raw);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json").Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_SeparateFromRequestAndLlmRequestFiles()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var ts = "2026-03-08T15:30:00.000Z";
+        await store.SaveRequestAsync("s1", MakeRequest(ts));
+        await store.SaveLlmRequestAsync("s1", ts, "{\"model\":\"test\"}");
+        await store.SaveLlmResponseAsync("s1", ts, "data: {}");
+
+        var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(3, allFiles.Length);
+        Assert.Single(allFiles, f => !f.Contains("-llm"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-request.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-response.json"));
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {}"));
+        Assert.Null(ex);
     }
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
@@ -250,5 +721,12 @@ public sealed class SessionStoreTests : IDisposable
     {
         Role    = role,
         Content = content,
+    };
+
+    private static SessionRequestRecord MakeRequest(string timestamp) => new()
+    {
+        Timestamp = timestamp,
+        Request   = new SessionRequestData  { Prompt = "Test-Prompt" },
+        Response  = new SessionResponseData { Content = "Test-Antwort" },
     };
 }

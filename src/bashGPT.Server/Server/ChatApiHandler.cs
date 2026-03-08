@@ -95,7 +95,8 @@ internal sealed class ChatApiHandler(
             var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
             if (title.Length > 40) title = title[..40] + "…";
 
-            var now = DateTime.UtcNow.ToString("o");
+            var now        = DateTime.UtcNow.ToString("o");
+            var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
             await sessionStore.UpsertAsync(new SessionRecord
             {
                 Id           = body.SessionId,
@@ -105,6 +106,37 @@ internal sealed class ChatApiHandler(
                 Messages     = allMessages,
                 ShellContext = shellCtx,
             });
+
+            var reqRecord = new SessionRequestRecord
+            {
+                Timestamp = requestKey,
+                Request   = new SessionRequestData  { Prompt = body.Prompt.Trim(), ExecMode = body.ExecMode },
+                Response  = new SessionResponseData
+                {
+                    Content  = result.Response,
+                    Commands = result.Commands.Count > 0
+                        ? result.Commands.Select(c => new SessionCommand
+                          {
+                              Command     = c.Command,
+                              ExitCode    = c.ExitCode,
+                              Output      = c.Output,
+                              WasExecuted = c.WasExecuted,
+                          }).ToList()
+                        : null,
+                    Usage = result.Usage is null ? null : new SessionTokenUsage
+                    {
+                        InputTokens       = result.Usage.InputTokens,
+                        OutputTokens      = result.Usage.OutputTokens,
+                        TotalTokens       = result.Usage.TotalTokens,
+                        CachedInputTokens = result.Usage.CachedInputTokens,
+                    },
+                },
+            };
+            await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
+            if (result.FirstLlmRequestJson is not null)
+                await sessionStore.SaveLlmRequestAsync(body.SessionId, requestKey, result.FirstLlmRequestJson);
+            if (result.FirstLlmResponseJson is not null)
+                await sessionStore.SaveLlmResponseAsync(body.SessionId, requestKey, result.FirstLlmResponseJson);
         }
         else
         {

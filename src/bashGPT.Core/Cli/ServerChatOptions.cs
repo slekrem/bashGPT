@@ -23,7 +23,9 @@ public record ServerChatResult(
     IReadOnlyList<CommandResult> Commands,
     IReadOnlyList<string> Logs,
     bool UsedToolCalls,
-    TokenUsage? Usage = null
+    TokenUsage? Usage = null,
+    string? FirstLlmRequestJson = null,
+    string? FirstLlmResponseJson = null
 );
 
 public record SseEvent(string Event, object? Data = null);
