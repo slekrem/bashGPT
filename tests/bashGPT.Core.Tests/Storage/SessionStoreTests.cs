@@ -487,9 +487,8 @@ public sealed class SessionStoreTests : IDisposable
         var record = new SessionRequestRecord
         {
             Timestamp = "2026-03-08T15:30:00.000Z",
-            Prompt    = "Was ist die Antwort?",
-            ExecMode  = "noExec",
-            Response  = "42.",
+            Request   = new SessionRequestData  { Prompt = "Was ist die Antwort?", ExecMode = "noExec" },
+            Response  = new SessionResponseData { Content = "42." },
         };
         await store.SaveRequestAsync("s1", record);
 
@@ -548,7 +547,7 @@ public sealed class SessionStoreTests : IDisposable
     private static SessionRequestRecord MakeRequest(string timestamp) => new()
     {
         Timestamp = timestamp,
-        Prompt    = "Test-Prompt",
-        Response  = "Test-Antwort",
+        Request   = new SessionRequestData  { Prompt = "Test-Prompt" },
+        Response  = new SessionResponseData { Content = "Test-Antwort" },
     };
 }

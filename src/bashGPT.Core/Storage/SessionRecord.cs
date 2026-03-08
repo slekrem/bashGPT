@@ -87,13 +87,24 @@ public sealed class SessionTokenUsage
 /// <summary>
 /// Dokumentation einer einzelnen POST-Anfrage, gespeichert unter
 /// sessions/&lt;id&gt;/requests/&lt;timestamp&gt;.json.
+/// Enthält Request- und Response-Daten getrennt.
 /// </summary>
 public sealed class SessionRequestRecord
 {
-    public string  Timestamp { get; set; } = string.Empty;
-    public string  Prompt    { get; set; } = string.Empty;
-    public string? ExecMode  { get; set; }
-    public string  Response  { get; set; } = string.Empty;
-    public List<SessionCommand>?    Commands { get; set; }
-    public SessionTokenUsage?       Usage    { get; set; }
+    public string              Timestamp { get; set; } = string.Empty;
+    public SessionRequestData  Request   { get; set; } = new();
+    public SessionResponseData Response  { get; set; } = new();
+}
+
+public sealed class SessionRequestData
+{
+    public string  Prompt   { get; set; } = string.Empty;
+    public string? ExecMode { get; set; }
+}
+
+public sealed class SessionResponseData
+{
+    public string                Content  { get; set; } = string.Empty;
+    public List<SessionCommand>? Commands { get; set; }
+    public SessionTokenUsage?    Usage    { get; set; }
 }
