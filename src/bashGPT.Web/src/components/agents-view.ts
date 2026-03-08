@@ -11,7 +11,9 @@ export class AgentsView extends LitElement {
   @state() private _loading = true
   @state() private _error = ''
   @state() private _showForm = false
+  @state() private _formType: 'llm' | 'dev' = 'llm'
   @state() private _formName = ''
+  @state() private _formPath = ''
   @state() private _formInterval = 60
   @state() private _formSystemPrompt = ''
   @state() private _formLoopInstruction = ''
@@ -22,6 +24,7 @@ export class AgentsView extends LitElement {
 
   @state() private _editingId: string | null = null
   @state() private _editName = ''
+  @state() private _editPath = ''
   @state() private _editInterval = 60
   @state() private _editSystemPrompt = ''
   @state() private _editLoopInstruction = ''
@@ -329,6 +332,7 @@ export class AgentsView extends LitElement {
   private _startEdit(a: Agent) {
     this._editingId           = a.id
     this._editName            = a.name
+    this._editPath            = a.path ?? ''
     this._editInterval        = a.intervalSeconds
     this._editSystemPrompt    = a.systemPrompt ?? ''
     this._editLoopInstruction = a.loopInstruction ?? ''
@@ -347,8 +351,12 @@ export class AgentsView extends LitElement {
     const agent = this._agents.find(a => a.id === this._editingId)
     if (!agent) { this._editError = 'Agent nicht gefunden.'; return }
     if (!this._editName.trim()) { this._editError = 'Name ist erforderlich.'; return }
-    if (agent.type === 'llmagent' && !this._editLoopInstruction.trim()) {
-      this._editError = 'Loop-Anweisung ist erforderlich.'
+    if ((agent.type === 'llmagent' || agent.type === 'devagent') && !this._editLoopInstruction.trim()) {
+      this._editError = 'Aufgabe / Loop-Anweisung ist erforderlich.'
+      return
+    }
+    if (agent.type === 'devagent' && !this._editPath.trim()) {
+      this._editError = 'Repository-Pfad ist erforderlich.'
       return
     }
 
@@ -356,9 +364,10 @@ export class AgentsView extends LitElement {
     try {
       const patch = {
         name:            this._editName.trim(),
+        ...(agent.type === 'devagent' ? { path: this._editPath.trim() } : {}),
         intervalSeconds: this._editInterval,
         systemPrompt:    this._editSystemPrompt.trim() || null,
-        ...(agent.type === 'llmagent' ? { loopInstruction: this._editLoopInstruction.trim() } : {}),
+        ...((agent.type === 'llmagent' || agent.type === 'devagent') ? { loopInstruction: this._editLoopInstruction.trim() } : {}),
         execMode:        this._editExecMode,
         enabledTools:    this._editEnabledTools,
       }
@@ -385,13 +394,15 @@ export class AgentsView extends LitElement {
   private async _submit() {
     this._formError = ''
     if (!this._formName.trim()) { this._formError = 'Name ist erforderlich.'; return }
-    if (!this._formLoopInstruction.trim()) { this._formError = 'Loop-Anweisung ist erforderlich.'; return }
+    if (!this._formLoopInstruction.trim()) { this._formError = 'Aufgabe ist erforderlich.'; return }
+    if (this._formType === 'dev' && !this._formPath.trim()) { this._formError = 'Repository-Pfad ist erforderlich.'; return }
 
     this._saving = true
     try {
       const agent = await createAgent({
         name:            this._formName.trim(),
-        type:            'llm',
+        type:            this._formType,
+        path:            this._formType === 'dev' ? this._formPath.trim() : undefined,
         intervalSeconds: this._formInterval,
         systemPrompt:    this._formSystemPrompt.trim() || undefined,
         loopInstruction: this._formLoopInstruction.trim(),
@@ -409,7 +420,9 @@ export class AgentsView extends LitElement {
 
   private _resetForm() {
     this._showForm = false
+    this._formType = 'llm'
     this._formName = ''
+    this._formPath = ''
     this._formInterval = 60
     this._formSystemPrompt = ''
     this._formLoopInstruction = ''
@@ -483,8 +496,11 @@ export class AgentsView extends LitElement {
   }
 
   private _renderAgent(a: Agent) {
-    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : '🌐'
-    const meta = a.type === 'gitstatus' ? a.path : a.type === 'llmagent' ? (a.loopInstruction ?? '') : a.url
+    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : a.type === 'devagent' ? '💻' : '🌐'
+    const meta = a.type === 'gitstatus' ? a.path
+      : a.type === 'llmagent' ? (a.loopInstruction ?? '')
+      : a.type === 'devagent' ? `${a.path ?? '–'} · ${a.loopInstruction ?? ''}`
+      : a.url
     const badgeClass = !a.isActive ? 'badge-inactive' : !a.lastCheckSucceeded ? 'badge-fail' : 'badge-active'
     const badgeLabel = !a.isActive ? 'Pausiert' : !a.lastCheckSucceeded ? 'Fehler' : 'Aktiv'
 
@@ -513,32 +529,60 @@ export class AgentsView extends LitElement {
   }
 
   private _renderForm() {
+    const isDev = this._formType === 'dev'
     return html`
       <div class="form-card">
         <h3>Neuer Agent</h3>
+
+        <div class="type-tabs">
+          <button
+            class="type-tab ${!isDev ? 'active' : ''}"
+            @click=${() => { this._formType = 'llm' }}
+          >🤖 LLM-Agent</button>
+          <button
+            class="type-tab ${isDev ? 'active' : ''}"
+            @click=${() => { this._formType = 'dev' }}
+          >💻 Dev-Agent</button>
+        </div>
 
         <div class="form-row">
           <label>Name</label>
           <input
             type="text"
-            placeholder="z.B. system-monitor"
+            placeholder="z.B. ${isDev ? 'bashgpt-dev' : 'system-monitor'}"
             .value=${this._formName}
             @input=${(e: Event) => { this._formName = (e.target as HTMLInputElement).value }}
           />
         </div>
 
+        ${isDev ? html`
+          <div class="form-row">
+            <label>Repository-Pfad</label>
+            <input
+              type="text"
+              placeholder="/home/user/projekte/mein-repo"
+              .value=${this._formPath}
+              @input=${(e: Event) => { this._formPath = (e.target as HTMLInputElement).value }}
+            />
+          </div>
+        ` : ''}
+
         <div class="form-row">
           <label>System-Prompt (optional)</label>
           <textarea
-            placeholder="Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
+            placeholder="${isDev
+              ? 'Du bist ein autonomer Software-Entwickler. Arbeite präzise und atomar.'
+              : 'Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus.'}"
             .value=${this._formSystemPrompt}
             @input=${(e: Event) => { this._formSystemPrompt = (e.target as HTMLTextAreaElement).value }}
           ></textarea>
         </div>
         <div class="form-row">
-          <label>Loop-Anweisung</label>
+          <label>${isDev ? 'Aufgabe' : 'Loop-Anweisung'}</label>
           <textarea
-            placeholder="z.B. Prüfe den Festplattenverbrauch und berichte über kritische Partitionen."
+            placeholder="${isDev
+              ? 'z.B. Füge Unit-Tests für alle öffentlichen Methoden in src/MyService.cs hinzu.'
+              : 'z.B. Prüfe den Festplattenverbrauch und berichte über kritische Partitionen.'}"
             .value=${this._formLoopInstruction}
             @input=${(e: Event) => { this._formLoopInstruction = (e.target as HTMLTextAreaElement).value }}
           ></textarea>
@@ -580,6 +624,8 @@ export class AgentsView extends LitElement {
   }
 
   private _renderEditForm() {
+    const agent = this._agents.find(a => a.id === this._editingId)
+    const isDev = agent?.type === 'devagent'
     return html`
       <div class="form-card" style="margin-top: 8px;">
         <h3>Agent bearbeiten</h3>
@@ -593,6 +639,17 @@ export class AgentsView extends LitElement {
           />
         </div>
 
+        ${isDev ? html`
+          <div class="form-row">
+            <label>Repository-Pfad</label>
+            <input
+              type="text"
+              .value=${this._editPath}
+              @input=${(e: Event) => { this._editPath = (e.target as HTMLInputElement).value }}
+            />
+          </div>
+        ` : ''}
+
         <div class="form-row">
           <label>System-Prompt (optional)</label>
           <textarea
@@ -602,7 +659,7 @@ export class AgentsView extends LitElement {
           ></textarea>
         </div>
         <div class="form-row">
-          <label>Loop-Anweisung</label>
+          <label>${isDev ? 'Aufgabe' : 'Loop-Anweisung'}</label>
           <textarea
             .value=${this._editLoopInstruction}
             @input=${(e: Event) => { this._editLoopInstruction = (e.target as HTMLTextAreaElement).value }}
