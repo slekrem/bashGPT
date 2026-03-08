@@ -589,6 +589,74 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Null(ex);
     }
 
+    // ── SaveLlmResponseAsync ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_CreatesResponseFile()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {\"choices\":[]}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json");
+        Assert.Single(files);
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_FileNameContainsTimestampAndSuffix()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {}");
+
+        var files = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json");
+        Assert.Contains("2026-03-08T15-30-00.000Z-llm-response.json", Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_PreservesContent()
+    {
+        var store       = CreateStore();
+        const string raw = "data: {\"choices\":[{\"delta\":{\"content\":\"Hallo\"}}]}\ndata: [DONE]";
+        await store.UpsertAsync(MakeSession("s1"));
+
+        await store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", raw);
+
+        var file    = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*-llm-response.json").Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_SeparateFromRequestAndLlmRequestFiles()
+    {
+        var store = CreateStore();
+        await store.UpsertAsync(MakeSession("s1"));
+
+        var ts = "2026-03-08T15:30:00.000Z";
+        await store.SaveRequestAsync("s1", MakeRequest(ts));
+        await store.SaveLlmRequestAsync("s1", ts, "{\"model\":\"test\"}");
+        await store.SaveLlmResponseAsync("s1", ts, "data: {}");
+
+        var allFiles = Directory.GetFiles(Path.Combine(SessionsDir, "s1", "requests"), "*.json");
+        Assert.Equal(3, allFiles.Length);
+        Assert.Single(allFiles, f => !f.Contains("-llm"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm.json"));
+        Assert.Single(allFiles, f => f.EndsWith("-llm-response.json"));
+    }
+
+    [Fact]
+    public async Task SaveLlmResponseAsync_WithoutPriorUpsert_CreatesDirectory()
+    {
+        var store = CreateStore();
+
+        var ex = await Record.ExceptionAsync(() =>
+            store.SaveLlmResponseAsync("s1", "2026-03-08T15:30:00.000Z", "data: {}"));
+        Assert.Null(ex);
+    }
+
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private static SessionRecord MakeSession(

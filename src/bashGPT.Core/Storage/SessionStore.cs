@@ -206,6 +206,23 @@ public class SessionStore
         File.Move(tmp, path, overwrite: true);
     }
 
+    /// <summary>
+    /// Speichert den rohen LLM-Response-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-response.json.
+    /// Der Inhalt ist das JSON (bzw. SSE-Zeilen), das der Provider zurückgeliefert hat.
+    /// </summary>
+    public async Task SaveLlmResponseAsync(string sessionId, string timestamp, string llmResponseJson)
+    {
+        var dir = Path.Combine(SessionDir(sessionId), "requests");
+        Directory.CreateDirectory(dir);
+
+        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
+        var path     = Path.Combine(dir, safeName + "-llm-response.json");
+        var tmp      = path + ".tmp";
+
+        await File.WriteAllTextAsync(tmp, llmResponseJson);
+        File.Move(tmp, path, overwrite: true);
+    }
+
     // ── Interne Hilfsmethoden ─────────────────────────────────────────────────
 
     private string SessionDir(string id)         => Path.Combine(_sessionsDir, id);

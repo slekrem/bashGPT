@@ -134,6 +134,8 @@ internal sealed class ChatApiHandler(
             await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
             if (result.FirstLlmRequestJson is not null)
                 await sessionStore.SaveLlmRequestAsync(body.SessionId, now, result.FirstLlmRequestJson);
+            if (result.FirstLlmResponseJson is not null)
+                await sessionStore.SaveLlmResponseAsync(body.SessionId, now, result.FirstLlmResponseJson);
         }
         else
         {
