@@ -48,6 +48,10 @@ internal sealed class StreamingChatApiHandler(
             }
 
             var requestedMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
+            var now        = DateTime.UtcNow.ToString("o");
+            var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
+            var sessionId  = body.SessionId;
+
             var chatOpts = new ServerChatOptions(
                 Prompt:     body.Prompt.Trim(),
                 History:    historySnapshot,
@@ -71,7 +75,13 @@ internal sealed class StreamingChatApiHandler(
                         new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = evt.Event, data = evt.Data } } } } },
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
-                });
+                },
+                OnLlmRequestJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                    ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
+                    : null,
+                OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                    ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
+                    : null);
 
             var result = await handler.RunServerChatAsync(chatOpts, ct);
 
@@ -151,8 +161,6 @@ internal sealed class StreamingChatApiHandler(
                 var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
                 if (title.Length > 40) title = title[..40] + "…";
 
-                var now        = DateTime.UtcNow.ToString("o");
-                var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
                 await sessionStore.UpsertAsync(new SessionRecord
                 {
                     Id           = body.SessionId,
@@ -189,18 +197,6 @@ internal sealed class StreamingChatApiHandler(
                     },
                 };
                 await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-                if (result.LlmExchanges is not null)
-                {
-                    for (var i = 0; i < result.LlmExchanges.Count; i++)
-                    {
-                        var ex = result.LlmExchanges[i];
-                        var key = requestKey + $"_r{i}";
-                        if (ex.RequestJson is not null)
-                            await sessionStore.SaveLlmRequestAsync(body.SessionId, key, ex.RequestJson);
-                        if (ex.ResponseJson is not null)
-                            await sessionStore.SaveLlmResponseAsync(body.SessionId, key, ex.ResponseJson);
-                    }
-                }
             }
             else
             {

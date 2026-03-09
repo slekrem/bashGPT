@@ -33,7 +33,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
 
         var serialized = JsonSerializer.Serialize(openAiRequest, JsonDefaults.Options);
-        request.OnRequestJson?.Invoke(serialized);
+        if (request.OnRequestJson is not null) await request.OnRequestJson(serialized);
 
         HttpResponseMessage response;
         try
@@ -79,7 +79,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
         if (!request.Stream)
         {
             var json = await response.Content.ReadAsStringAsync(ct);
-            request.OnResponseJson?.Invoke(json);
+            if (request.OnResponseJson is not null) await request.OnResponseJson(json);
             var full = JsonSerializer.Deserialize<OpenAiChatResponse>(json, JsonDefaults.Options);
             var message = full?.Choices?.FirstOrDefault()?.Message;
             var content = message?.Content ?? "";
@@ -140,7 +140,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
                 streamUsage = chunk.Usage;
         }
 
-        request.OnResponseJson?.Invoke(rawLines.ToString());
+        if (request.OnResponseJson is not null) await request.OnResponseJson(rawLines.ToString());
 
         var toolCallsFinal = toolBuilder
             .OrderBy(kvp => kvp.Key)

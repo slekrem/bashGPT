@@ -96,14 +96,32 @@ public class ServerChatRunner(
         var usedToolCalls        = false;
         var intermediateMessages = new List<ChatMessage>();
         var llmExchanges         = new List<LlmExchangeRecord>();
+        var exchangeIdx          = 0;
 
-        string? currentReqJson = null;
-        string? currentResJson = null;
-        var firstResponse = await ChatOrchestrator.ChatOnceAsync(
-            provider, messages, tools, toolChoiceName, ct, opts.OnToken,
-            onRequestJson:  json => currentReqJson = json,
-            onResponseJson: json => currentResJson = json);
-        llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
+        // Ruft ChatOnceAsync auf, speichert Request/Response sofort via Callbacks
+        // und fügt den Exchange zur Liste hinzu.
+        async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
+        {
+            var idx = exchangeIdx++;
+            string? reqJson = null;
+            string? resJson = null;
+            var result = await ChatOrchestrator.ChatOnceAsync(
+                provider, messages, tools, toolChoiceName, ct, onToken,
+                onRequestJson: async json =>
+                {
+                    reqJson = json;
+                    if (opts.OnLlmRequestJson is not null) await opts.OnLlmRequestJson(idx, json);
+                },
+                onResponseJson: async json =>
+                {
+                    resJson = json;
+                    if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
+                });
+            llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
+            return result;
+        }
+
+        var firstResponse = await CallOnce(opts.OnToken);
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -187,12 +205,7 @@ public class ServerChatRunner(
 
                 commandResults.AddRange(roundResults);
 
-                currentReqJson = null;
-                currentResJson = null;
-                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken,
-                    onRequestJson:  json => currentReqJson = json,
-                    onResponseJson: json => currentResJson = json);
-                llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
+                var nextResponse = await CallOnce(opts.OnToken);
                 if (nextResponse.Error is not null)
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -255,12 +268,7 @@ public class ServerChatRunner(
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
         messages.Add(new ChatMessage(ChatRole.User, followUp));
 
-        currentReqJson = null;
-        currentResJson = null;
-        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken,
-            onRequestJson:  json => currentReqJson = json,
-            onResponseJson: json => currentResJson = json);
-        llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
+        var followUpResponse = await CallOnce(opts.OnToken);
         if (followUpResponse.Error is not null)
             return BuildResult(followUpResponse.Error, commandResults, usedToolCalls);
 

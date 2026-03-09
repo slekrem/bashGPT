@@ -38,8 +38,8 @@ internal static class ChatOrchestrator
         string? toolChoiceName,
         CancellationToken ct,
         Action<string>? onToken = null,
-        Action<string>? onRequestJson = null,
-        Action<string>? onResponseJson = null)
+        Func<string, Task>? onRequestJson = null,
+        Func<string, Task>? onResponseJson = null)
     {
         try
         {
