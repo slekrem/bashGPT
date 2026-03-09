@@ -34,6 +34,10 @@ internal sealed class FakeLlmProvider : ILlmProvider
 
         var response = _queue.Count > 0 ? _queue.Dequeue() : new LlmChatResponse("", []);
 
+        // Simulate OnRequestJson/OnResponseJson callbacks with synthetic JSON
+        request.OnRequestJson?.Invoke($"{{\"call\":{CallCount},\"type\":\"request\"}}");
+        request.OnResponseJson?.Invoke($"{{\"call\":{CallCount},\"type\":\"response\"}}");
+
         // Simulate token streaming: invoke OnToken per character of Content
         if (request.OnToken is not null && !string.IsNullOrEmpty(response.Content))
         {
