@@ -4,6 +4,7 @@ import './sidebar'
 import './dashboard'
 import './settings-view'
 import './agents-view'
+import './tools-view'
 import './chat-view'
 import { resetHistory, getSessions, getSession } from '../api'
 import type { AppView, Session } from '../types'
@@ -245,6 +246,10 @@ export class ChatApp extends LitElement {
 
           ${this._view === 'agents' ? html`
             <bashgpt-agents-view></bashgpt-agents-view>
+          ` : ''}
+
+          ${this._view === 'tools' ? html`
+            <bashgpt-tools-view></bashgpt-tools-view>
           ` : ''}
 
           <bashgpt-chat-view
