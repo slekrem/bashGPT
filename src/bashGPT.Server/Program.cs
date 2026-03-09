@@ -6,10 +6,10 @@ using BashGPT.Configuration;
 using BashGPT.Server;
 
 var configService = new ConfigurationService();
-var serverRunner = new ServerChatRunner(configService);
+var toolRegistry = AgentBootstrap.CreateToolRegistry();
+var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var agentStore = AgentBootstrap.CreateAgentStore();
-var toolRegistry = AgentBootstrap.CreateToolRegistry();
 var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentStore, toolRegistry);
 
 var providerOpt = new Option<string?>("--provider", "-p")

@@ -3,6 +3,7 @@ using System.Text.Json;
 using BashGPT.Cli;
 using BashGPT.Providers;
 using BashGPT.Storage;
+using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
@@ -10,7 +11,8 @@ internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
     ServerState state,
     LegacyHistory legacyHistory,
-    SessionStore? sessionStore = null)
+    SessionStore? sessionStore = null,
+    ToolRegistry? toolRegistry = null)
 {
     public async Task HandleAsync(HttpListenerContext ctx, ServerOptions options, CancellationToken ct)
     {
@@ -31,20 +33,35 @@ internal sealed class StreamingChatApiHandler(
 
         try
         {
+            // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
+            SessionRecord? session = null;
+            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+                session = await sessionStore.LoadAsync(body.SessionId);
+
             // History laden: session-basiert oder globaler Fallback
             IReadOnlyList<ChatMessage> historySnapshot;
-            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            if (session is not null)
             {
-                var session = await sessionStore.LoadAsync(body.SessionId);
-                historySnapshot = session?.Messages
+                historySnapshot = session.Messages
                     .Select(SessionMessageMapper.ToChatMessage)
                     .OfType<ChatMessage>()
-                    .ToList() ?? [];
+                    .ToList();
+            }
+            else if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            {
+                historySnapshot = [];
             }
             else
             {
                 historySnapshot = legacyHistory.GetSnapshot();
             }
+
+            // EnabledTools: Session-Wert hat Vorrang, danach Request-Wert (nur erster Chat)
+            var effectiveToolNames = session?.EnabledTools?.Count > 0
+                ? session.EnabledTools
+                : body.EnabledTools?.ToList();
+
+            var resolvedTools = ToolHelper.Resolve(effectiveToolNames, toolRegistry);
 
             var now        = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
@@ -82,7 +99,8 @@ internal sealed class StreamingChatApiHandler(
                     : null,
                 OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
-                    : null);
+                    : null,
+                Tools: resolvedTools.Count > 0 ? resolvedTools : null);
 
             var result = await handler.RunServerChatAsync(chatOpts, ct);
 
@@ -116,9 +134,7 @@ internal sealed class StreamingChatApiHandler(
             // Session persistieren
             if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
             {
-                var session     = await sessionStore.LoadAsync(body.SessionId);
                 var newMessages = new List<SessionMessage>();
-
                 newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim() });
                 newMessages.Add(new()
                 {
@@ -136,7 +152,7 @@ internal sealed class StreamingChatApiHandler(
                 var existingMessages = session?.Messages ?? [];
                 var allMessages      = existingMessages.Concat(newMessages).ToList();
                 var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
-                if (title.Length > 40) title = title[..40] + "…";
+                if (title.Length > 40) title = title[..40] + "...";
 
                 await sessionStore.UpsertAsync(new SessionRecord
                 {
@@ -146,6 +162,7 @@ internal sealed class StreamingChatApiHandler(
                     UpdatedAt    = now,
                     Messages     = allMessages,
                     ShellContext = shellCtx,
+                    EnabledTools = effectiveToolNames,
                 });
 
                 var reqRecord = new SessionRequestRecord
@@ -190,5 +207,5 @@ internal sealed class StreamingChatApiHandler(
         }
     }
 
-    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId);
+    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools);
 }

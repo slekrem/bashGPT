@@ -58,6 +58,7 @@ export class SessionManager {
   async loadSession(id: string): Promise<{
     messages: SnapshotMessage[]
     shellContext?: ShellContext | null
+    enabledTools?: string[]
     isArchived: boolean
   } | null> {
     if (this._useFallback) {
@@ -67,7 +68,12 @@ export class SessionManager {
     }
     const s = await getSession(id)
     if (!s) return null
-    return { messages: s.messages ?? [], shellContext: s.shellContext ?? null, isArchived: false }
+    return {
+      messages:     s.messages ?? [],
+      shellContext: s.shellContext ?? null,
+      enabledTools: s.enabledTools ?? undefined,
+      isArchived:   false,
+    }
   }
 
   /**

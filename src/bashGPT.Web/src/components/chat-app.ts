@@ -98,11 +98,11 @@ export class ChatApp extends LitElement {
         await this._doActivateArchived(archivedId)
       }
       chatView.loadSnapshot?.(data.messages, data.shellContext,
-        'Archivierte Session – Nachricht senden, um fortzufahren')
+        'Archivierte Session – Nachricht senden, um fortzufahren', data.enabledTools)
       chatView.scrollToBottom?.()
     } else {
       chatView.beforeSend = undefined
-      chatView.loadSnapshot?.(data.messages, data.shellContext)
+      chatView.loadSnapshot?.(data.messages, data.shellContext, undefined, data.enabledTools)
       chatView.scrollToBottom?.()
     }
   }
@@ -157,8 +157,6 @@ export class ChatApp extends LitElement {
     await this._onNewChat()
     this._ensureLiveSessionActive()
     this._view = 'chat'
-    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
-    chatView?.setExecMode?.('auto-exec')
     this._pendingPrompt = ''
     requestAnimationFrame(() => { this._pendingPrompt = e.detail.prompt })
   }

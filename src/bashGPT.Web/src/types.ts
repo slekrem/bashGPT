@@ -40,6 +40,7 @@ export interface Session {
   title: string
   createdAt: string
   updatedAt: string
+  enabledTools?: string[]
 }
 
 export interface CerebrasSettings {

@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import type { ExecMode, FullShellContext, Settings, TokenUsage } from '../types'
+import type { FullShellContext, Settings, TokenUsage } from '../types'
 
 interface CommandStats {
   total: number
@@ -13,7 +13,6 @@ interface CommandStats {
 export class ChatInfoPanel extends LitElement {
   @property({ type: Object }) context: FullShellContext | null = null
   @property({ type: Object }) settings: Settings | null = null
-  @property() execMode: ExecMode = 'ask'
   @property({ type: Number }) messageCount = 0
   @property({ type: Object }) commandStats: CommandStats = { total: 0, success: 0, error: 0, skipped: 0 }
   @property({ type: Object }) tokenUsage: TokenUsage | null = null
@@ -146,8 +145,6 @@ export class ChatInfoPanel extends LitElement {
     .badge-error   { background: #7f1d1d; color: #fca5a5; }
     .badge-neutral { background: #1e293b; color: #64748b; }
     .badge-branch  { background: #0c2a4a; color: #60a5fa; }
-    .badge-mode    { background: #1a1a2e; color: #a78bfa; }
-
     .stats-row {
       display: flex;
       align-items: center;
@@ -351,16 +348,7 @@ export class ChatInfoPanel extends LitElement {
           `}
         </div>
 
-        <!-- 4. Ausführung -->
-        <div class="section">
-          <div class="section-title">Ausführung</div>
-          <div class="row">
-            <span class="label">Modus</span>
-            <span class="badge badge-mode">${this.execMode}</span>
-          </div>
-        </div>
-
-        <!-- 5. Session -->
+        <!-- 4. Session -->
         <div class="section">
           <div class="section-title">Session</div>
           <div class="row">

@@ -4,15 +4,14 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
-import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage } from '../types'
+import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools } from '../api'
+import type { CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
   id: number
   role: 'user' | 'assistant'
   content: string
-  execMode?: ExecMode
   commands?: CommandResult[]
   usedToolCalls?: boolean
   usage?: TokenUsage
@@ -40,7 +39,6 @@ export class ChatView extends LitElement {
     loading:     false,
     statusText:  '',
     statusError: false,
-    mode:        'auto-exec' as ExecMode,
     shellContext: null as ShellContext | null,
     tokenUsage:  { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as TokenUsage,
   }
@@ -65,6 +63,9 @@ export class ChatView extends LitElement {
   @state() private _streamingId: number | null = null
   private _newRoundPending = false
   @state() private _streamingEntries: TerminalEntry[] = []
+  @state() private _enabledTools: string[] = []
+  @state() private _toolPickerOpen = false
+  @state() private _availableTools: ToolInfo[] = []
 
   static styles = css`
     :host {
@@ -183,18 +184,6 @@ export class ChatView extends LitElement {
       flex-wrap: wrap;
     }
 
-    select {
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-size: 13px;
-      cursor: pointer;
-      outline: none;
-    }
-    select:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
-
     button {
       background: #111827;
       color: #e5e7eb;
@@ -247,6 +236,46 @@ export class ChatView extends LitElement {
       opacity: 0;
     }
 
+    /* ── Tool-Picker ────────────────────────────────────────────────────── */
+    .tool-picker {
+      background: #0d1b2e;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .tool-picker-title {
+      font-size: 11px;
+      color: #60a5fa;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tool-picker-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tool-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid #1e3a5f;
+      background: #111827;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .tool-chip:hover { background: #1e293b; }
+    .tool-chip.active { background: #14532d; border-color: #16a34a; color: #dcfce7; }
+    .tool-chip.active::before { content: '✓ '; }
+
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
@@ -284,11 +313,13 @@ export class ChatView extends LitElement {
   /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
     this._chat = { ...this._chat, messages: [] }
+    this._enabledTools = []
+    this._toolPickerOpen = false
     await this._loadHistory(true)
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
-  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string) {
+  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
@@ -297,7 +328,6 @@ export class ChatView extends LitElement {
       role: m.role,
       content: m.content,
       commands: m.commands,
-      execMode: m.execMode,
       usage: m.usage,
     }))
     this._chat = {
@@ -308,6 +338,8 @@ export class ChatView extends LitElement {
       statusText: hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : ''),
       statusError: false,
     }
+    this._enabledTools = enabledTools ?? []
+    this._toolPickerOpen = false
   }
 
   /** Öffentlich: Chat direkt zur letzten Nachricht scrollen */
@@ -329,7 +361,6 @@ export class ChatView extends LitElement {
       role: m.role,
       content: m.content,
       commands: m.commands,
-      execMode: m.execMode,
       usage: m.usage,
     }))
     this._chat = {
@@ -353,14 +384,8 @@ export class ChatView extends LitElement {
       role: m.role,
       content: m.content,
       ...(m.commands?.length ? { commands: m.commands } : {}),
-      ...(m.execMode ? { execMode: m.execMode } : {}),
       ...(m.usage ? { usage: m.usage } : {}),
     }))
-  }
-
-  /** Öffentlich: Exec-Mode von außen setzen (z. B. Dashboard "Ausführen"). */
-  setExecMode(mode: ExecMode) {
-    this._chat = { ...this._chat, mode }
   }
 
   /** Öffentlich: Session zurücksetzen */
@@ -374,6 +399,8 @@ export class ChatView extends LitElement {
         statusText: 'Verlauf gelöscht',
         statusError: false,
       }
+      this._enabledTools = []
+      this._toolPickerOpen = false
       this._emitMessagesChanged()
     } catch (e) {
       this._chat = {
@@ -419,7 +446,6 @@ export class ChatView extends LitElement {
     // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
     // angelegten User-Input nachträglich überschreibt.
     this._historyLoadSeq++
-    const execMode = this._chat.mode
 
     // Platzhalter für die Assistant-Antwort, wird live befüllt
     const assistantId = this._idCounter++
@@ -432,7 +458,7 @@ export class ChatView extends LitElement {
       ...this._chat,
       messages: [
         ...this._chat.messages,
-        { id: this._idCounter++, role: 'user', content: prompt, execMode },
+        { id: this._idCounter++, role: 'user', content: prompt },
         { id: assistantId, role: 'assistant' as const, content: '' },
       ],
       loading:     true,
@@ -444,7 +470,7 @@ export class ChatView extends LitElement {
     try {
       if (this.beforeSend) await this.beforeSend()
 
-      const result = await streamChat(prompt, execMode, {
+      const result = await streamChat(prompt, {
         onReasoningToken: token => {
           if (this._newRoundPending) {
             // Erst beim ersten Token der neuen Runde resetten – bis dahin bleibt der alte Text sichtbar
@@ -491,24 +517,20 @@ export class ChatView extends LitElement {
           this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
           this._newRoundPending = true
         },
-      }, this.sessionId || undefined)
+      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined)
 
       // Finale Message mit vollständigen Daten übernehmen
       const newMessages = this._chat.messages.map(m =>
         m.id === assistantId
-          ? { ...m, content: result.response, commands: result.commands,
-              usedToolCalls: result.usedToolCalls, usage: result.usage ?? undefined }
+          ? { ...m, content: result.response, usage: result.usage ?? undefined }
           : m
       )
-      const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
-      if (result.commands.length > 0)
-        parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
       this._chat = {
         ...this._chat,
         messages:    newMessages,
         tokenUsage:  this._sumTokenUsage(newMessages),
         shellContext: result.shellContext ?? this._chat.shellContext,
-        statusText:  parts.join(' · '),
+        statusText:  this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '',
         statusError: false,
       }
       this._streamingContent = ''
@@ -597,6 +619,18 @@ export class ChatView extends LitElement {
     }
   }
 
+  private async _toggleToolPicker() {
+    this._toolPickerOpen = !this._toolPickerOpen
+    if (this._toolPickerOpen && this._availableTools.length === 0)
+      this._availableTools = await getTools()
+  }
+
+  private _toggleTool(name: string) {
+    this._enabledTools = this._enabledTools.includes(name)
+      ? this._enabledTools.filter(t => t !== name)
+      : [...this._enabledTools, name]
+  }
+
   private _sumTokenUsage(messages: Message[]): TokenUsage {
     let inputTokens = 0
     let outputTokens = 0
@@ -670,7 +704,6 @@ export class ChatView extends LitElement {
                       content=${m.id === this._streamingId && this._reasoningContent && !this._streamingContent
                         ? this._reasoningContent
                         : m.content}
-                      execMode=${m.execMode ?? ''}
                       ?reasoning=${m.id === this._streamingId && !!this._reasoningContent && !this._streamingContent}
                     ></bashgpt-message>
                   `
@@ -689,7 +722,6 @@ export class ChatView extends LitElement {
           class="${this._panels.infoOpen ? '' : 'collapsed'}"
           .context=${this._ctx.data}
           .settings=${this._ctx.settings}
-          execMode=${this._chat.mode}
           messageCount=${this._chat.messages.length}
           .commandStats=${this._commandStats}
           .tokenUsage=${this._chat.tokenUsage}
@@ -698,6 +730,25 @@ export class ChatView extends LitElement {
       </div>
 
       <footer>
+        ${this._toolPickerOpen ? html`
+          <div class="tool-picker">
+            <div class="tool-picker-title">🔧 Tools für diese Session</div>
+            ${this._availableTools.length === 0
+              ? html`<span style="font-size:12px;color:#64748b">Keine Tools verfügbar.</span>`
+              : html`
+                <div class="tool-picker-list">
+                  ${this._availableTools.map(t => html`
+                    <button
+                      class="tool-chip ${this._enabledTools.includes(t.name) ? 'active' : ''}"
+                      @click=${() => this._toggleTool(t.name)}
+                      title=${t.description}
+                    >${t.name}</button>
+                  `)}
+                </div>
+              `}
+          </div>
+        ` : ''}
+
         <div class="input-row">
           <textarea
             placeholder=${this.readOnly
@@ -709,17 +760,14 @@ export class ChatView extends LitElement {
           ></textarea>
         </div>
         <div class="controls">
-          <select
-            .value=${this._chat.mode}
-            @change=${(e: Event) => { this._chat = { ...this._chat, mode: (e.target as HTMLSelectElement).value as ExecMode } }}
-            ?disabled=${this._chat.loading || this.readOnly}
-            aria-label="Ausführungsmodus"
-          >
-            <option value="ask">ask</option>
-            <option value="dry-run">dry-run</option>
-            <option value="auto-exec">auto-exec</option>
-            <option value="no-exec">no-exec</option>
-          </select>
+          ${!this.readOnly ? html`
+            <button
+              class="terminal-toggle ${this._toolPickerOpen || this._enabledTools.length > 0 ? 'active' : ''}"
+              @click=${this._toggleToolPicker}
+              title="Tools für diese Session konfigurieren"
+              aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
+            >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
+          ` : ''}
 
           ${this.showTerminal ? html`
             <button

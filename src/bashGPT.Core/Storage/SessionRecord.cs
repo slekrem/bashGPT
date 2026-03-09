@@ -37,6 +37,7 @@ public sealed class SessionContent
     public int Version { get; set; } = 1;
     public List<SessionMessage> Messages { get; set; } = [];
     public SessionShellContext? ShellContext { get; set; }
+    public List<string>? EnabledTools { get; set; }
 }
 
 /// <summary>
@@ -50,6 +51,7 @@ public sealed class SessionRecord
     public string UpdatedAt   { get; set; } = string.Empty;
     public List<SessionMessage> Messages { get; set; } = [];
     public SessionShellContext? ShellContext { get; set; }
+    public List<string>? EnabledTools { get; set; }
 }
 
 public sealed class SessionMessage
