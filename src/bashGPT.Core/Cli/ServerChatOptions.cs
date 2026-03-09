@@ -18,14 +18,18 @@ public record ServerChatOptions(
     Action<SseEvent>? OnEvent = null
 );
 
+/// <summary>
+/// Rohes Request/Response-Paar eines einzelnen LLM-Aufrufs.
+/// </summary>
+public record LlmExchangeRecord(string? RequestJson, string? ResponseJson);
+
 public record ServerChatResult(
     string Response,
     IReadOnlyList<CommandResult> Commands,
     IReadOnlyList<string> Logs,
     bool UsedToolCalls,
     TokenUsage? Usage = null,
-    string? FirstLlmRequestJson = null,
-    string? FirstLlmResponseJson = null,
+    IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
     IReadOnlyList<ChatMessage>? IntermediateMessages = null
 );
 

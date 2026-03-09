@@ -137,10 +137,18 @@ internal sealed class ChatApiHandler(
                 },
             };
             await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-            if (result.FirstLlmRequestJson is not null)
-                await sessionStore.SaveLlmRequestAsync(body.SessionId, requestKey, result.FirstLlmRequestJson);
-            if (result.FirstLlmResponseJson is not null)
-                await sessionStore.SaveLlmResponseAsync(body.SessionId, requestKey, result.FirstLlmResponseJson);
+            if (result.LlmExchanges is not null)
+            {
+                for (var i = 0; i < result.LlmExchanges.Count; i++)
+                {
+                    var ex = result.LlmExchanges[i];
+                    var key = requestKey + $"_r{i}";
+                    if (ex.RequestJson is not null)
+                        await sessionStore.SaveLlmRequestAsync(body.SessionId, key, ex.RequestJson);
+                    if (ex.ResponseJson is not null)
+                        await sessionStore.SaveLlmResponseAsync(body.SessionId, key, ex.ResponseJson);
+                }
+            }
         }
         else
         {

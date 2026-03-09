@@ -95,13 +95,15 @@ public class ServerChatRunner(
         var toolChoiceName       = opts.ForceTools ? "bash" : null;
         var usedToolCalls        = false;
         var intermediateMessages = new List<ChatMessage>();
-        string? firstRequestJson  = null;
-        string? firstResponseJson = null;
+        var llmExchanges         = new List<LlmExchangeRecord>();
 
+        string? currentReqJson = null;
+        string? currentResJson = null;
         var firstResponse = await ChatOrchestrator.ChatOnceAsync(
             provider, messages, tools, toolChoiceName, ct, opts.OnToken,
-            onRequestJson:  json => firstRequestJson  ??= json,
-            onResponseJson: json => firstResponseJson ??= json);
+            onRequestJson:  json => currentReqJson = json,
+            onResponseJson: json => currentResJson = json);
+        llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -185,7 +187,12 @@ public class ServerChatRunner(
 
                 commandResults.AddRange(roundResults);
 
-                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
+                currentReqJson = null;
+                currentResJson = null;
+                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken,
+                    onRequestJson:  json => currentReqJson = json,
+                    onResponseJson: json => currentResJson = json);
+                llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
                 if (nextResponse.Error is not null)
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -248,7 +255,12 @@ public class ServerChatRunner(
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
         messages.Add(new ChatMessage(ChatRole.User, followUp));
 
-        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
+        currentReqJson = null;
+        currentResJson = null;
+        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken,
+            onRequestJson:  json => currentReqJson = json,
+            onResponseJson: json => currentResJson = json);
+        llmExchanges.Add(new LlmExchangeRecord(currentReqJson, currentResJson));
         if (followUpResponse.Error is not null)
             return BuildResult(followUpResponse.Error, commandResults, usedToolCalls);
 
@@ -261,7 +273,8 @@ public class ServerChatRunner(
             : null;
 
         ServerChatResult BuildResult(string content, IReadOnlyList<CommandResult> cmds, bool toolCalls)
-            => new(content, cmds, logs, toolCalls, BuildUsage(), firstRequestJson, firstResponseJson,
+            => new(content, cmds, logs, toolCalls, BuildUsage(),
+                   llmExchanges.Count > 0 ? llmExchanges : null,
                    intermediateMessages.Count > 0 ? intermediateMessages : null);
     }
 
