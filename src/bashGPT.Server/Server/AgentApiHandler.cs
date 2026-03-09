@@ -88,12 +88,13 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             "git" or "gitstatus"   => AgentCheckType.GitStatus,
             "http" or "httpstatus" => AgentCheckType.HttpStatus,
             "llm" or "llmagent"    => AgentCheckType.LlmAgent,
+            "shell"                => AgentCheckType.Shell,
             _ => (AgentCheckType?)null
         };
 
         if (type is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http' oder 'llm' sein." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http', 'llm' oder 'shell' sein." }, statusCode: 400);
             return;
         }
 
@@ -112,6 +113,12 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
         if (type == AgentCheckType.LlmAgent && string.IsNullOrWhiteSpace(body.LoopInstruction))
         {
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für LLM-Agenten erforderlich." }, statusCode: 400);
+            return;
+        }
+
+        if (type == AgentCheckType.Shell && string.IsNullOrWhiteSpace(body.LoopInstruction))
+        {
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für Shell-Agenten erforderlich." }, statusCode: 400);
             return;
         }
 

@@ -100,7 +100,7 @@ export interface FullShellContext {
   git?: GitContext | null
 }
 
-export type AgentType = 'gitstatus' | 'httpstatus' | 'bitcoinprice' | 'llmagent'
+export type AgentType = 'gitstatus' | 'httpstatus' | 'bitcoinprice' | 'llmagent' | 'shell'
 
 export interface Agent {
   id: string

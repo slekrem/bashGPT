@@ -254,7 +254,7 @@ export async function getAgents(): Promise<Agent[]> {
 
 export async function createAgent(payload: {
   name: string
-  type: 'git' | 'http' | 'llm'
+  type: 'git' | 'http' | 'llm' | 'shell'
   path?: string
   url?: string
   intervalSeconds?: number

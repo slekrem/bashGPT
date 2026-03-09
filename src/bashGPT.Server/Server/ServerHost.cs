@@ -54,8 +54,8 @@ public class ServerHost
         if (_configService is not null)
             appConfig = await _configService.LoadAsync();
 
-        _state.ExecMode   = options.ExecMode   ?? appConfig?.DefaultExecMode   ?? ExecutionMode.Ask;
-        _state.ForceTools = options.ForceTools ?? appConfig?.DefaultForceTools ?? false;
+        _state.ExecMode   = appConfig?.DefaultExecMode   ?? ExecutionMode.Ask;
+        _state.ForceTools = appConfig?.DefaultForceTools ?? false;
 
         var prefix = $"http://127.0.0.1:{options.Port}/";
         using var listener = new HttpListener();
@@ -81,8 +81,11 @@ public class ServerHost
                 try { agentProvider = ProviderFactory.Create(appConfig ?? await _configService.LoadAsync()); }
                 catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
 
+            var shellContextCollector = new ShellContextCollector();
             var runner = new AgentRunner(_agentStore,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(), new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry)],
+                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(),
+                 new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry),
+                 new ShellAgentCheck(agentProvider, shellContextCollector, _sessionStore)],
                 agentProvider, _sessionStore);
             _ = Task.Run(() => runner.RunAsync(ct), ct);
             Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");

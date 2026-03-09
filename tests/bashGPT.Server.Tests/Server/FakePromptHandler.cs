@@ -1,5 +1,4 @@
 using BashGPT.Cli;
-using BashGPT.Shell;
 
 namespace BashGPT.Server.Tests;
 
@@ -11,9 +10,7 @@ internal sealed class FakePromptHandler : IPromptHandler
 {
     public ServerChatResult NextResult { get; set; } = new(
         Response: "Fake-Antwort vom LLM.",
-        Commands: [],
-        Logs: [],
-        UsedToolCalls: false);
+        Logs: []);
 
     public Exception? NextException { get; set; }
 
