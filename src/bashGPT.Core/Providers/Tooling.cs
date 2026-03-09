@@ -33,6 +33,7 @@ public record LlmChatRequest(
     bool? ParallelToolCalls = null,
     bool Stream = true,
     Action<string>? OnToken = null,
+    Action<string>? OnReasoningToken = null,
     Func<string, Task>? OnRequestJson = null,
     Func<string, Task>? OnResponseJson = null);
 

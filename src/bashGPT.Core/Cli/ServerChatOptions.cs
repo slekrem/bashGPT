@@ -15,6 +15,7 @@ public record ServerChatOptions(
     bool Verbose,
     bool ForceTools,
     Action<string>? OnToken = null,
+    Action<string>? OnReasoningToken = null,
     Action<SseEvent>? OnEvent = null,
     Func<int, string, Task>? OnLlmRequestJson = null,
     Func<int, string, Task>? OnLlmResponseJson = null

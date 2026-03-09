@@ -38,6 +38,7 @@ internal static class ChatOrchestrator
         string? toolChoiceName,
         CancellationToken ct,
         Action<string>? onToken = null,
+        Action<string>? onReasoningToken = null,
         Func<string, Task>? onRequestJson = null,
         Func<string, Task>? onResponseJson = null)
     {
@@ -52,6 +53,7 @@ internal static class ChatOrchestrator
                     ParallelToolCalls: false,
                     Stream: true,
                     OnToken: token => { tokenBuffer.Append(token); onToken?.Invoke(token); },
+                    OnReasoningToken: onReasoningToken,
                     OnRequestJson: onRequestJson,
                     OnResponseJson: onResponseJson),
                 ct);

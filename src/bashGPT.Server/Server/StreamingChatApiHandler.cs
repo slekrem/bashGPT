@@ -69,6 +69,13 @@ internal sealed class StreamingChatApiHandler(
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
                 },
+                OnReasoningToken: token =>
+                {
+                    var json = JsonSerializer.Serialize(
+                        new { choices = new[] { new { delta = new { reasoning = token } } } },
+                        JsonDefaults.Options);
+                    ApiResponse.WriteSseEvent(stream, json);
+                },
                 OnEvent: evt =>
                 {
                     var json = JsonSerializer.Serialize(

@@ -70,6 +70,7 @@ internal sealed class OpenAiChoice
 internal sealed class OpenAiDelta
 {
     [JsonPropertyName("content")] public string? Content { get; set; }
+    [JsonPropertyName("reasoning")] public string? ReasoningContent { get; set; }
     [JsonPropertyName("tool_calls")] public List<OpenAiToolCallDelta>? ToolCalls { get; set; }
 }
 

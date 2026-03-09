@@ -123,6 +123,11 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             }
 
             var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
+
+            var reasoning = delta?.ReasoningContent;
+            if (!string.IsNullOrEmpty(reasoning))
+                request.OnReasoningToken?.Invoke(reasoning);
+
             var content = delta?.Content;
             if (!string.IsNullOrEmpty(content))
             {

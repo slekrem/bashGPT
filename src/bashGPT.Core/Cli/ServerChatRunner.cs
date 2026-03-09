@@ -107,6 +107,7 @@ public class ServerChatRunner(
             string? resJson = null;
             var result = await ChatOrchestrator.ChatOnceAsync(
                 provider, messages, tools, toolChoiceName, ct, onToken,
+                onReasoningToken: opts.OnReasoningToken,
                 onRequestJson: async json =>
                 {
                     reqJson = json;
@@ -160,8 +161,7 @@ public class ServerChatRunner(
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
 
-                if (rounds > 1)
-                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = rounds }));
+                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = rounds }));
 
                 if (opts.Verbose)
                     logs.Add($"Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");

@@ -61,6 +61,9 @@ export class ChatView extends LitElement {
   private _historyLoadSeq = 0
   private _lastHandledPendingPrompt = ''
   @state() private _streamingContent = ''
+  @state() private _reasoningContent = ''
+  @state() private _streamingId: number | null = null
+  private _newRoundPending = false
   @state() private _streamingEntries: TerminalEntry[] = []
 
   static styles = css`
@@ -420,7 +423,10 @@ export class ChatView extends LitElement {
 
     // Platzhalter für die Assistant-Antwort, wird live befüllt
     const assistantId = this._idCounter++
+    this._streamingId = assistantId
     this._streamingContent = ''
+    this._reasoningContent = ''
+    this._newRoundPending = false
     this._streamingEntries = []
     this._chat = {
       ...this._chat,
@@ -439,6 +445,15 @@ export class ChatView extends LitElement {
       if (this.beforeSend) await this.beforeSend()
 
       const result = await streamChat(prompt, execMode, {
+        onReasoningToken: token => {
+          if (this._newRoundPending) {
+            // Erst beim ersten Token der neuen Runde resetten – bis dahin bleibt der alte Text sichtbar
+            this._reasoningContent = token
+            this._newRoundPending = false
+          } else {
+            this._reasoningContent += token
+          }
+        },
         onToken: token => {
           this._streamingContent += token
           this._chat = {
@@ -474,6 +489,7 @@ export class ChatView extends LitElement {
         },
         onRoundStart: data => {
           this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
+          this._newRoundPending = true
         },
       }, this.sessionId || undefined)
 
@@ -496,6 +512,8 @@ export class ChatView extends LitElement {
         statusError: false,
       }
       this._streamingContent = ''
+      this._reasoningContent = ''
+      this._streamingId = null
       this._streamingEntries = []
       this._emitMessagesChanged()
     } catch (e) {
@@ -510,6 +528,8 @@ export class ChatView extends LitElement {
         statusError: true,
       }
       this._streamingContent = ''
+      this._reasoningContent = ''
+      this._streamingId = null
       this._streamingEntries = []
       this._emitMessagesChanged()
     } finally {
@@ -647,8 +667,11 @@ export class ChatView extends LitElement {
                   m => html`
                     <bashgpt-message
                       role=${m.role}
-                      content=${m.content}
+                      content=${m.id === this._streamingId && this._reasoningContent && !this._streamingContent
+                        ? this._reasoningContent
+                        : m.content}
                       execMode=${m.execMode ?? ''}
+                      ?reasoning=${m.id === this._streamingId && !!this._reasoningContent && !this._streamingContent}
                     ></bashgpt-message>
                   `
                 )}
