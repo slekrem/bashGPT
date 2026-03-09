@@ -37,11 +37,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
             NoBrowser: true,
             Provider: null,
             Model: null,
-            NoContext: true,
-            IncludeDir: false,
-            ExecMode: null,
-            Verbose: false,
-            ForceTools: null);
+            Verbose: false);
 
         _server = new ServerHost(_handler, _configService);
         _cts = new CancellationTokenSource();
@@ -79,7 +75,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, true, false, null, false, null);
+        var options = new ServerOptions(port, true, null, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);
@@ -310,7 +306,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port2 = GetFreePort();
         var server2 = new ServerHost(_handler, _configService);
         using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, true, false, null, false, null);
+        var options2 = new ServerOptions(port2, true, null, null, false);
         var task2 = server2.RunAsync(options2, cts2.Token);
         var url2 = $"http://127.0.0.1:{port2}";
         await WaitForServerAsync(url2);
@@ -341,7 +337,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port2 = GetFreePort();
         var server2 = new ServerHost(_handler, _configService);
         using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, true, false, null, false, null);
+        var options2 = new ServerOptions(port2, true, null, null, false);
         var task2 = server2.RunAsync(options2, cts2.Token);
         var url2 = $"http://127.0.0.1:{port2}";
         await WaitForServerAsync(url2);
@@ -367,7 +363,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port2 = GetFreePort();
         var server2 = new ServerHost(_handler, _configService);
         using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, true, false, null, false, null);
+        var options2 = new ServerOptions(port2, true, null, null, false);
         var task2 = server2.RunAsync(options2, cts2.Token);
         var url2 = $"http://127.0.0.1:{port2}";
         await WaitForServerAsync(url2);
@@ -422,7 +418,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, true, false, null, false, null);
+        var options = new ServerOptions(port, true, null, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);
@@ -449,7 +445,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, true, false, null, false, null);
+        var options = new ServerOptions(port, true, null, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);

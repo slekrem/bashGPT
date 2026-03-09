@@ -12,6 +12,7 @@ export class AgentsView extends LitElement {
   @state() private _error = ''
   @state() private _showForm = false
   @state() private _formName = ''
+  @state() private _formType: 'llm' | 'shell' = 'shell'
   @state() private _formInterval = 60
   @state() private _formSystemPrompt = ''
   @state() private _formLoopInstruction = ''
@@ -391,12 +392,12 @@ export class AgentsView extends LitElement {
     try {
       const agent = await createAgent({
         name:            this._formName.trim(),
-        type:            'llm',
+        type:            this._formType,
         intervalSeconds: this._formInterval,
         systemPrompt:    this._formSystemPrompt.trim() || undefined,
         loopInstruction: this._formLoopInstruction.trim(),
         execMode:        this._formExecMode,
-        enabledTools:    this._formEnabledTools,
+        enabledTools:    this._formType === 'llm' ? this._formEnabledTools : [],
       })
       this._agents = [...this._agents, agent]
       this._resetForm()
@@ -410,6 +411,7 @@ export class AgentsView extends LitElement {
   private _resetForm() {
     this._showForm = false
     this._formName = ''
+    this._formType = 'shell'
     this._formInterval = 60
     this._formSystemPrompt = ''
     this._formLoopInstruction = ''
@@ -483,8 +485,8 @@ export class AgentsView extends LitElement {
   }
 
   private _renderAgent(a: Agent) {
-    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : '🌐'
-    const meta = a.type === 'gitstatus' ? a.path : a.type === 'llmagent' ? (a.loopInstruction ?? '') : a.url
+    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : a.type === 'shell' ? '🐚' : '🌐'
+    const meta = a.type === 'gitstatus' ? a.path : (a.type === 'llmagent' || a.type === 'shell') ? (a.loopInstruction ?? '') : a.url
     const badgeClass = !a.isActive ? 'badge-inactive' : !a.lastCheckSucceeded ? 'badge-fail' : 'badge-active'
     const badgeLabel = !a.isActive ? 'Pausiert' : !a.lastCheckSucceeded ? 'Fehler' : 'Aktiv'
 
@@ -517,6 +519,17 @@ export class AgentsView extends LitElement {
       <div class="form-card">
         <h3>Neuer Agent</h3>
 
+        <div class="type-tabs">
+          <button
+            class="type-tab ${this._formType === 'shell' ? 'active' : ''}"
+            @click=${() => { this._formType = 'shell' }}
+          >🐚 Shell</button>
+          <button
+            class="type-tab ${this._formType === 'llm' ? 'active' : ''}"
+            @click=${() => { this._formType = 'llm' }}
+          >🤖 LLM</button>
+        </div>
+
         <div class="form-row">
           <label>Name</label>
           <input
@@ -530,7 +543,9 @@ export class AgentsView extends LitElement {
         <div class="form-row">
           <label>System-Prompt (optional)</label>
           <textarea
-            placeholder="Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
+            placeholder=${this._formType === 'shell'
+              ? 'Standard-Shell-Kontext wird automatisch verwendet.'
+              : 'Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus.'}
             .value=${this._formSystemPrompt}
             @input=${(e: Event) => { this._formSystemPrompt = (e.target as HTMLTextAreaElement).value }}
           ></textarea>
@@ -565,7 +580,7 @@ export class AgentsView extends LitElement {
           />
         </div>
 
-        ${this._renderToolList(this._formEnabledTools, 'form')}
+        ${this._formType === 'llm' ? this._renderToolList(this._formEnabledTools, 'form') : ''}
 
         ${this._formError ? html`<div class="form-error">${this._formError}</div>` : ''}
 

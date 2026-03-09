@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using BashGPT.Cli;
 using BashGPT.Providers;
-using BashGPT.Shell;
 using BashGPT.Storage;
 
 namespace BashGPT.Server;
@@ -47,21 +46,16 @@ internal sealed class StreamingChatApiHandler(
                 historySnapshot = legacyHistory.GetSnapshot();
             }
 
-            var requestedMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
             var now        = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
             var sessionId  = body.SessionId;
 
             var chatOpts = new ServerChatOptions(
-                Prompt:     body.Prompt.Trim(),
-                History:    historySnapshot,
-                Provider:   options.Provider,
-                Model:      options.Model,
-                NoContext:  options.NoContext,
-                IncludeDir: options.IncludeDir,
-                ExecMode:   requestedMode,
-                Verbose:    options.Verbose || body.Verbose == true,
-                ForceTools: state.ForceTools,
+                Prompt:   body.Prompt.Trim(),
+                History:  historySnapshot,
+                Provider: options.Provider,
+                Model:    options.Model,
+                Verbose:  options.Verbose || body.Verbose == true,
                 OnToken: token =>
                 {
                     var json = JsonSerializer.Serialize(
@@ -110,16 +104,8 @@ internal sealed class StreamingChatApiHandler(
                 },
                 bashgpt = new
                 {
-                    @event        = "done",
-                    response      = result.Response,
-                    usedToolCalls = result.UsedToolCalls,
-                    commands      = result.Commands.Select(c => new
-                    {
-                        command     = c.Command,
-                        exitCode    = c.ExitCode,
-                        output      = c.Output,
-                        wasExecuted = c.WasExecuted,
-                    }),
+                    @event       = "done",
+                    response     = result.Response,
                     logs         = result.Logs,
                     shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
                 },
@@ -133,34 +119,18 @@ internal sealed class StreamingChatApiHandler(
                 var session     = await sessionStore.LoadAsync(body.SessionId);
                 var newMessages = new List<SessionMessage>();
 
-                // User-Nachricht
-                newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim(), ExecMode = body.ExecMode });
-
-                // Zwischennachrichten (Tool-Call-Runden): assistant-mit-tool-calls + tool-results
-                if (result.IntermediateMessages is not null)
-                    newMessages.AddRange(result.IntermediateMessages.Select(SessionMessageMapper.FromChatMessage));
-
-                // Finale Assistent-Antwort
+                newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim() });
                 newMessages.Add(new()
                 {
-                    Role     = "assistant",
-                    Content  = result.Response,
-                    Usage    = result.Usage is null ? null : new SessionTokenUsage
+                    Role    = "assistant",
+                    Content = result.Response,
+                    Usage   = result.Usage is null ? null : new SessionTokenUsage
                     {
                         InputTokens       = result.Usage.InputTokens,
                         OutputTokens      = result.Usage.OutputTokens,
                         TotalTokens       = result.Usage.TotalTokens,
                         CachedInputTokens = result.Usage.CachedInputTokens,
                     },
-                    Commands = result.Commands.Count > 0
-                        ? result.Commands.Select(c => new SessionCommand
-                          {
-                              Command     = c.Command,
-                              ExitCode    = c.ExitCode,
-                              Output      = c.Output,
-                              WasExecuted = c.WasExecuted,
-                          }).ToList()
-                        : null,
                 });
 
                 var existingMessages = session?.Messages ?? [];
@@ -181,20 +151,11 @@ internal sealed class StreamingChatApiHandler(
                 var reqRecord = new SessionRequestRecord
                 {
                     Timestamp = requestKey,
-                    Request   = new SessionRequestData  { Prompt = body.Prompt.Trim(), ExecMode = body.ExecMode },
+                    Request   = new SessionRequestData { Prompt = body.Prompt.Trim() },
                     Response  = new SessionResponseData
                     {
-                        Content  = result.Response,
-                        Commands = result.Commands.Count > 0
-                            ? result.Commands.Select(c => new SessionCommand
-                              {
-                                  Command     = c.Command,
-                                  ExitCode    = c.ExitCode,
-                                  Output      = c.Output,
-                                  WasExecuted = c.WasExecuted,
-                              }).ToList()
-                            : null,
-                        Usage = result.Usage is null ? null : new SessionTokenUsage
+                        Content = result.Response,
+                        Usage   = result.Usage is null ? null : new SessionTokenUsage
                         {
                             InputTokens       = result.Usage.InputTokens,
                             OutputTokens      = result.Usage.OutputTokens,
@@ -229,5 +190,5 @@ internal sealed class StreamingChatApiHandler(
         }
     }
 
-    private sealed record ChatRequest(string Prompt, string? ExecMode, bool? Verbose, string? SessionId);
+    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId);
 }

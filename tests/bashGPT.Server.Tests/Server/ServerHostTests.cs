@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using BashGPT.Configuration;
 using BashGPT.Server;
-using BashGPT.Shell;
 
 namespace BashGPT.Server.Tests;
 
@@ -34,11 +33,7 @@ public sealed class ServerHostTests : IAsyncLifetime
             NoBrowser: true,
             Provider: null,
             Model: null,
-            NoContext: true,
-            IncludeDir: false,
-            ExecMode: ExecutionMode.NoExec,
-            Verbose: false,
-            ForceTools: null);
+            Verbose: false);
 
         _server = new ServerHost(_handler);
         _cts = new CancellationTokenSource();
@@ -135,7 +130,7 @@ public sealed class ServerHostTests : IAsyncLifetime
     [Fact]
     public async Task Post_Chat_ValidPrompt_Returns200WithResponse()
     {
-        _handler.NextResult = new("Das ist eine Test-Antwort.", [], [], false);
+        _handler.NextResult = new("Das ist eine Test-Antwort.", []);
 
         var response = await PostChatAsync("Was ist Zeit?");
 
@@ -143,7 +138,6 @@ public sealed class ServerHostTests : IAsyncLifetime
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Das ist eine Test-Antwort.", json.GetProperty("response").GetString());
-        Assert.False(json.GetProperty("usedToolCalls").GetBoolean());
     }
 
     [Fact]
@@ -160,49 +154,11 @@ public sealed class ServerHostTests : IAsyncLifetime
     [Fact]
     public async Task Post_Chat_MissingPrompt_Returns400()
     {
-        var body = JsonSerializer.Serialize(new { execMode = "no-exec" });
+        var body = JsonSerializer.Serialize(new { verbose = false });
         var response = await _client.PostAsync("/api/chat",
             new StringContent(body, Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Post_Chat_PassesExecModeToHandler()
-    {
-        await SendChatRaw("Test", execMode: "auto-exec");
-
-        Assert.Equal(ExecutionMode.AutoExec, _handler.LastOptions?.ExecMode);
-    }
-
-    [Fact]
-    public async Task Post_Chat_UnknownExecMode_FallsBackToServerDefault()
-    {
-        await SendChatRaw("Test", execMode: "unknown-mode");
-
-        // ServerOptions.ExecMode = NoExec (gesetzt in InitializeAsync)
-        Assert.Equal(ExecutionMode.NoExec, _handler.LastOptions?.ExecMode);
-    }
-
-    [Fact]
-    public async Task Post_Chat_WithCommands_ReturnsCommandsInResponse()
-    {
-        _handler.NextResult = new(
-            Response: "Habe ls ausgeführt.",
-            Commands: [new CommandResult("ls -la", 0, "total 0\ndrwxr-xr-x  2 user user   40 Feb 28 12:00 .", true)],
-            Logs: [],
-            UsedToolCalls: true);
-
-        var response = await PostChatAsync("Liste Dateien auf");
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        Assert.True(json.GetProperty("usedToolCalls").GetBoolean());
-
-        var commands = json.GetProperty("commands");
-        Assert.Equal(1, commands.GetArrayLength());
-        Assert.Equal("ls -la", commands[0].GetProperty("command").GetString());
-        Assert.Equal(0, commands[0].GetProperty("exitCode").GetInt32());
-        Assert.True(commands[0].GetProperty("wasExecuted").GetBoolean());
     }
 
     [Fact]
@@ -218,20 +174,6 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.True(json.TryGetProperty("error", out _));
     }
 
-    // ── Exec-Mode-Wechsel ────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData("ask", ExecutionMode.Ask)]
-    [InlineData("dry-run", ExecutionMode.DryRun)]
-    [InlineData("auto-exec", ExecutionMode.AutoExec)]
-    [InlineData("no-exec", ExecutionMode.NoExec)]
-    public async Task Post_Chat_AllExecModes_AreParsedCorrectly(string modeString, ExecutionMode expected)
-    {
-        await SendChatRaw("Test", execMode: modeString);
-
-        Assert.Equal(expected, _handler.LastOptions?.ExecMode);
-    }
-
     // ── 404 ──────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -244,16 +186,15 @@ public sealed class ServerHostTests : IAsyncLifetime
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
-    private async Task<HttpResponseMessage> PostChatAsync(string prompt, string execMode = "no-exec")
+    private async Task<HttpResponseMessage> PostChatAsync(string prompt)
     {
-        return await SendChatRaw(prompt, execMode);
+        return await SendChatRaw(prompt);
     }
 
-    private async Task<HttpResponseMessage> SendChatRaw(string? prompt = null, string? execMode = null)
+    private async Task<HttpResponseMessage> SendChatRaw(string? prompt = null)
     {
         var payload = new Dictionary<string, object?>();
         if (prompt is not null) payload["prompt"] = prompt;
-        if (execMode is not null) payload["execMode"] = execMode;
 
         var body = JsonSerializer.Serialize(payload);
         return await _client.PostAsync("/api/chat",
@@ -264,7 +205,7 @@ public sealed class ServerHostTests : IAsyncLifetime
     {
         var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
         listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
     }
