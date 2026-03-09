@@ -91,9 +91,10 @@ public class ServerChatRunner(
 
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
-        var tools            = new[] { ToolDefinitions.Bash };
-        var toolChoiceName   = opts.ForceTools ? "bash" : null;
-        var usedToolCalls    = false;
+        var tools                = new[] { ToolDefinitions.Bash };
+        var toolChoiceName       = opts.ForceTools ? "bash" : null;
+        var usedToolCalls        = false;
+        var intermediateMessages = new List<ChatMessage>();
         string? firstRequestJson  = null;
         string? firstResponseJson = null;
 
@@ -172,8 +173,10 @@ public class ServerChatRunner(
                     input:  new StringReader(string.Empty),
                     commandTimeoutSeconds: commandTimeoutSeconds);
 
+                var countBefore = messages.Count;
                 var roundResults = await ChatOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls, commands, errors, currentResponse.Content, messages, executor, ct);
+                intermediateMessages.AddRange(messages.Skip(countBefore));
 
                 foreach (var r in roundResults)
                     opts.OnEvent?.Invoke(new SseEvent("command_result",
@@ -258,7 +261,8 @@ public class ServerChatRunner(
             : null;
 
         ServerChatResult BuildResult(string content, IReadOnlyList<CommandResult> cmds, bool toolCalls)
-            => new(content, cmds, logs, toolCalls, BuildUsage(), firstRequestJson, firstResponseJson);
+            => new(content, cmds, logs, toolCalls, BuildUsage(), firstRequestJson, firstResponseJson,
+                   intermediateMessages.Count > 0 ? intermediateMessages : null);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)

@@ -59,6 +59,22 @@ public sealed class SessionMessage
     public string?  ExecMode { get; set; }
     public List<SessionCommand>? Commands { get; set; }
     public SessionTokenUsage? Usage { get; set; }
+
+    /// <summary>Tool-Calls die der Assistent angefordert hat (Role=assistant mit Tool-Calls).</summary>
+    public List<SessionToolCall>? ToolCalls { get; set; }
+
+    /// <summary>ID des zugehörigen Tool-Calls (Role=tool).</summary>
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Name des aufgerufenen Tools (Role=tool).</summary>
+    public string? ToolName { get; set; }
+}
+
+public sealed class SessionToolCall
+{
+    public string? Id            { get; set; }
+    public string  Name          { get; set; } = string.Empty;
+    public string  ArgumentsJson { get; set; } = string.Empty;
 }
 
 public sealed class SessionCommand

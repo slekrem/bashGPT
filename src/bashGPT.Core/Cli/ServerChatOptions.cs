@@ -25,7 +25,8 @@ public record ServerChatResult(
     bool UsedToolCalls,
     TokenUsage? Usage = null,
     string? FirstLlmRequestJson = null,
-    string? FirstLlmResponseJson = null
+    string? FirstLlmResponseJson = null,
+    IReadOnlyList<ChatMessage>? IntermediateMessages = null
 );
 
 public record SseEvent(string Event, object? Data = null);
