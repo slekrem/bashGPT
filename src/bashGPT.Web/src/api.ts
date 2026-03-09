@@ -1,4 +1,4 @@
-import type { Agent, ChatResponse, CommandResult, ExecMode, FullShellContext, HistoryMessage, Session, Settings, ToolInfo } from './types'
+import type { Agent, ChatResponse, CommandResult, FullShellContext, HistoryMessage, Session, Settings, ToolInfo } from './types'
 import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -18,7 +18,7 @@ async function assertOk(res: Response): Promise<void> {
   throw new Error(await readErrorMessage(res))
 }
 
-export async function sendChat(prompt: string, execMode: ExecMode, sessionId?: string, enabledTools?: string[]): Promise<ChatResponse> {
+export async function sendChat(prompt: string, sessionId?: string, enabledTools?: string[]): Promise<ChatResponse> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
   let res: Response
@@ -28,7 +28,6 @@ export async function sendChat(prompt: string, execMode: ExecMode, sessionId?: s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt,
-        execMode,
         ...(sessionId ? { sessionId } : {}),
         ...(enabledTools?.length ? { enabledTools } : {}),
       }),
@@ -56,7 +55,6 @@ export type StreamHandlers = {
 
 export async function streamChat(
   prompt: string,
-  execMode: ExecMode,
   handlers: StreamHandlers,
   sessionId?: string,
   enabledTools?: string[]
@@ -66,7 +64,6 @@ export async function streamChat(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       prompt,
-      execMode,
       ...(sessionId ? { sessionId } : {}),
       ...(enabledTools?.length ? { enabledTools } : {}),
     }),
@@ -170,7 +167,7 @@ export async function createSession(): Promise<Session | null> {
   } catch { return null }
 }
 
-export async function getSession(id: string): Promise<{ messages: any[]; shellContext?: any } | null> {
+export async function getSession(id: string): Promise<{ messages: any[]; shellContext?: any; enabledTools?: string[] } | null> {
   try {
     const res = await fetch(`/api/sessions/${id}`)
     if (!res.ok) return null

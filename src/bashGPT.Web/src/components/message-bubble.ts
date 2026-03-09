@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import hljsStyles from 'highlight.js/styles/github-dark.css?inline'
-import type { CommandResult, ExecMode } from '../types'
+import type { CommandResult } from '../types'
 
 marked.setOptions({
   async: false,
@@ -23,7 +23,6 @@ marked.use({ renderer })
 export class MessageBubble extends LitElement {
   @property() role: 'user' | 'assistant' = 'user'
   @property() content = ''
-  @property() execMode: ExecMode | '' = ''
   @property({ type: Boolean }) reasoning = false
   // Behalten für Rückwärtskompatibilität (v1), werden in v2 nicht mehr gerendert
   @property({ type: Array }) commands: CommandResult[] = []
@@ -120,17 +119,6 @@ export class MessageBubble extends LitElement {
         gap: 8px;
         margin-bottom: 6px;
       }
-      .exec-badge {
-        font-size: 10px;
-        font-weight: 600;
-        padding: 1px 7px;
-        border-radius: 999px;
-        letter-spacing: 0.03em;
-      }
-      .exec-ask       { background: #1e3a5f; color: #60a5fa; }
-      .exec-dry-run   { background: #3b2f00; color: #fcd34d; }
-      .exec-auto-exec { background: #14532d; color: #86efac; }
-      .exec-no-exec   { background: #1e293b; color: #64748b; }
     `,
   ]
 
@@ -150,21 +138,11 @@ export class MessageBubble extends LitElement {
     return unsafeHTML(sanitized)
   }
 
-  private _execBadge() {
-    if (this.role !== 'user' || !this.execMode) return ''
-    const label: Record<string, string> = {
-      'ask': 'ask', 'dry-run': 'dry-run', 'auto-exec': 'auto-exec', 'no-exec': 'no-exec',
-    }
-    const cls = `exec-${this.execMode}`
-    return html`<span class="exec-badge ${cls}">${label[this.execMode]}</span>`
-  }
-
   render() {
     return html`
       <div class="bubble ${this.role}">
         <div class="meta-row">
           <span class="meta">${this.role === 'user' ? 'Du' : 'bashGPT'}</span>
-          ${this._execBadge()}
         </div>
         ${this.reasoning ? html`<div class="reasoning-label">Denkt…</div>` : ''}
         <div class="content ${this.reasoning ? 'is-reasoning' : ''}">${this._html}</div>
