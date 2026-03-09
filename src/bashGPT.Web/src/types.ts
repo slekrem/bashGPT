@@ -130,7 +130,7 @@ export interface ToolInfo {
   }>
 }
 
-export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents'
+export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents' | 'tools'
 
 export type ChatStatus = 'idle' | 'loading' | 'error'
 
