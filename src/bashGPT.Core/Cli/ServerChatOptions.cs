@@ -13,7 +13,8 @@ public record ServerChatOptions(
     Action<string>? OnReasoningToken = null,
     Action<SseEvent>? OnEvent = null,
     Func<int, string, Task>? OnLlmRequestJson = null,
-    Func<int, string, Task>? OnLlmResponseJson = null
+    Func<int, string, Task>? OnLlmResponseJson = null,
+    IReadOnlyList<ToolDefinition>? Tools = null
 );
 
 /// <summary>

@@ -79,6 +79,7 @@ public class SessionStore
             UpdatedAt    = entry.UpdatedAt,
             Messages     = content.Messages,
             ShellContext = content.ShellContext,
+            EnabledTools = content.EnabledTools,
         };
     }
 
@@ -99,6 +100,7 @@ public class SessionStore
             {
                 Messages     = session.Messages,
                 ShellContext = session.ShellContext,
+                EnabledTools = session.EnabledTools,
             };
             await WriteContentInternalAsync(session.Id, content);
 

@@ -4,8 +4,8 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './terminal-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings } from '../api'
-import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage } from '../types'
+import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools } from '../api'
+import type { ExecMode, CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -65,6 +65,9 @@ export class ChatView extends LitElement {
   @state() private _streamingId: number | null = null
   private _newRoundPending = false
   @state() private _streamingEntries: TerminalEntry[] = []
+  @state() private _enabledTools: string[] = []
+  @state() private _toolPickerOpen = false
+  @state() private _availableTools: ToolInfo[] = []
 
   static styles = css`
     :host {
@@ -246,6 +249,46 @@ export class ChatView extends LitElement {
       width: 0;
       opacity: 0;
     }
+
+    /* ── Tool-Picker ────────────────────────────────────────────────────── */
+    .tool-picker {
+      background: #0d1b2e;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .tool-picker-title {
+      font-size: 11px;
+      color: #60a5fa;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tool-picker-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tool-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 1px solid #1e3a5f;
+      background: #111827;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .tool-chip:hover { background: #1e293b; }
+    .tool-chip.active { background: #14532d; border-color: #16a34a; color: #dcfce7; }
+    .tool-chip.active::before { content: '✓ '; }
 
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
@@ -491,24 +534,20 @@ export class ChatView extends LitElement {
           this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
           this._newRoundPending = true
         },
-      }, this.sessionId || undefined)
+      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined)
 
       // Finale Message mit vollständigen Daten übernehmen
       const newMessages = this._chat.messages.map(m =>
         m.id === assistantId
-          ? { ...m, content: result.response, commands: result.commands,
-              usedToolCalls: result.usedToolCalls, usage: result.usage ?? undefined }
+          ? { ...m, content: result.response, usage: result.usage ?? undefined }
           : m
       )
-      const parts = [`tool_calls=${result.usedToolCalls ? 'ja' : 'nein'}`]
-      if (result.commands.length > 0)
-        parts.push(`${result.commands.length} Befehl${result.commands.length > 1 ? 'e' : ''}`)
       this._chat = {
         ...this._chat,
         messages:    newMessages,
         tokenUsage:  this._sumTokenUsage(newMessages),
         shellContext: result.shellContext ?? this._chat.shellContext,
-        statusText:  parts.join(' · '),
+        statusText:  this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '',
         statusError: false,
       }
       this._streamingContent = ''
@@ -595,6 +634,18 @@ export class ChatView extends LitElement {
         this._ctx = { ...this._ctx, loading: false }
       }
     }
+  }
+
+  private async _toggleToolPicker() {
+    this._toolPickerOpen = !this._toolPickerOpen
+    if (this._toolPickerOpen && this._availableTools.length === 0)
+      this._availableTools = await getTools()
+  }
+
+  private _toggleTool(name: string) {
+    this._enabledTools = this._enabledTools.includes(name)
+      ? this._enabledTools.filter(t => t !== name)
+      : [...this._enabledTools, name]
   }
 
   private _sumTokenUsage(messages: Message[]): TokenUsage {
@@ -698,6 +749,25 @@ export class ChatView extends LitElement {
       </div>
 
       <footer>
+        ${this._toolPickerOpen ? html`
+          <div class="tool-picker">
+            <div class="tool-picker-title">🔧 Tools für diese Session</div>
+            ${this._availableTools.length === 0
+              ? html`<span style="font-size:12px;color:#64748b">Keine Tools verfügbar.</span>`
+              : html`
+                <div class="tool-picker-list">
+                  ${this._availableTools.map(t => html`
+                    <button
+                      class="tool-chip ${this._enabledTools.includes(t.name) ? 'active' : ''}"
+                      @click=${() => this._toggleTool(t.name)}
+                      title=${t.description}
+                    >${t.name}</button>
+                  `)}
+                </div>
+              `}
+          </div>
+        ` : ''}
+
         <div class="input-row">
           <textarea
             placeholder=${this.readOnly
@@ -720,6 +790,15 @@ export class ChatView extends LitElement {
             <option value="auto-exec">auto-exec</option>
             <option value="no-exec">no-exec</option>
           </select>
+
+          ${!this.readOnly ? html`
+            <button
+              class="terminal-toggle ${this._toolPickerOpen || this._enabledTools.length > 0 ? 'active' : ''}"
+              @click=${this._toggleToolPicker}
+              title="Tools für diese Session konfigurieren"
+              aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
+            >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
+          ` : ''}
 
           ${this.showTerminal ? html`
             <button

@@ -1,6 +1,7 @@
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using BashGPT.Tools.Execution;
 using System.Reflection;
 
 namespace BashGPT.Cli.Tests;
@@ -196,6 +197,149 @@ public sealed class ServerChatRunnerTests
         }
     }
 
+    // ── Tool-Call-Loop-Tests ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunServerChatAsync_WithToolsAndNoToolCallsInResponse_SingleLlmCall()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("Antwort ohne Tools.", []));
+
+        var fakeTool = new FakeTool("my_tool");
+        var registry = new ToolRegistry([fakeTool]);
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Hallo",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Antwort ohne Tools.", result.Response);
+        Assert.Equal(1, provider.CallCount);
+        Assert.Equal(0, fakeTool.CallCount);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WithToolsAndToolCall_ExecutesToolAndCallsLlmAgain()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse(
+            "Ich rufe das Tool auf.",
+            [new Providers.ToolCall("call-1", "my_tool", "{\"input\":\"x\"}")]));
+        provider.Enqueue(new LlmChatResponse("Fertig nach Tool.", []));
+
+        var fakeTool = new FakeTool("my_tool", returnValue: "Tool-Ausgabe");
+        var registry = new ToolRegistry([fakeTool]);
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Benutze das Tool",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Fertig nach Tool.", result.Response);
+        Assert.Equal(2, provider.CallCount);
+        Assert.Equal(1, fakeTool.CallCount);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WithTools_UnknownTool_ReturnsErrorInToolResult()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse(
+            "Ich rufe unbekanntes Tool auf.",
+            [new Providers.ToolCall("call-1", "unbekannt", "{}")]));
+        provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
+
+        var registry = new ToolRegistry();
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("unbekannt", "Unbekannt", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Benutze unbekanntes Tool",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Fehler verarbeitet.", result.Response);
+        Assert.Equal(2, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WithTools_MaxRoundsReached_StopsLoop()
+    {
+        // Immer Tool-Calls zurückgeben → Loop soll nach MaxToolRounds stoppen
+        var provider = new FakeLlmProvider();
+        for (var i = 0; i < 10; i++)
+        {
+            provider.Enqueue(new LlmChatResponse(
+                $"Runde {i}",
+                [new Providers.ToolCall($"c{i}", "my_tool", "{}")]));
+        }
+        provider.Enqueue(new LlmChatResponse("Nach Loop.", []));
+
+        var fakeTool = new FakeTool("my_tool");
+        var registry = new ToolRegistry([fakeTool]);
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Schleife",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        // 1 initialer Call + MaxToolRounds (5) = 6 LLM-Calls gesamt
+        Assert.Equal(6, provider.CallCount);
+        Assert.Equal(5, fakeTool.CallCount);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_WithoutToolRegistry_ToolCallsNotExecuted()
+    {
+        // Kein Registry → Loop wird nie gestartet, auch wenn Tools in opts stehen
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse(
+            "Antwort mit Tool-Call.",
+            [new Providers.ToolCall("c1", "my_tool", "{}")]));
+
+        var sut = new ServerChatRunner(new ConfigurationService(), provider); // kein Registry
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Hallo",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Antwort mit Tool-Call.", result.Response);
+        Assert.Equal(1, provider.CallCount); // nur ein Aufruf
+    }
+
     // ── LlmExchanges-Tests ───────────────────────────────────────────────────
 
     [Fact]
@@ -253,5 +397,29 @@ public sealed class ServerChatRunnerTests
         var limiter = method!.Invoke(sut, [config]);
 
         Assert.Null(limiter);
+    }
+}
+
+// ── FakeTool ─────────────────────────────────────────────────────────────────
+
+internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
+{
+    private readonly string _returnValue;
+
+    public int CallCount { get; private set; }
+
+    public BashGPT.Tools.Abstractions.ToolDefinition Definition { get; }
+
+    public FakeTool(string name, string returnValue = "Tool-Ergebnis")
+    {
+        _returnValue = returnValue;
+        Definition   = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake-Tool für Tests", []);
+    }
+
+    public Task<BashGPT.Tools.Abstractions.ToolResult> ExecuteAsync(
+        BashGPT.Tools.Abstractions.ToolCall call, CancellationToken ct)
+    {
+        CallCount++;
+        return Task.FromResult(new BashGPT.Tools.Abstractions.ToolResult(true, _returnValue));
     }
 }

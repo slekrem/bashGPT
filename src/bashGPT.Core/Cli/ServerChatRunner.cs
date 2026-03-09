@@ -1,16 +1,22 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using BashGPT.Tools.Abstractions;
+using BashGPT.Tools.Execution;
 
 namespace BashGPT.Cli;
 
 /// <summary>
-/// Verarbeitet Chat-Anfragen im Server-Modus: reines LLM-Chat ohne Shell-Kontext oder Tools.
-/// Shell-Funktionalität wird über den Shell-Agenten bereitgestellt.
+/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstützt optionalen Tool-Call-Loop,
+/// wenn der Session Tools zugewiesen sind. Shell-Funktionalität wird über den
+/// Shell-Agenten oder über zugewiesene Session-Tools bereitgestellt.
 /// </summary>
 public class ServerChatRunner(
     ConfigurationService configService,
-    ILlmProvider? providerOverride = null) : IPromptHandler
+    ILlmProvider? providerOverride = null,
+    ToolRegistry? toolRegistry = null) : IPromptHandler
 {
+    private const int MaxToolRounds = 5;
+
     // Shared across all requests so the rate limit is truly global per process.
     // Recreated automatically when the rate-limiting config values change.
     private LlmRateLimiter? _sharedLimiter;
@@ -67,6 +73,7 @@ public class ServerChatRunner(
             messages.Add(msg);
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
+        var tools       = opts.Tools ?? [];
         var llmExchanges = new List<LlmExchangeRecord>();
         var exchangeIdx  = 0;
 
@@ -76,7 +83,7 @@ public class ServerChatRunner(
             string? reqJson = null;
             string? resJson = null;
             var result = await ChatOrchestrator.ChatOnceAsync(
-                provider, messages, [], null, ct, onToken,
+                provider, messages, tools, null, ct, onToken,
                 onReasoningToken: opts.OnReasoningToken,
                 onRequestJson: async json =>
                 {
@@ -98,6 +105,39 @@ public class ServerChatRunner(
 
         totalInputTokens  += response.Response.Usage?.InputTokens  ?? 0;
         totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
+
+        // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfügbar
+        if (tools.Count > 0 && toolRegistry is not null)
+        {
+            for (var round = 0; round < MaxToolRounds; round++)
+            {
+                if (response.Response.ToolCalls.Count == 0) break;
+
+                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
+                messages.Add(ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content));
+
+                foreach (var call in response.Response.ToolCalls)
+                {
+                    string toolResult;
+                    if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
+                    {
+                        var r = await iTool.ExecuteAsync(
+                            new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
+                        toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
+                    }
+                    else
+                    {
+                        toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
+                    }
+                    messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
+                }
+
+                response = await CallOnce();
+                if (response.Error is not null) break;
+                totalInputTokens  += response.Response.Usage?.InputTokens  ?? 0;
+                totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
+            }
+        }
 
         TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
             ? new TokenUsage(totalInputTokens, totalOutputTokens)

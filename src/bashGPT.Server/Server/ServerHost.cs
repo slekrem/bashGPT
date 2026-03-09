@@ -41,8 +41,8 @@ public class ServerHost
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService, _state);
-        _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore);
+        _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
         _agentHandler         = new AgentApiHandler(agentStore, toolRegistry);
         _toolHandler          = new ToolApiHandler(toolRegistry);

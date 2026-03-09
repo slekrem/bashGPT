@@ -702,6 +702,59 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Null(ex);
     }
 
+    // ── EnabledTools ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpsertAsync_WithEnabledTools_PersistsAndLoadsTools()
+    {
+        var store   = CreateStore();
+        var session = MakeSession("s1");
+        session.EnabledTools = ["bash", "git_status"];
+
+        await store.UpsertAsync(session);
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.NotNull(loaded!.EnabledTools);
+        Assert.Equal(2, loaded.EnabledTools!.Count);
+        Assert.Contains("bash",       loaded.EnabledTools);
+        Assert.Contains("git_status", loaded.EnabledTools);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WithNullEnabledTools_LoadsNullTools()
+    {
+        var store   = CreateStore();
+        var session = MakeSession("s1");
+        session.EnabledTools = null;
+
+        await store.UpsertAsync(session);
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Null(loaded!.EnabledTools);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_UpdateEnabledTools_PersistsNewValue()
+    {
+        var store   = CreateStore();
+        var session = MakeSession("s1");
+        session.EnabledTools = ["bash"];
+        await store.UpsertAsync(session);
+
+        var updated = MakeSession("s1");
+        updated.EnabledTools = ["bash", "http_check"];
+        await store.UpsertAsync(updated);
+
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Equal(2, loaded!.EnabledTools!.Count);
+        Assert.Contains("bash",       loaded.EnabledTools);
+        Assert.Contains("http_check", loaded.EnabledTools);
+    }
+
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private static SessionRecord MakeSession(
