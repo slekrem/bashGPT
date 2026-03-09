@@ -471,6 +471,88 @@ public sealed class ServerChatRunnerTests
         Assert.Equal(6, result.Usage.OutputTokens);
     }
 
+    // ── LlmExchanges-Tests ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RunServerChatAsync_SimpleResponse_OneLlmExchange()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("Antwort", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts());
+
+        Assert.NotNull(result.LlmExchanges);
+        Assert.Single(result.LlmExchanges!);
+        Assert.NotNull(result.LlmExchanges[0].RequestJson);
+        Assert.NotNull(result.LlmExchanges[0].ResponseJson);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_SingleToolCallRound_TwoLlmExchanges()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("echo hi")]));
+        provider.Enqueue(new LlmChatResponse("Fertig!", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.NotNull(result.LlmExchanges);
+        Assert.Equal(2, result.LlmExchanges!.Count);
+        Assert.All(result.LlmExchanges, ex =>
+        {
+            Assert.NotNull(ex.RequestJson);
+            Assert.NotNull(ex.ResponseJson);
+        });
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_ThreeToolCallRounds_FourLlmExchanges()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("ls",   "tc-1")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("pwd",  "tc-2")]));
+        provider.Enqueue(new LlmChatResponse("", [BashCall("date", "tc-3")]));
+        provider.Enqueue(new LlmChatResponse("Alle Runden erledigt.", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.NotNull(result.LlmExchanges);
+        Assert.Equal(4, result.LlmExchanges!.Count);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_FallbackFollowUp_TwoLlmExchanges()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("```bash\necho hi\n```", []));
+        provider.Enqueue(new LlmChatResponse("Fertig.", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.AutoExec));
+
+        Assert.NotNull(result.LlmExchanges);
+        Assert.Equal(2, result.LlmExchanges!.Count);
+    }
+
+    [Fact]
+    public async Task RunServerChatAsync_EachExchange_HasDistinctRequestJson()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse("", [BashCall("ls", "tc-1")]));
+        provider.Enqueue(new LlmChatResponse("Fertig!", []));
+        var sut = CreateRunner(provider);
+
+        var result = await sut.RunServerChatAsync(Opts(execMode: ExecutionMode.DryRun));
+
+        Assert.NotNull(result.LlmExchanges);
+        Assert.Equal(2, result.LlmExchanges!.Count);
+        // Die synthetischen JSONs unterscheiden sich durch "call":1 vs "call":2
+        Assert.NotEqual(result.LlmExchanges[0].RequestJson, result.LlmExchanges[1].RequestJson);
+    }
+
     [Fact]
     public void GetOrCreateLimiter_ReusesAndRecreates_ByConfig()
     {

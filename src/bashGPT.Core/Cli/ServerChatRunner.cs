@@ -91,16 +91,38 @@ public class ServerChatRunner(
 
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
-        var tools            = new[] { ToolDefinitions.Bash };
-        var toolChoiceName   = opts.ForceTools ? "bash" : null;
-        var usedToolCalls    = false;
-        string? firstRequestJson  = null;
-        string? firstResponseJson = null;
+        var tools                = new[] { ToolDefinitions.Bash };
+        var toolChoiceName       = opts.ForceTools ? "bash" : null;
+        var usedToolCalls        = false;
+        var intermediateMessages = new List<ChatMessage>();
+        var llmExchanges         = new List<LlmExchangeRecord>();
+        var exchangeIdx          = 0;
 
-        var firstResponse = await ChatOrchestrator.ChatOnceAsync(
-            provider, messages, tools, toolChoiceName, ct, opts.OnToken,
-            onRequestJson:  json => firstRequestJson  ??= json,
-            onResponseJson: json => firstResponseJson ??= json);
+        // Ruft ChatOnceAsync auf, speichert Request/Response sofort via Callbacks
+        // und fügt den Exchange zur Liste hinzu.
+        async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
+        {
+            var idx = exchangeIdx++;
+            string? reqJson = null;
+            string? resJson = null;
+            var result = await ChatOrchestrator.ChatOnceAsync(
+                provider, messages, tools, toolChoiceName, ct, onToken,
+                onReasoningToken: opts.OnReasoningToken,
+                onRequestJson: async json =>
+                {
+                    reqJson = json;
+                    if (opts.OnLlmRequestJson is not null) await opts.OnLlmRequestJson(idx, json);
+                },
+                onResponseJson: async json =>
+                {
+                    resJson = json;
+                    if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
+                });
+            llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
+            return result;
+        }
+
+        var firstResponse = await CallOnce(opts.OnToken);
         if (firstResponse.Error is not null)
             return new ServerChatResult(firstResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -139,8 +161,7 @@ public class ServerChatRunner(
                 rounds++;
                 var toolCalls = currentResponse.ToolCalls;
 
-                if (rounds > 1)
-                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = rounds }));
+                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = rounds }));
 
                 if (opts.Verbose)
                     logs.Add($"Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
@@ -172,8 +193,10 @@ public class ServerChatRunner(
                     input:  new StringReader(string.Empty),
                     commandTimeoutSeconds: commandTimeoutSeconds);
 
+                var countBefore = messages.Count;
                 var roundResults = await ChatOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls, commands, errors, currentResponse.Content, messages, executor, ct);
+                intermediateMessages.AddRange(messages.Skip(countBefore));
 
                 foreach (var r in roundResults)
                     opts.OnEvent?.Invoke(new SseEvent("command_result",
@@ -182,7 +205,7 @@ public class ServerChatRunner(
 
                 commandResults.AddRange(roundResults);
 
-                var nextResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
+                var nextResponse = await CallOnce(opts.OnToken);
                 if (nextResponse.Error is not null)
                     return new ServerChatResult(nextResponse.Error, commandResults, logs, usedToolCalls);
 
@@ -245,7 +268,7 @@ public class ServerChatRunner(
         messages.Add(new ChatMessage(ChatRole.Assistant, currentResponse.Content));
         messages.Add(new ChatMessage(ChatRole.User, followUp));
 
-        var followUpResponse = await ChatOrchestrator.ChatOnceAsync(provider, messages, tools, toolChoiceName, ct, opts.OnToken);
+        var followUpResponse = await CallOnce(opts.OnToken);
         if (followUpResponse.Error is not null)
             return BuildResult(followUpResponse.Error, commandResults, usedToolCalls);
 
@@ -258,7 +281,9 @@ public class ServerChatRunner(
             : null;
 
         ServerChatResult BuildResult(string content, IReadOnlyList<CommandResult> cmds, bool toolCalls)
-            => new(content, cmds, logs, toolCalls, BuildUsage(), firstRequestJson, firstResponseJson);
+            => new(content, cmds, logs, toolCalls, BuildUsage(),
+                   llmExchanges.Count > 0 ? llmExchanges : null,
+                   intermediateMessages.Count > 0 ? intermediateMessages : null);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)

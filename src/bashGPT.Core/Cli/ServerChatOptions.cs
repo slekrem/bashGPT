@@ -15,8 +15,16 @@ public record ServerChatOptions(
     bool Verbose,
     bool ForceTools,
     Action<string>? OnToken = null,
-    Action<SseEvent>? OnEvent = null
+    Action<string>? OnReasoningToken = null,
+    Action<SseEvent>? OnEvent = null,
+    Func<int, string, Task>? OnLlmRequestJson = null,
+    Func<int, string, Task>? OnLlmResponseJson = null
 );
+
+/// <summary>
+/// Rohes Request/Response-Paar eines einzelnen LLM-Aufrufs.
+/// </summary>
+public record LlmExchangeRecord(string? RequestJson, string? ResponseJson);
 
 public record ServerChatResult(
     string Response,
@@ -24,8 +32,8 @@ public record ServerChatResult(
     IReadOnlyList<string> Logs,
     bool UsedToolCalls,
     TokenUsage? Usage = null,
-    string? FirstLlmRequestJson = null,
-    string? FirstLlmResponseJson = null
+    IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
+    IReadOnlyList<ChatMessage>? IntermediateMessages = null
 );
 
 public record SseEvent(string Event, object? Data = null);

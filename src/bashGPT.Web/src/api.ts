@@ -43,6 +43,7 @@ export async function sendChat(prompt: string, execMode: ExecMode, sessionId?: s
 
 export type StreamHandlers = {
   onToken?: (token: string) => void
+  onReasoningToken?: (token: string) => void
   onToolCall?: (data: { name: string; command: string }) => void
   onCommandResult?: (data: CommandResult) => void
   onRoundStart?: (data: { round: number }) => void
@@ -94,6 +95,8 @@ export async function streamChat(
           else if (event === 'command_result') handlers.onCommandResult?.(data)
           else if (event === 'round_start') handlers.onRoundStart?.(data)
           else if (event === 'error') throw new Error(data?.message ?? 'Serverfehler')
+        } else if (delta.reasoning) {
+          handlers.onReasoningToken?.(delta.reasoning)
         } else if (delta.content) {
           handlers.onToken?.(delta.content)
         }

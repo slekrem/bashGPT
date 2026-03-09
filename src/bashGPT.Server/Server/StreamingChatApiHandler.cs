@@ -38,10 +38,8 @@ internal sealed class StreamingChatApiHandler(
             {
                 var session = await sessionStore.LoadAsync(body.SessionId);
                 historySnapshot = session?.Messages
-                    .Where(m => m.Role is "user" or "assistant")
-                    .Select(m => new ChatMessage(
-                        m.Role == "user" ? ChatRole.User : ChatRole.Assistant,
-                        m.Content))
+                    .Select(SessionMessageMapper.ToChatMessage)
+                    .OfType<ChatMessage>()
                     .ToList() ?? [];
             }
             else
@@ -50,6 +48,10 @@ internal sealed class StreamingChatApiHandler(
             }
 
             var requestedMode = ExecModeConverter.Parse(body.ExecMode) ?? state.ExecMode;
+            var now        = DateTime.UtcNow.ToString("o");
+            var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
+            var sessionId  = body.SessionId;
+
             var chatOpts = new ServerChatOptions(
                 Prompt:     body.Prompt.Trim(),
                 History:    historySnapshot,
@@ -67,13 +69,26 @@ internal sealed class StreamingChatApiHandler(
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
                 },
+                OnReasoningToken: token =>
+                {
+                    var json = JsonSerializer.Serialize(
+                        new { choices = new[] { new { delta = new { reasoning = token } } } },
+                        JsonDefaults.Options);
+                    ApiResponse.WriteSseEvent(stream, json);
+                },
                 OnEvent: evt =>
                 {
                     var json = JsonSerializer.Serialize(
                         new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = evt.Event, data = evt.Data } } } } },
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
-                });
+                },
+                OnLlmRequestJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                    ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
+                    : null,
+                OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                    ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
+                    : null);
 
             var result = await handler.RunServerChatAsync(chatOpts, ct);
 
@@ -116,39 +131,43 @@ internal sealed class StreamingChatApiHandler(
             if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
             {
                 var session     = await sessionStore.LoadAsync(body.SessionId);
-                var newMessages = new List<SessionMessage>
+                var newMessages = new List<SessionMessage>();
+
+                // User-Nachricht
+                newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim(), ExecMode = body.ExecMode });
+
+                // Zwischennachrichten (Tool-Call-Runden): assistant-mit-tool-calls + tool-results
+                if (result.IntermediateMessages is not null)
+                    newMessages.AddRange(result.IntermediateMessages.Select(SessionMessageMapper.FromChatMessage));
+
+                // Finale Assistent-Antwort
+                newMessages.Add(new()
                 {
-                    new() { Role = "user", Content = body.Prompt.Trim(), ExecMode = body.ExecMode },
-                    new()
+                    Role     = "assistant",
+                    Content  = result.Response,
+                    Usage    = result.Usage is null ? null : new SessionTokenUsage
                     {
-                        Role     = "assistant",
-                        Content  = result.Response,
-                        Usage    = result.Usage is null ? null : new SessionTokenUsage
-                        {
-                            InputTokens       = result.Usage.InputTokens,
-                            OutputTokens      = result.Usage.OutputTokens,
-                            TotalTokens       = result.Usage.TotalTokens,
-                            CachedInputTokens = result.Usage.CachedInputTokens,
-                        },
-                        Commands = result.Commands.Count > 0
-                            ? result.Commands.Select(c => new SessionCommand
-                              {
-                                  Command     = c.Command,
-                                  ExitCode    = c.ExitCode,
-                                  Output      = c.Output,
-                                  WasExecuted = c.WasExecuted,
-                              }).ToList()
-                            : null,
+                        InputTokens       = result.Usage.InputTokens,
+                        OutputTokens      = result.Usage.OutputTokens,
+                        TotalTokens       = result.Usage.TotalTokens,
+                        CachedInputTokens = result.Usage.CachedInputTokens,
                     },
-                };
+                    Commands = result.Commands.Count > 0
+                        ? result.Commands.Select(c => new SessionCommand
+                          {
+                              Command     = c.Command,
+                              ExitCode    = c.ExitCode,
+                              Output      = c.Output,
+                              WasExecuted = c.WasExecuted,
+                          }).ToList()
+                        : null,
+                });
 
                 var existingMessages = session?.Messages ?? [];
                 var allMessages      = existingMessages.Concat(newMessages).ToList();
                 var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
                 if (title.Length > 40) title = title[..40] + "…";
 
-                var now        = DateTime.UtcNow.ToString("o");
-                var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
                 await sessionStore.UpsertAsync(new SessionRecord
                 {
                     Id           = body.SessionId,
@@ -185,10 +204,6 @@ internal sealed class StreamingChatApiHandler(
                     },
                 };
                 await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-                if (result.FirstLlmRequestJson is not null)
-                    await sessionStore.SaveLlmRequestAsync(body.SessionId, requestKey, result.FirstLlmRequestJson);
-                if (result.FirstLlmResponseJson is not null)
-                    await sessionStore.SaveLlmResponseAsync(body.SessionId, requestKey, result.FirstLlmResponseJson);
             }
             else
             {

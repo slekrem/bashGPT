@@ -21,7 +21,7 @@ internal sealed class FakeLlmProvider : ILlmProvider
 
     public void Enqueue(LlmChatResponse response) => _queue.Enqueue(response);
 
-    public Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
+    public async Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken ct = default)
     {
         LastRequestMessages = request.Messages.ToList();
         CallCount++;
@@ -34,6 +34,12 @@ internal sealed class FakeLlmProvider : ILlmProvider
 
         var response = _queue.Count > 0 ? _queue.Dequeue() : new LlmChatResponse("", []);
 
+        // Simulate OnRequestJson/OnResponseJson callbacks with synthetic JSON
+        if (request.OnRequestJson is not null)
+            await request.OnRequestJson($"{{\"call\":{CallCount},\"type\":\"request\"}}");
+        if (request.OnResponseJson is not null)
+            await request.OnResponseJson($"{{\"call\":{CallCount},\"type\":\"response\"}}");
+
         // Simulate token streaming: invoke OnToken per character of Content
         if (request.OnToken is not null && !string.IsNullOrEmpty(response.Content))
         {
@@ -41,7 +47,7 @@ internal sealed class FakeLlmProvider : ILlmProvider
                 request.OnToken(ch.ToString());
         }
 
-        return Task.FromResult(response);
+        return response;
     }
 
     public Task<string> CompleteAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)

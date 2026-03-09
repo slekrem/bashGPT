@@ -24,6 +24,7 @@ export class MessageBubble extends LitElement {
   @property() role: 'user' | 'assistant' = 'user'
   @property() content = ''
   @property() execMode: ExecMode | '' = ''
+  @property({ type: Boolean }) reasoning = false
   // Behalten für Rückwärtskompatibilität (v1), werden in v2 nicht mehr gerendert
   @property({ type: Array }) commands: CommandResult[] = []
   @property({ type: Boolean }) usedToolCalls = false
@@ -60,6 +61,20 @@ export class MessageBubble extends LitElement {
       }
 
       .content { color: var(--color-text, #e5e7eb); }
+
+      /* Reasoning-Modus: gedämpfte Darstellung */
+      .reasoning-label {
+        font-size: 10px;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 4px;
+      }
+      .content.is-reasoning {
+        color: #64748b;
+        font-style: italic;
+        white-space: pre-wrap;
+      }
 
       /* Markdown-Stile */
       .content pre {
@@ -120,6 +135,10 @@ export class MessageBubble extends LitElement {
   ]
 
   private get _html() {
+    if (this.reasoning) {
+      // Reasoning live: plain text, kein Markdown-Parsing
+      return html`<span>${this.content}</span>`
+    }
     // Thinking-Blöcke (<thinking>…</thinking>) aus dem Content entfernen
     const clean = this.content
       .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
@@ -147,7 +166,8 @@ export class MessageBubble extends LitElement {
           <span class="meta">${this.role === 'user' ? 'Du' : 'bashGPT'}</span>
           ${this._execBadge()}
         </div>
-        <div class="content">${this._html}</div>
+        ${this.reasoning ? html`<div class="reasoning-label">Denkt…</div>` : ''}
+        <div class="content ${this.reasoning ? 'is-reasoning' : ''}">${this._html}</div>
       </div>
     `
   }
