@@ -66,9 +66,22 @@ export class ChatView extends LitElement {
   private _newRoundPending = false
   @state() private _streamingEntries: ToolCallEntry[] = []
   @state() private _completedEntries: ToolCallEntry[] = []
+  @state() private _panelSizes = { toolCalls: 360, info: 320 }
   @state() private _enabledTools: string[] = []
   @state() private _toolPickerOpen = false
   @state() private _availableTools: ToolInfo[] = []
+  private _resizeState: {
+    type: 'toolCalls' | 'info'
+    startX: number
+    startToolCalls: number
+    startInfo: number
+    containerWidth: number
+  } | null = null
+  private readonly _layoutStorageKey = 'bashgpt_chat_layout_v1'
+  private readonly _handleWidth = 6
+  private readonly _minToolCallsWidth = 240
+  private readonly _minChatWidth = 420
+  private readonly _minInfoWidth = 260
 
   static styles = css`
     :host {
@@ -81,27 +94,37 @@ export class ChatView extends LitElement {
     /* ── Split layout ───────────────────────────────────────────────────── */
     .split-wrapper {
       flex: 1;
-      display: flex;
+      display: grid;
       overflow: hidden;
+      align-items: stretch;
     }
 
     bashgpt-tool-calls-panel {
-      flex: 1;
       min-width: 0;
-      transition: flex 0.2s ease, opacity 0.2s ease;
-    }
-    bashgpt-tool-calls-panel.collapsed {
-      flex: 0;
-      overflow: hidden;
-      opacity: 0;
+      height: 100%;
     }
 
     .chat-column {
-      flex: 1;
       min-width: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    .resize-handle {
+      width: 6px;
+      cursor: col-resize;
+      background: #0f172a;
+      border-left: 1px solid #1e293b;
+      border-right: 1px solid #1e293b;
+      transition: background 0.15s;
+      user-select: none;
+      touch-action: none;
+    }
+    .resize-handle:hover,
+    .resize-handle:focus-visible {
+      background: #1e293b;
+      outline: none;
     }
 
     /* ── Chat area ──────────────────────────────────────────────────────── */
@@ -228,15 +251,10 @@ export class ChatView extends LitElement {
 
     /* ── Info Panel ─────────────────────────────────────────────────────── */
     bashgpt-chat-info-panel {
-      width: 280px;
-      flex-shrink: 0;
+      min-width: 0;
+      height: 100%;
       overflow: hidden;
       border-left: 1px solid #1e293b;
-      transition: width 0.2s ease, opacity 0.2s ease;
-    }
-    bashgpt-chat-info-panel.collapsed {
-      width: 0;
-      opacity: 0;
     }
 
     /* ── Tool-Picker ────────────────────────────────────────────────────── */
@@ -281,10 +299,10 @@ export class ChatView extends LitElement {
 
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      bashgpt-tool-calls-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
-      .split-wrapper { flex-direction: column; }
+      .split-wrapper { display: flex; flex-direction: column; }
+      .resize-handle { display: none; }
+      bashgpt-tool-calls-panel { height: auto; border-right: none; border-bottom: 1px solid #1e293b; }
       bashgpt-chat-info-panel {
-        width: 100%;
         border-left: none;
         border-top: 1px solid #1e293b;
       }
@@ -293,7 +311,13 @@ export class ChatView extends LitElement {
 
   async connectedCallback() {
     super.connectedCallback()
+    this._loadPanelSizes()
     await this._loadHistory()
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback()
+    this._stopResize()
   }
 
   updated(changed: Map<string, unknown>) {
@@ -660,6 +684,97 @@ export class ChatView extends LitElement {
     return entries
   }
 
+  private _loadPanelSizes() {
+    try {
+      const raw = localStorage.getItem(this._layoutStorageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { toolCalls?: number; info?: number }
+      if (typeof parsed.toolCalls === 'number' && Number.isFinite(parsed.toolCalls))
+        this._panelSizes.toolCalls = Math.round(parsed.toolCalls)
+      if (typeof parsed.info === 'number' && Number.isFinite(parsed.info))
+        this._panelSizes.info = Math.round(parsed.info)
+    } catch {
+      // ignore invalid layout cache
+    }
+  }
+
+  private _savePanelSizes() {
+    localStorage.setItem(this._layoutStorageKey, JSON.stringify(this._panelSizes))
+  }
+
+  private _clamp(v: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, v))
+  }
+
+  private _startResize(type: 'toolCalls' | 'info', ev: PointerEvent) {
+    ev.preventDefault()
+    const container = this.shadowRoot?.querySelector('.split-wrapper') as HTMLElement | null
+    if (!container) return
+    const bounds = container.getBoundingClientRect()
+    this._resizeState = {
+      type,
+      startX: ev.clientX,
+      startToolCalls: this._panelSizes.toolCalls,
+      startInfo: this._panelSizes.info,
+      containerWidth: bounds.width,
+    }
+    window.addEventListener('pointermove', this._onResizeMove)
+    window.addEventListener('pointerup', this._onResizeUp, { once: true })
+  }
+
+  private _stopResize() {
+    this._resizeState = null
+    window.removeEventListener('pointermove', this._onResizeMove)
+  }
+
+  private _onResizeUp = () => {
+    this._savePanelSizes()
+    this._stopResize()
+  }
+
+  private _onResizeMove = (ev: PointerEvent) => {
+    const state = this._resizeState
+    if (!state) return
+
+    const showToolCalls = this.showTerminal && this._panels.toolCallsOpen
+    const showInfo = this._panels.infoOpen
+    const handles = (showToolCalls ? 1 : 0) + (showInfo ? 1 : 0)
+    const availableWidth = state.containerWidth - handles * this._handleWidth
+
+    const deltaX = ev.clientX - state.startX
+    let toolCalls = state.startToolCalls
+    let info = state.startInfo
+
+    if (state.type === 'toolCalls') {
+      const maxToolCalls = availableWidth - (showInfo ? info : 0) - this._minChatWidth
+      toolCalls = this._clamp(state.startToolCalls + deltaX, this._minToolCallsWidth, Math.max(this._minToolCallsWidth, maxToolCalls))
+      this._panelSizes = { ...this._panelSizes, toolCalls: Math.round(toolCalls) }
+      return
+    }
+
+    const maxInfo = availableWidth - (showToolCalls ? toolCalls : 0) - this._minChatWidth
+    info = this._clamp(state.startInfo - deltaX, this._minInfoWidth, Math.max(this._minInfoWidth, maxInfo))
+    this._panelSizes = { ...this._panelSizes, info: Math.round(info) }
+  }
+
+  private _resizeByKeyboard(type: 'toolCalls' | 'info', ev: KeyboardEvent) {
+    const step = ev.shiftKey ? 40 : 16
+    const isLeft = ev.key === 'ArrowLeft'
+    const isRight = ev.key === 'ArrowRight'
+    if (!isLeft && !isRight) return
+
+    ev.preventDefault()
+    const dir = isRight ? 1 : -1
+    const current = type === 'toolCalls' ? this._panelSizes.toolCalls : this._panelSizes.info
+    const min = type === 'toolCalls' ? this._minToolCallsWidth : this._minInfoWidth
+    const next = Math.max(min, current + dir * step)
+    if (type === 'toolCalls')
+      this._panelSizes = { ...this._panelSizes, toolCalls: next }
+    else
+      this._panelSizes = { ...this._panelSizes, info: next }
+    this._savePanelSizes()
+  }
+
   private async _toggleInfo() {
     const newOpen = !this._panels.infoOpen
     this._panels = { ...this._panels, infoOpen: newOpen }
@@ -719,17 +834,32 @@ export class ChatView extends LitElement {
   render() {
     const isEmpty = this._chat.messages.length === 0
     const workingText = this._workingText()
-    const showPanel = this.showTerminal && this._panels.toolCallsOpen
+    const showToolCalls = this.showTerminal && this._panels.toolCallsOpen
+    const showInfo = this._panels.infoOpen
     const stableEntries = this._toolCallEntries.length > 0 ? this._toolCallEntries : this._completedEntries
+    const layoutColumns = [
+      ...(showToolCalls ? [`${this._panelSizes.toolCalls}px`, `${this._handleWidth}px`] : []),
+      'minmax(0, 1fr)',
+      ...(showInfo ? [`${this._handleWidth}px`, `${this._panelSizes.info}px`] : []),
+    ].join(' ')
 
     return html`
-      <div class="split-wrapper">
-        ${this.showTerminal ? html`
+      <div class="split-wrapper" style=${`grid-template-columns: ${layoutColumns};`}>
+        ${showToolCalls ? html`
           <bashgpt-tool-calls-panel
-            class="${showPanel ? '' : 'collapsed'}"
             .entries=${[...stableEntries, ...this._streamingEntries]}
             ?loading=${this._chat.loading}
           ></bashgpt-tool-calls-panel>
+
+          <div
+            class="resize-handle"
+            role="separator"
+            aria-label="Breite Tool-Calls anpassen"
+            aria-orientation="vertical"
+            tabindex="0"
+            @pointerdown=${(ev: PointerEvent) => this._startResize('toolCalls', ev)}
+            @keydown=${(ev: KeyboardEvent) => this._resizeByKeyboard('toolCalls', ev)}
+          ></div>
         ` : ''}
 
         <div class="chat-column">
@@ -765,15 +895,25 @@ export class ChatView extends LitElement {
           ` : ''}
         </div>
 
-        <bashgpt-chat-info-panel
-          class="${this._panels.infoOpen ? '' : 'collapsed'}"
-          .context=${this._ctx.data}
-          .settings=${this._ctx.settings}
-          messageCount=${this._chat.messages.length}
-          .commandStats=${this._commandStats}
-          .tokenUsage=${this._chat.tokenUsage}
-          ?loading=${this._ctx.loading}
-        ></bashgpt-chat-info-panel>
+        ${showInfo ? html`
+          <div
+            class="resize-handle"
+            role="separator"
+            aria-label="Breite Info-Panel anpassen"
+            aria-orientation="vertical"
+            tabindex="0"
+            @pointerdown=${(ev: PointerEvent) => this._startResize('info', ev)}
+            @keydown=${(ev: KeyboardEvent) => this._resizeByKeyboard('info', ev)}
+          ></div>
+          <bashgpt-chat-info-panel
+            .context=${this._ctx.data}
+            .settings=${this._ctx.settings}
+            messageCount=${this._chat.messages.length}
+            .commandStats=${this._commandStats}
+            .tokenUsage=${this._chat.tokenUsage}
+            ?loading=${this._ctx.loading}
+          ></bashgpt-chat-info-panel>
+        ` : ''}
       </div>
 
       <footer>
