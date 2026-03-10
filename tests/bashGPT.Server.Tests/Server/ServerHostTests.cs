@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using BashGPT.Cli;
 using BashGPT.Configuration;
+using BashGPT.Providers;
 using BashGPT.Server;
 
 namespace BashGPT.Server.Tests;
@@ -107,6 +109,36 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.Equal(2, history.GetArrayLength()); // user + assistant
         Assert.Equal("user", history[0].GetProperty("role").GetString());
         Assert.Equal("assistant", history[1].GetProperty("role").GetString());
+    }
+
+    [Fact]
+    public async Task Get_History_AfterToolCallChat_ContainsToolMessages()
+    {
+        _handler.NextResult = new ServerChatResult(
+            Response: "Final answer",
+            Logs: [],
+            UsedToolCalls: true,
+            ConversationDelta:
+            [
+                ChatMessage.AssistantWithToolCalls(
+                    [new ToolCall("call-1", "fetch", """{"url":"https://example.com"}""")],
+                    content: ""),
+                ChatMessage.ToolResult("Fetched content", "call-1", "fetch"),
+                new ChatMessage(ChatRole.Assistant, "Final answer")
+            ]);
+
+        await PostChatAsync("Summarize example.com");
+
+        var json = await _client.GetFromJsonAsync<JsonElement>("/api/history");
+        var history = json.GetProperty("history");
+
+        Assert.Equal(4, history.GetArrayLength()); // user + assistant(tool_calls) + tool + assistant(final)
+        Assert.Equal("user", history[0].GetProperty("role").GetString());
+        Assert.Equal("assistant", history[1].GetProperty("role").GetString());
+        Assert.Equal("tool", history[2].GetProperty("role").GetString());
+        Assert.Equal("assistant", history[3].GetProperty("role").GetString());
+        Assert.Equal("Fetched content", history[2].GetProperty("content").GetString());
+        Assert.Equal("Final answer", history[3].GetProperty("content").GetString());
     }
 
     // ── POST /api/reset ─────────────────────────────────────────────────────

@@ -147,21 +147,7 @@ internal sealed class StreamingChatApiHandler(
             // Session persistieren
             if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
             {
-                var newMessages = new List<SessionMessage>();
-                newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim() });
-                newMessages.Add(new()
-                {
-                    Role     = "assistant",
-                    Content  = result.Response,
-                    Commands = ToSessionCommands(result.Commands),
-                    Usage    = result.Usage is null ? null : new SessionTokenUsage
-                    {
-                        InputTokens       = result.Usage.InputTokens,
-                        OutputTokens      = result.Usage.OutputTokens,
-                        TotalTokens       = result.Usage.TotalTokens,
-                        CachedInputTokens = result.Usage.CachedInputTokens,
-                    },
-                });
+                var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
                 var existingMessages = session?.Messages ?? [];
                 var allMessages      = existingMessages.Concat(newMessages).ToList();
@@ -201,8 +187,9 @@ internal sealed class StreamingChatApiHandler(
             }
             else
             {
-                legacyHistory.Append(new ChatMessage(ChatRole.User,      body.Prompt.Trim()));
-                legacyHistory.Append(new ChatMessage(ChatRole.Assistant, result.Response));
+                legacyHistory.Append(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
+                foreach (var msg in BuildConversationDelta(result))
+                    legacyHistory.Append(msg);
             }
         }
         catch (Exception ex)
@@ -233,6 +220,42 @@ internal sealed class StreamingChatApiHandler(
                 Output      = c.Output,
                 WasExecuted = c.WasExecuted,
             }).ToList();
+
+    private static List<ChatMessage> BuildConversationDelta(ServerChatResult result)
+    {
+        if (result.ConversationDelta is { Count: > 0 })
+            return result.ConversationDelta.ToList();
+
+        return [new ChatMessage(ChatRole.Assistant, result.Response)];
+    }
+
+    private static List<SessionMessage> BuildSessionMessages(string prompt, ServerChatResult result)
+    {
+        var messages = new List<SessionMessage>
+        {
+            new() { Role = "user", Content = prompt }
+        };
+
+        messages.AddRange(BuildConversationDelta(result).Select(SessionMessageMapper.FromChatMessage));
+
+        var finalAssistant = messages.LastOrDefault(m => m.Role == "assistant" && (m.ToolCalls is null || m.ToolCalls.Count == 0));
+        if (finalAssistant is null)
+        {
+            finalAssistant = new SessionMessage { Role = "assistant", Content = result.Response };
+            messages.Add(finalAssistant);
+        }
+
+        finalAssistant.Commands = ToSessionCommands(result.Commands);
+        finalAssistant.Usage    = result.Usage is null ? null : new SessionTokenUsage
+        {
+            InputTokens       = result.Usage.InputTokens,
+            OutputTokens      = result.Usage.OutputTokens,
+            TotalTokens       = result.Usage.TotalTokens,
+            CachedInputTokens = result.Usage.CachedInputTokens,
+        };
+
+        return messages;
+    }
 
     private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);
 }
