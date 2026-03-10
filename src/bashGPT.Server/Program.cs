@@ -6,10 +6,29 @@ using BashGPT.Configuration;
 using BashGPT.Server;
 using BashGPT.Tools.Execution;
 using BashGPT.Tools.Fetch;
+using BashGPT.Tools.Filesystem;
+using BashGPT.Tools.Build;
+using BashGPT.Tools.Git;
 using BashGPT.Tools.Shell;
+using BashGPT.Tools.Testing;
 
 var configService = new ConfigurationService();
-var toolRegistry = new ToolRegistry([new ShellExecTool(), new FetchTool()]);
+var toolRegistry = new ToolRegistry([
+    new ShellExecTool(),
+    new FetchTool(),
+    new FilesystemReadTool(),
+    new FilesystemWriteTool(),
+    new FilesystemSearchTool(),
+    new GitStatusTool(),
+    new GitDiffTool(),
+    new GitLogTool(),
+    new GitBranchTool(),
+    new GitAddTool(),
+    new GitCommitTool(),
+    new GitCheckoutTool(),
+    new TestRunTool(),
+    new BuildRunTool(),
+]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var agentStore = AgentBootstrap.CreateAgentStore();

@@ -18,6 +18,10 @@
     <ProjectReference Include="..\bashGPT.Tools\bashGPT.Tools.csproj" />
     <ProjectReference Include="..\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
     <ProjectReference Include="..\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj" />
   </ItemGroup>
 
   <ItemGroup>
