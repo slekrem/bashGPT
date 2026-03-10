@@ -37,7 +37,7 @@ public class ShellAgentCheckTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_EmptyLoopInstruction_Returns_NoInstructionResult()
+    public async Task RunAsync_EmptyLoopInstruction_UsesDefaultInstruction()
     {
         var provider = new FakeProvider([TextResponse("Hallo")]);
         var check = new ShellAgentCheck(provider);
@@ -45,9 +45,9 @@ public class ShellAgentCheckTests : IDisposable
 
         var result = await check.RunAsync(agent, CancellationToken.None);
 
-        Assert.False(result.Success);
-        Assert.False(result.Changed);
-        Assert.Contains("Loop-Anweisung", result.Message);
+        // Leere LoopInstruction ist erlaubt – Default-Instruction wird verwendet
+        Assert.True(result.Success);
+        Assert.Equal("Hallo", result.Message);
     }
 
     // ── Erfolgreiche Ausführung ────────────────────────────────────────────
@@ -64,42 +64,19 @@ public class ShellAgentCheckTests : IDisposable
         Assert.True(result.Success);
         Assert.Equal("Alles OK.", result.Message);
         Assert.NotEmpty(result.Hash);
-        Assert.False(result.Changed); // ShellCheck meldet immer Changed=false
+        Assert.False(result.Changed);
     }
 
     [Fact]
-    public async Task RunAsync_ToolCall_NoExecMode_CommandNotExecuted_Returns_Success()
+    public async Task RunAsync_MakesExactlyOneLlmCall()
     {
-        // Erste Antwort: Tool-Call, zweite Antwort: Text
-        var provider = new FakeProvider([
-            ToolCallResponse("call-1", "echo hello"),
-            TextResponse("Fertig."),
-        ]);
+        var provider = new FakeProvider([TextResponse("Einmalige Antwort.")]);
         var check = new ShellAgentCheck(provider);
-        var agent = MakeAgent("ag-004", execMode: "no-exec");
+        var agent = MakeAgent("ag-004");
 
-        var result = await check.RunAsync(agent, CancellationToken.None);
+        await check.RunAsync(agent, CancellationToken.None);
 
-        Assert.True(result.Success);
-        Assert.Equal("Fertig.", result.Message);
-        Assert.Equal(2, provider.CallCount);
-    }
-
-    [Fact]
-    public async Task RunAsync_AlwaysReturnsToolCalls_StopsAfterMaxRounds()
-    {
-        // Immer Tool-Calls zurückgeben → soll nach MaxRounds (5) aufhören
-        var responses = Enumerable.Range(0, 10)
-            .Select(i => ToolCallResponse($"call-{i}", "echo loop"))
-            .ToArray();
-        var provider = new FakeProvider(responses);
-        var check = new ShellAgentCheck(provider);
-        var agent = MakeAgent("ag-005");
-
-        var result = await check.RunAsync(agent, CancellationToken.None);
-
-        Assert.True(result.Success);
-        Assert.Equal(5, provider.CallCount); // MaxRounds = 5
+        Assert.Equal(1, provider.CallCount);
     }
 
     [Fact]
@@ -107,7 +84,7 @@ public class ShellAgentCheckTests : IDisposable
     {
         var provider = new FakeProvider([TextResponse("Ergebnis gespeichert.")]);
         var check = new ShellAgentCheck(provider, sessionStore: _sessionStore);
-        var agent = MakeAgent("ag-006");
+        var agent = MakeAgent("ag-005");
 
         await check.RunAsync(agent, CancellationToken.None);
 
@@ -124,7 +101,7 @@ public class ShellAgentCheckTests : IDisposable
     {
         var provider = new FakeProvider([TextResponse("Runde 1."), TextResponse("Runde 2.")]);
         var check = new ShellAgentCheck(provider, sessionStore: _sessionStore);
-        var agent = MakeAgent("ag-007");
+        var agent = MakeAgent("ag-006");
 
         await check.RunAsync(agent, CancellationToken.None);
         await check.RunAsync(agent, CancellationToken.None);
@@ -142,7 +119,7 @@ public class ShellAgentCheckTests : IDisposable
 
         var provider = new FakeProvider([TextResponse("Wird nie gesendet.")]);
         var check = new ShellAgentCheck(provider);
-        var agent = MakeAgent("ag-008");
+        var agent = MakeAgent("ag-007");
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => check.RunAsync(agent, cts.Token));
@@ -152,12 +129,11 @@ public class ShellAgentCheckTests : IDisposable
     public async Task RunAsync_CustomSystemPrompt_IsUsed_NotContextCollector()
     {
         var provider = new FakeProvider([TextResponse("OK")]);
-        var check = new ShellAgentCheck(provider); // kein contextCollector
-        var agent = MakeAgent("ag-009", systemPrompt: "Mein eigener Prompt.");
+        var check = new ShellAgentCheck(provider);
+        var agent = MakeAgent("ag-008", systemPrompt: "Mein eigener Prompt.");
 
         await check.RunAsync(agent, CancellationToken.None);
 
-        // Der erste Request-Message ist das System-Prompt
         var systemMsg = provider.LastRequest?.Messages[0];
         Assert.NotNull(systemMsg);
         Assert.Equal("Mein eigener Prompt.", systemMsg!.Content);
@@ -168,7 +144,6 @@ public class ShellAgentCheckTests : IDisposable
     private static AgentRecord MakeAgent(
         string id,
         string loopInstruction = "Überprüfe den Status.",
-        string? execMode = null,
         string? systemPrompt = null) => new()
     {
         Id              = id,
@@ -176,15 +151,11 @@ public class ShellAgentCheckTests : IDisposable
         Type            = AgentCheckType.Shell,
         IsActive        = true,
         LoopInstruction = loopInstruction,
-        ExecMode        = execMode,
         SystemPrompt    = systemPrompt,
     };
 
     private static LlmChatResponse TextResponse(string text)
         => new(text, []);
-
-    private static LlmChatResponse ToolCallResponse(string callId, string command)
-        => new("", [new ToolCall(callId, "bash", $"{{\"command\":\"{command}\"}}") ]);
 
     // ── Fake Provider ──────────────────────────────────────────────────────
 
