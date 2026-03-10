@@ -3,6 +3,7 @@ using System.Text.Json;
 using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Providers;
+using BashGPT.Shell;
 using BashGPT.Storage;
 using BashGPT.Tools.Execution;
 
@@ -134,7 +135,9 @@ internal sealed class StreamingChatApiHandler(
                 {
                     @event       = "done",
                     response     = result.Response,
+                    usedToolCalls = result.UsedToolCalls,
                     logs         = result.Logs,
+                    commands     = result.Commands,
                     shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
                 },
             }, JsonDefaults.Options);
@@ -148,9 +151,10 @@ internal sealed class StreamingChatApiHandler(
                 newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim() });
                 newMessages.Add(new()
                 {
-                    Role    = "assistant",
-                    Content = result.Response,
-                    Usage   = result.Usage is null ? null : new SessionTokenUsage
+                    Role     = "assistant",
+                    Content  = result.Response,
+                    Commands = ToSessionCommands(result.Commands),
+                    Usage    = result.Usage is null ? null : new SessionTokenUsage
                     {
                         InputTokens       = result.Usage.InputTokens,
                         OutputTokens      = result.Usage.OutputTokens,
@@ -182,8 +186,9 @@ internal sealed class StreamingChatApiHandler(
                     Request   = new SessionRequestData { Prompt = body.Prompt.Trim() },
                     Response  = new SessionResponseData
                     {
-                        Content = result.Response,
-                        Usage   = result.Usage is null ? null : new SessionTokenUsage
+                        Content  = result.Response,
+                        Commands = ToSessionCommands(result.Commands),
+                        Usage    = result.Usage is null ? null : new SessionTokenUsage
                         {
                             InputTokens       = result.Usage.InputTokens,
                             OutputTokens      = result.Usage.OutputTokens,
@@ -217,6 +222,17 @@ internal sealed class StreamingChatApiHandler(
             ctx.Response.Close();
         }
     }
+
+    private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
+        => commands is not { Count: > 0 }
+            ? null
+            : commands.Select(c => new SessionCommand
+            {
+                Command     = c.Command,
+                ExitCode    = c.ExitCode,
+                Output      = c.Output,
+                WasExecuted = c.WasExecuted,
+            }).ToList();
 
     private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);
 }

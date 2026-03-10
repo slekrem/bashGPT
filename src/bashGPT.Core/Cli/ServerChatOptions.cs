@@ -1,5 +1,6 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using BashGPT.Shell;
 
 namespace BashGPT.Cli;
 
@@ -27,7 +28,9 @@ public record ServerChatResult(
     string Response,
     IReadOnlyList<string> Logs,
     TokenUsage? Usage = null,
-    IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null
+    IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
+    IReadOnlyList<CommandResult>? Commands = null,
+    bool UsedToolCalls = false
 );
 
 public record SseEvent(string Event, object? Data = null);

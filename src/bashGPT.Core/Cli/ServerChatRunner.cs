@@ -1,6 +1,7 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using System.Text.Json;
+using BashGPT.Shell;
 using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Execution;
 
@@ -79,6 +80,8 @@ public class ServerChatRunner(
         var tools       = opts.Tools ?? [];
         var llmExchanges = new List<LlmExchangeRecord>();
         var exchangeIdx  = 0;
+        var commandResults = new List<CommandResult>();
+        var usedToolCalls  = false;
 
         async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
         {
@@ -115,6 +118,7 @@ public class ServerChatRunner(
             for (var round = 0; round < MaxToolRounds; round++)
             {
                 if (response.Response.ToolCalls.Count == 0) break;
+                usedToolCalls = true;
 
                 opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
                 messages.Add(ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content));
@@ -126,7 +130,7 @@ public class ServerChatRunner(
                         : call.Name;
                     opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
 
-                    object commandResult = new { command = commandLabel, output = string.Empty, exitCode = 0, wasExecuted = true };
+                    CommandResult commandResult;
                     string toolResult;
                     if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
                     {
@@ -138,10 +142,17 @@ public class ServerChatRunner(
                     else
                     {
                         toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
-                        commandResult = new { command = commandLabel, output = toolResult, exitCode = 1, wasExecuted = false };
+                        commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
                     }
 
-                    opts.OnEvent?.Invoke(new SseEvent("command_result", commandResult));
+                    commandResults.Add(commandResult);
+                    opts.OnEvent?.Invoke(new SseEvent("command_result", new
+                    {
+                        command     = commandResult.Command,
+                        output      = commandResult.Output,
+                        exitCode    = commandResult.ExitCode,
+                        wasExecuted = commandResult.WasExecuted,
+                    }));
                     messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
                 }
 
@@ -160,7 +171,9 @@ public class ServerChatRunner(
             Response:     response.Response.Content,
             Logs:         logs,
             Usage:        BuildUsage(),
-            LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null);
+            LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+            Commands:     commandResults.Count > 0 ? commandResults : null,
+            UsedToolCalls: usedToolCalls);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)
@@ -199,19 +212,19 @@ public class ServerChatRunner(
         }
     }
 
-    private static object BuildCommandResult(string toolName, string command, string toolResult, bool success)
+    private static CommandResult BuildCommandResult(string toolName, string command, string toolResult, bool success)
     {
         if (string.Equals(toolName, "shell_exec", StringComparison.OrdinalIgnoreCase))
         {
             if (TryParseShellExecOutput(toolResult, out var output, out var exitCode))
             {
-                return new { command, output, exitCode, wasExecuted = true };
+                return new CommandResult(command, exitCode, output, WasExecuted: true);
             }
 
-            return new { command, output = toolResult, exitCode = success ? 0 : 1, wasExecuted = success };
+            return new CommandResult(command, success ? 0 : 1, toolResult, WasExecuted: success);
         }
 
-        return new { command, output = toolResult, exitCode = success ? 0 : 1, wasExecuted = success };
+        return new CommandResult(command, success ? 0 : 1, toolResult, WasExecuted: success);
     }
 
     private static bool TryParseShellExecOutput(string content, out string output, out int exitCode)
