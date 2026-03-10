@@ -1,0 +1,208 @@
+using System.Text.Json;
+using BashGPT.Tools.Abstractions;
+using BashGPT.Tools.Git;
+
+namespace bashGPT.Tools.Git.Tests;
+
+/// <summary>
+/// Tests run against a real temporary git repository.
+/// </summary>
+public class GitToolTests : IDisposable
+{
+    private readonly string _repoDir;
+
+    public GitToolTests()
+    {
+        _repoDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(_repoDir);
+
+        // Init repo and create an initial commit so HEAD exists
+        Run("init");
+        Run("config user.email test@test.com");
+        Run("config user.name Test");
+        File.WriteAllText(Path.Combine(_repoDir, "readme.txt"), "hello");
+        Run("add .");
+        Run("commit -m \"initial commit\"");
+    }
+
+    public void Dispose() => Directory.Delete(_repoDir, recursive: true);
+
+    private void Run(string args)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git", args)
+        {
+            WorkingDirectory = _repoDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        p.WaitForExit();
+    }
+
+    // ── GitStatusTool ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task GitStatus_CleanRepo_ReturnsEmptyLists()
+    {
+        var tool = new GitStatusTool();
+        var result = await tool.ExecuteAsync(Call("git_status", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Equal(0, output.GetProperty("staged").GetArrayLength());
+        Assert.Equal(0, output.GetProperty("unstaged").GetArrayLength());
+        Assert.Equal(0, output.GetProperty("untracked").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GitStatus_UntrackedFile_ShowsInUntracked()
+    {
+        File.WriteAllText(Path.Combine(_repoDir, "new.txt"), "content");
+
+        var tool = new GitStatusTool();
+        var result = await tool.ExecuteAsync(Call("git_status", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Equal(1, output.GetProperty("untracked").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GitStatus_DefaultPolicyRead_Succeeds()
+    {
+        var tool = new GitStatusTool(new DefaultGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_status", new { path = _repoDir }), CancellationToken.None);
+        Assert.True(result.Success);
+    }
+
+    // ── GitDiffTool ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task GitDiff_ModifiedFile_ReturnsDiff()
+    {
+        File.WriteAllText(Path.Combine(_repoDir, "readme.txt"), "changed");
+
+        var tool = new GitDiffTool();
+        var result = await tool.ExecuteAsync(Call("git_diff", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Contains("changed", output.GetProperty("diff").GetString());
+    }
+
+    [Fact]
+    public async Task GitDiff_NoDiff_ReturnsEmptyDiff()
+    {
+        var tool = new GitDiffTool();
+        var result = await tool.ExecuteAsync(Call("git_diff", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Equal(string.Empty, output.GetProperty("diff").GetString());
+    }
+
+    // ── GitLogTool ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GitLog_InitialCommit_ReturnsOneEntry()
+    {
+        var tool = new GitLogTool();
+        var result = await tool.ExecuteAsync(Call("git_log", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Equal(1, output.GetProperty("commits").GetArrayLength());
+        var commit = output.GetProperty("commits")[0];
+        Assert.Equal("initial commit", commit.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task GitLog_LimitOne_ReturnsMaxOne()
+    {
+        File.WriteAllText(Path.Combine(_repoDir, "f2.txt"), "x");
+        Run("add .");
+        Run("commit -m \"second commit\"");
+
+        var tool = new GitLogTool();
+        var result = await tool.ExecuteAsync(Call("git_log", new { path = _repoDir, limit = 1 }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.Equal(1, output.GetProperty("commits").GetArrayLength());
+    }
+
+    // ── GitBranchTool ────────────────────────────────────────────
+
+    [Fact]
+    public async Task GitBranch_ListsBranches_ContainsCurrent()
+    {
+        var tool = new GitBranchTool();
+        var result = await tool.ExecuteAsync(Call("git_branch", new { path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        var branches = output.GetProperty("branches").EnumerateArray().ToList();
+        Assert.NotEmpty(branches);
+        Assert.Contains(branches, b => b.GetProperty("current").GetBoolean());
+    }
+
+    // ── Write-ops blocked by DefaultGitPolicy ────────────────────
+
+    [Fact]
+    public async Task GitAdd_DefaultPolicy_Blocked()
+    {
+        var tool = new GitAddTool(new DefaultGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_add", new { files = ".", path = _repoDir }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("blocked by policy", result.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GitCommit_DefaultPolicy_Blocked()
+    {
+        var tool = new GitCommitTool(new DefaultGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_commit", new { message = "test", path = _repoDir }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("blocked by policy", result.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GitCheckout_DefaultPolicy_Blocked()
+    {
+        var tool = new GitCheckoutTool(new DefaultGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_checkout", new { branch = "main", path = _repoDir }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("blocked by policy", result.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Write-ops with PermissiveGitPolicy ───────────────────────
+
+    [Fact]
+    public async Task GitAdd_PermissivePolicy_Succeeds()
+    {
+        File.WriteAllText(Path.Combine(_repoDir, "staged.txt"), "stage me");
+
+        var tool = new GitAddTool(new PermissiveGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_add", new { files = "staged.txt", path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public async Task GitCheckout_PermissivePolicy_CreatesNewBranch()
+    {
+        var tool = new GitCheckoutTool(new PermissiveGitPolicy());
+        var result = await tool.ExecuteAsync(Call("git_checkout", new { branch = "test-branch", create = true, path = _repoDir }), CancellationToken.None);
+
+        Assert.True(result.Success);
+        var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+        Assert.True(output.GetProperty("created").GetBoolean());
+    }
+
+    private static ToolCall Call(string name, object args) =>
+        new(name, JsonSerializer.Serialize(args));
+}
