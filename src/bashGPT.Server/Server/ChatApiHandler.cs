@@ -3,6 +3,7 @@ using System.Text.Json;
 using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Providers;
+using BashGPT.Shell;
 using BashGPT.Storage;
 using BashGPT.Tools.Execution;
 
@@ -10,7 +11,6 @@ namespace BashGPT.Server;
 
 internal sealed class ChatApiHandler(
     IPromptHandler handler,
-    ServerState state,
     LegacyHistory legacyHistory,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
@@ -93,20 +93,7 @@ internal sealed class ChatApiHandler(
         // Persistieren: session-basiert oder globaler Fallback
         if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
         {
-            var newMessages = new List<SessionMessage>();
-            newMessages.Add(new() { Role = "user", Content = body.Prompt.Trim() });
-            newMessages.Add(new()
-            {
-                Role    = "assistant",
-                Content = result.Response,
-                Usage   = result.Usage is null ? null : new SessionTokenUsage
-                {
-                    InputTokens       = result.Usage.InputTokens,
-                    OutputTokens      = result.Usage.OutputTokens,
-                    TotalTokens       = result.Usage.TotalTokens,
-                    CachedInputTokens = result.Usage.CachedInputTokens,
-                },
-            });
+            var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
             var existingMessages = session?.Messages ?? [];
             var allMessages      = existingMessages.Concat(newMessages).ToList();
@@ -131,8 +118,9 @@ internal sealed class ChatApiHandler(
                 Request   = new SessionRequestData { Prompt = body.Prompt.Trim() },
                 Response  = new SessionResponseData
                 {
-                    Content = result.Response,
-                    Usage   = result.Usage is null ? null : new SessionTokenUsage
+                    Content  = result.Response,
+                    Commands = ToSessionCommands(result.Commands),
+                    Usage    = result.Usage is null ? null : new SessionTokenUsage
                     {
                         InputTokens       = result.Usage.InputTokens,
                         OutputTokens      = result.Usage.OutputTokens,
@@ -146,14 +134,17 @@ internal sealed class ChatApiHandler(
         else
         {
             // Fallback: globale In-Memory-History (legacy, kein SessionStore)
-            legacyHistory.Append(new ChatMessage(ChatRole.User,      body.Prompt.Trim()));
-            legacyHistory.Append(new ChatMessage(ChatRole.Assistant, result.Response));
+            legacyHistory.Append(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
+            foreach (var msg in BuildConversationDelta(result))
+                legacyHistory.Append(msg);
         }
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new
         {
             response     = result.Response,
+            usedToolCalls = result.UsedToolCalls,
             logs         = result.Logs,
+            commands     = result.Commands,
             shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
             usage        = result.Usage == null ? null : (object)new
             {
@@ -163,6 +154,53 @@ internal sealed class ChatApiHandler(
                 cachedInputTokens = result.Usage.CachedInputTokens,
             },
         });
+    }
+
+    private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
+        => commands is not { Count: > 0 }
+            ? null
+            : commands.Select(c => new SessionCommand
+            {
+                Command     = c.Command,
+                ExitCode    = c.ExitCode,
+                Output      = c.Output,
+                WasExecuted = c.WasExecuted,
+            }).ToList();
+
+    private static List<ChatMessage> BuildConversationDelta(ServerChatResult result)
+    {
+        if (result.ConversationDelta is { Count: > 0 })
+            return result.ConversationDelta.ToList();
+
+        return [new ChatMessage(ChatRole.Assistant, result.Response)];
+    }
+
+    private static List<SessionMessage> BuildSessionMessages(string prompt, ServerChatResult result)
+    {
+        var messages = new List<SessionMessage>
+        {
+            new() { Role = "user", Content = prompt }
+        };
+
+        messages.AddRange(BuildConversationDelta(result).Select(SessionMessageMapper.FromChatMessage));
+
+        var finalAssistant = messages.LastOrDefault(m => m.Role == "assistant" && (m.ToolCalls is null || m.ToolCalls.Count == 0));
+        if (finalAssistant is null)
+        {
+            finalAssistant = new SessionMessage { Role = "assistant", Content = result.Response };
+            messages.Add(finalAssistant);
+        }
+
+        finalAssistant.Commands = ToSessionCommands(result.Commands);
+        finalAssistant.Usage    = result.Usage is null ? null : new SessionTokenUsage
+        {
+            InputTokens       = result.Usage.InputTokens,
+            OutputTokens      = result.Usage.OutputTokens,
+            TotalTokens       = result.Usage.TotalTokens,
+            CachedInputTokens = result.Usage.CachedInputTokens,
+        };
+
+        return messages;
     }
 
     private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);

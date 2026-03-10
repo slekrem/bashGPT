@@ -1,13 +1,16 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 using BashGPT.Tools.Abstractions;
 
 namespace BashGPT.Tools.Fetch;
 
 public sealed class FetchTool : ITool
 {
-    private const int MaxBodyChars = 32_768;
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     private readonly IFetchPolicy _policy;
     private readonly Action<FetchInput, FetchOutput>? _onExecuted;
@@ -22,7 +25,7 @@ public sealed class FetchTool : ITool
 
     public ToolDefinition Definition { get; } = new(
         Name: "fetch",
-        Description: "Executes an HTTP request and returns status code, headers, body, duration and timeout status.",
+        Description: "Executes an HTTP request and returns LLM-optimized text content.",
         Parameters:
         [
             new ToolParameter("url", "string", "The URL to request.", Required: true),
@@ -59,8 +62,8 @@ public sealed class FetchTool : ITool
 
         _onExecuted?.Invoke(input, output);
 
-        var json = JsonSerializer.Serialize(output, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        return new ToolResult(Success: !output.TimedOut && output.StatusCode >= 200 && output.StatusCode < 300, Content: json);
+        var success = !output.TimedOut && output.StatusCode >= 200 && output.StatusCode < 300;
+        return new ToolResult(Success: success, Content: BuildLlmResultText(output));
     }
 
     private static FetchInput ParseInput(string json)
@@ -114,11 +117,17 @@ public sealed class FetchTool : ITool
         {
             timedOut = timeoutCts.IsCancellationRequested;
             sw.Stop();
-            return new FetchOutput(StatusCode: 0, Headers: [], Body: string.Empty, DurationMs: sw.ElapsedMilliseconds, TimedOut: timedOut);
+            return new FetchOutput(StatusCode: 0, Headers: [], Body: string.Empty, RawBody: null, BodyTruncated: false, DurationMs: sw.ElapsedMilliseconds, TimedOut: timedOut);
         }
 
-        var responseBody = await ReadLimitedAsync(response.Content, MaxBodyChars, linkedCts.Token);
+        var responseBody = await ReadAsync(response.Content, linkedCts.Token);
         sw.Stop();
+
+        var contentType = response.Content.Headers.ContentType?.ToString();
+        var html = TryExtractHtml(contentType, responseBody);
+        var optimizedBody = html?.LlmText;
+        var outputBody = !string.IsNullOrWhiteSpace(optimizedBody) ? optimizedBody : responseBody;
+        var rawBody = !string.IsNullOrWhiteSpace(optimizedBody) ? responseBody : null;
 
         var responseHeaders = new Dictionary<string, string>();
         foreach (var header in response.Headers)
@@ -129,21 +138,246 @@ public sealed class FetchTool : ITool
         return new FetchOutput(
             StatusCode: (int)response.StatusCode,
             Headers: responseHeaders,
-            Body: responseBody,
+            Body: outputBody,
+            RawBody: rawBody,
+            BodyTruncated: false,
             DurationMs: sw.ElapsedMilliseconds,
-            TimedOut: false);
+            TimedOut: false,
+            ContentType: contentType,
+            ExtractedText: html?.ExtractedText,
+            LlmText: html?.LlmText,
+            Title: html?.Title,
+            Headings: html?.Headings,
+            Paragraphs: html?.Paragraphs,
+            Links: html?.Links);
     }
 
-    private static async Task<string> ReadLimitedAsync(HttpContent content, int maxChars, CancellationToken ct)
+    private static async Task<string> ReadAsync(HttpContent content, CancellationToken ct)
     {
         try
         {
-            var body = await content.ReadAsStringAsync(ct);
-            return body.Length > maxChars ? body[..maxChars] : body;
+            return await content.ReadAsStringAsync(ct);
         }
         catch (OperationCanceledException)
         {
             return string.Empty;
         }
+    }
+
+    private static HtmlExtraction? TryExtractHtml(string? contentType, string body)
+    {
+        if (string.IsNullOrWhiteSpace(body) || !IsLikelyHtml(contentType, body))
+            return null;
+
+        try
+        {
+            var parser = new HtmlParser();
+            var document = parser.ParseDocument(body);
+
+            RemoveElements(document, "script, style, noscript, template, nav, footer, aside");
+
+            var root = document.Body ?? document.DocumentElement;
+            if (root is null)
+                return null;
+            var contentRoot = SelectContentRoot(document) ?? root;
+
+            var extractedText = NormalizeText(root.TextContent);
+            var title = NormalizeText(document.Title);
+            var llmText = BuildLlmText(document, contentRoot, title);
+            var headings = document.QuerySelectorAll("h1, h2, h3, h4, h5, h6")
+                .Select(ToHeading)
+                .Where(static h => h is not null)
+                .Cast<FetchHeading>()
+                .ToList();
+
+            var paragraphs = document.QuerySelectorAll("p")
+                .Select(static p => NormalizeText(p.TextContent))
+                .Where(static text => !string.IsNullOrWhiteSpace(text))
+                .ToList();
+
+            var links = document.QuerySelectorAll("a[href]")
+                .Select(static a => ToLink(a))
+                .Where(static l => l is not null)
+                .Cast<FetchLink>()
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(extractedText) &&
+                string.IsNullOrWhiteSpace(title) &&
+                headings.Count == 0 &&
+                paragraphs.Count == 0 &&
+                links.Count == 0)
+            {
+                return null;
+            }
+
+            return new HtmlExtraction(
+                ExtractedText: string.IsNullOrWhiteSpace(extractedText) ? null : extractedText,
+                LlmText: string.IsNullOrWhiteSpace(llmText) ? null : llmText,
+                Title: string.IsNullOrWhiteSpace(title) ? null : title,
+                Headings: headings,
+                Paragraphs: paragraphs,
+                Links: links);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void RemoveElements(IDocument document, string selector)
+    {
+        foreach (var node in document.QuerySelectorAll(selector).ToArray())
+            node.Remove();
+    }
+
+    private static bool IsLikelyHtml(string? contentType, string body)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType))
+        {
+            if (contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase) ||
+                contentType.Contains("application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return body.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
+               body.Contains("<body", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IElement? SelectContentRoot(IDocument document)
+    {
+        var candidates = new[]
+        {
+            "main",
+            "article",
+            "[role='main']",
+            "#content",
+            ".content",
+            "#main",
+            ".main"
+        };
+
+        foreach (var selector in candidates)
+        {
+            var candidate = document.QuerySelector(selector);
+            if (candidate is not null)
+                return candidate;
+        }
+
+        return document.Body;
+    }
+
+    private static string BuildLlmText(IDocument document, IElement contentRoot, string title)
+    {
+        var lines = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(title))
+            lines.Add($"Title: {title}");
+
+        var blocks = contentRoot.QuerySelectorAll("h1, h2, h3, h4, h5, h6, p, li, blockquote, pre");
+        foreach (var block in blocks)
+        {
+            var line = FormatBlock(block);
+            if (!string.IsNullOrWhiteSpace(line))
+                lines.Add(line);
+        }
+
+        var links = document.QuerySelectorAll("a[href]")
+            .Select(static a => ToLink(a))
+            .Where(static l => l is not null)
+            .Cast<FetchLink>()
+            .DistinctBy(static l => l.Href)
+            .Take(30)
+            .Select(static l => string.IsNullOrWhiteSpace(l.Text) ? l.Href : $"{l.Text}: {l.Href}")
+            .ToList();
+
+        var deduped = lines
+            .Select(static line => line.Trim())
+            .Where(static line => !string.IsNullOrWhiteSpace(line))
+            .Distinct()
+            .ToList();
+
+        if (links.Count > 0)
+        {
+            deduped.Add("Links:");
+            deduped.AddRange(links.Select(static l => $"- {l}"));
+        }
+
+        return string.Join("\n", deduped);
+    }
+
+    private static string? FormatBlock(IElement block)
+    {
+        var text = NormalizeText(block.TextContent);
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        return block.LocalName switch
+        {
+            "h1" => $"# {text}",
+            "h2" => $"## {text}",
+            "h3" => $"### {text}",
+            "h4" => $"#### {text}",
+            "h5" => $"##### {text}",
+            "h6" => $"###### {text}",
+            "li" => $"- {text}",
+            "blockquote" => $"> {text}",
+            "pre" => $"Code: {text}",
+            _ => text
+        };
+    }
+
+    private static string NormalizeText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return WhitespaceRegex.Replace(value, " ").Trim();
+    }
+
+    private static FetchHeading? ToHeading(IElement element)
+    {
+        if (element.LocalName.Length != 2 || element.LocalName[0] != 'h' || !char.IsDigit(element.LocalName[1]))
+            return null;
+
+        var text = NormalizeText(element.TextContent);
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var level = element.LocalName[1] - '0';
+        return new FetchHeading(level, text);
+    }
+
+    private static FetchLink? ToLink(IElement element)
+    {
+        var href = element.GetAttribute("href");
+        if (string.IsNullOrWhiteSpace(href))
+            return null;
+
+        var text = NormalizeText(element.TextContent);
+        return new FetchLink(text, href);
+    }
+
+    private sealed record HtmlExtraction(
+        string? ExtractedText,
+        string? LlmText,
+        string? Title,
+        List<FetchHeading> Headings,
+        List<string> Paragraphs,
+        List<FetchLink> Links);
+
+    private static string BuildLlmResultText(FetchOutput output)
+    {
+        if (output.TimedOut)
+            return "Request timed out.";
+
+        if (!string.IsNullOrWhiteSpace(output.Body))
+            return output.Body;
+
+        if (output.StatusCode > 0)
+            return $"HTTP {output.StatusCode}";
+
+        return string.Empty;
     }
 }
