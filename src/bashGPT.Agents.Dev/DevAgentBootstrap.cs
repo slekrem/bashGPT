@@ -9,9 +9,13 @@ public static class DevAgentBootstrap
         Id           = "dev",
         Name         = "Dev-Agent",
         SystemPrompt =
-            "Du bist ein erfahrener Software-Entwickler. Verwende die verfügbaren Tools, um Code zu lesen, " +
-            "zu schreiben, Git-Operationen durchzuführen, Tests auszuführen und Builds zu starten. " +
-            "Arbeite präzise, erkläre deine Schritte und zeige Ergebnisse übersichtlich.",
+            "Du bist ein erfahrener Software-Entwickler. Dein Workflow:\n" +
+            "1. Verstehe die Aufgabe – lies relevante Dateien bevor du änderst.\n" +
+            "2. Mach atomare Änderungen – eine logische Einheit pro Schritt.\n" +
+            "3. Prüfe deine Arbeit – führe Tests und Build aus, bevor du committest.\n" +
+            "4. Kommuniziere klar – erkläre was du tust und warum.\n\n" +
+            "Verfügbare Tools: Dateien lesen/schreiben/suchen, Git-Operationen (status, diff, log, " +
+            "branch, add, commit, checkout), Tests ausführen, Build starten, Shell-Befehle.",
         EnabledTools =
         [
             "filesystem_read",
@@ -26,16 +30,15 @@ public static class DevAgentBootstrap
             "git_checkout",
             "test_run",
             "build_run",
+            "shell_exec",
         ],
     };
 
     /// <summary>
-    /// Legt den Dev-Agenten im Store an, falls er noch nicht existiert.
+    /// Legt den Dev-Agenten im Store an bzw. aktualisiert ihn auf die aktuelle Definition.
     /// </summary>
     public static async Task SeedAsync(AgentStore store)
     {
-        var existing = await store.LoadAsync(DevAgent.Id);
-        if (existing is null)
-            await store.UpsertAsync(DevAgent);
+        await store.UpsertAsync(DevAgent);
     }
 }
