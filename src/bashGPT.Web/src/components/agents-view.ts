@@ -13,18 +13,14 @@ export class AgentsView extends LitElement {
   @state() private _showForm = false
   @state() private _formName = ''
   @state() private _formType: 'llm' | 'shell' = 'shell'
-  @state() private _formInterval = 60
   @state() private _formSystemPrompt = ''
-  @state() private _formLoopInstruction = ''
   @state() private _formEnabledTools: string[] = []
   @state() private _formError = ''
   @state() private _saving = false
 
   @state() private _editingId: string | null = null
   @state() private _editName = ''
-  @state() private _editInterval = 60
   @state() private _editSystemPrompt = ''
-  @state() private _editLoopInstruction = ''
   @state() private _editEnabledTools: string[] = []
   @state() private _editError = ''
   @state() private _editSaving = false
@@ -297,33 +293,6 @@ export class AgentsView extends LitElement {
       font-size: 11px;
       color: #475569;
     }
-
-    .advanced-section {
-      margin-bottom: 12px;
-    }
-
-    .advanced-section > summary {
-      font-size: 12px;
-      font-weight: 600;
-      color: #64748b;
-      cursor: pointer;
-      padding: 6px 0;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      user-select: none;
-    }
-    .advanced-section > summary::before {
-      content: '▶';
-      font-size: 9px;
-      transition: transform 0.15s;
-    }
-    .advanced-section[open] > summary::before {
-      transform: rotate(90deg);
-    }
-    .advanced-section > summary:hover { color: #94a3b8; }
-    .advanced-section[open] > summary { color: #94a3b8; margin-bottom: 8px; }
   `
 
   async connectedCallback() {
@@ -353,13 +322,11 @@ export class AgentsView extends LitElement {
   }
 
   private _startEdit(a: Agent) {
-    this._editingId           = a.id
-    this._editName            = a.name
-    this._editInterval        = a.intervalSeconds
-    this._editSystemPrompt    = a.systemPrompt ?? ''
-    this._editLoopInstruction = a.loopInstruction ?? ''
-    this._editEnabledTools    = [...(a.enabledTools ?? [])]
-    this._editError           = ''
+    this._editingId        = a.id
+    this._editName         = a.name
+    this._editSystemPrompt = a.systemPrompt ?? ''
+    this._editEnabledTools = [...(a.enabledTools ?? [])]
+    this._editError        = ''
   }
 
   private _cancelEdit() {
@@ -376,11 +343,9 @@ export class AgentsView extends LitElement {
     this._editSaving = true
     try {
       const patch = {
-        name:            this._editName.trim(),
-        intervalSeconds: this._editInterval,
-        systemPrompt:    this._editSystemPrompt.trim() || null,
-        loopInstruction: this._editLoopInstruction.trim() || undefined,
-        enabledTools:    this._editEnabledTools,
+        name:         this._editName.trim(),
+        systemPrompt: this._editSystemPrompt.trim() || null,
+        enabledTools: this._editEnabledTools,
       }
       const updated = await patchAgent(this._editingId!, patch)
       this._agents   = this._agents.map(a => a.id === updated.id ? updated : a)
@@ -409,13 +374,11 @@ export class AgentsView extends LitElement {
     this._saving = true
     try {
       const agent = await createAgent({
-        name:            this._formName.trim(),
-        type:            this._formType,
-        intervalSeconds: this._formInterval,
-        systemPrompt:    this._formSystemPrompt.trim() || undefined,
-        loopInstruction: this._formLoopInstruction.trim() || undefined,
-        execMode:        'auto-exec',
-        enabledTools:    this._formEnabledTools,
+        name:         this._formName.trim(),
+        type:         this._formType,
+        systemPrompt: this._formSystemPrompt.trim() || undefined,
+        execMode:     'auto-exec',
+        enabledTools: this._formEnabledTools,
       })
       this._agents = [...this._agents, agent]
       this._resetForm()
@@ -435,16 +398,13 @@ export class AgentsView extends LitElement {
 
   private _applyTypeDefaults(type: 'shell' | 'llm') {
     this._formName = this._defaultAgentName(type)
-    this._formInterval = 60
     if (type === 'shell') {
       this._formSystemPrompt = 'Du bist ein autonomer Shell-Assistent. Führe die gegebene Aufgabe präzise aus.'
-      this._formLoopInstruction = 'Analysiere den aktuellen Systemzustand und gib einen kurzen Statusbericht aus.'
       this._formEnabledTools = this._availableTools.length > 0
         ? [this._availableTools[0].name]
         : []
     } else {
       this._formSystemPrompt = ''
-      this._formLoopInstruction = ''
       this._formEnabledTools = []
     }
   }
@@ -497,7 +457,7 @@ export class AgentsView extends LitElement {
   render() {
     return html`
       <h2>Agenten</h2>
-      <div class="subtitle">Kontinuierliche Überwachung mit automatischer LLM-Reaktion</div>
+      <div class="subtitle">Einmalige Ausführung mit automatischer LLM-Reaktion</div>
 
       <div class="toolbar">
         <button class="btn-primary" @click=${() => { this._showForm = !this._showForm; this._formError = ''; if (this._showForm) { this._formType = 'shell'; this._applyTypeDefaults('shell') } }}>
@@ -523,7 +483,7 @@ export class AgentsView extends LitElement {
 
   private _renderAgent(a: Agent) {
     const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : a.type === 'shell' ? '🐚' : '🌐'
-    const meta = a.type === 'gitstatus' ? a.path : (a.type === 'llmagent' || a.type === 'shell') ? (a.loopInstruction ?? '') : a.url
+    const meta = a.type === 'gitstatus' ? a.path : (a.type === 'httpstatus' || a.type === 'bitcoinprice') ? a.url : ''
     const badgeClass = !a.isActive ? 'badge-inactive' : !a.lastCheckSucceeded ? 'badge-fail' : 'badge-active'
     const badgeLabel = !a.isActive ? 'Pausiert' : !a.lastCheckSucceeded ? 'Fehler' : 'Aktiv'
 
@@ -535,7 +495,7 @@ export class AgentsView extends LitElement {
             <div class="agent-name">${a.name}</div>
             <span class="badge ${badgeClass}">${badgeLabel}</span>
           </div>
-          <div class="agent-meta">${meta} · alle ${a.intervalSeconds}s</div>
+          ${meta ? html`<div class="agent-meta">${meta}</div>` : ''}
           ${a.lastMessage ? html`<div class="agent-last">${a.lastMessage}</div>` : ''}
           <div class="agent-last">Letzter Check: ${this._formatDate(a.lastRun)}</div>
         </div>
@@ -585,26 +545,6 @@ export class AgentsView extends LitElement {
             @input=${(e: Event) => { this._formSystemPrompt = (e.target as HTMLTextAreaElement).value }}
           ></textarea>
         </div>
-        <details class="advanced-section">
-          <summary>Erweiterte Einstellungen</summary>
-          <div class="form-row">
-            <label>Loop-Anweisung <span style="font-weight:400;color:#475569">(optional)</span></label>
-            <textarea
-              placeholder="z.B. Prüfe den Festplattenverbrauch und berichte über kritische Partitionen. Ohne Angabe wird ein Standard-Statusbericht ausgeführt."
-              .value=${this._formLoopInstruction}
-              @input=${(e: Event) => { this._formLoopInstruction = (e.target as HTMLTextAreaElement).value }}
-            ></textarea>
-          </div>
-          <div class="form-row">
-            <label>Intervall (Sekunden)</label>
-            <input
-              type="number"
-              min="10"
-              .value=${String(this._formInterval)}
-              @input=${(e: Event) => { this._formInterval = parseInt((e.target as HTMLInputElement).value) || 60 }}
-            />
-          </div>
-        </details>
 
         ${this._renderToolList(this._formEnabledTools, 'form')}
 
@@ -642,26 +582,6 @@ export class AgentsView extends LitElement {
             @input=${(e: Event) => { this._editSystemPrompt = (e.target as HTMLTextAreaElement).value }}
           ></textarea>
         </div>
-        <details class="advanced-section">
-          <summary>Erweiterte Einstellungen</summary>
-          <div class="form-row">
-            <label>Loop-Anweisung <span style="font-weight:400;color:#475569">(optional)</span></label>
-            <textarea
-              placeholder="Ohne Angabe wird ein Standard-Statusbericht ausgeführt."
-              .value=${this._editLoopInstruction}
-              @input=${(e: Event) => { this._editLoopInstruction = (e.target as HTMLTextAreaElement).value }}
-            ></textarea>
-          </div>
-          <div class="form-row">
-            <label>Intervall (Sekunden)</label>
-            <input
-              type="number"
-              min="10"
-              .value=${String(this._editInterval)}
-              @input=${(e: Event) => { this._editInterval = parseInt((e.target as HTMLInputElement).value) || 60 }}
-            />
-          </div>
-        </details>
 
         ${this._renderToolList(this._editEnabledTools, 'edit')}
 

@@ -77,7 +77,7 @@ public class AgentRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task AgentRunner_CheckFails_DoesNotStopLoop()
+    public async Task AgentRunner_CheckFails_CompletesAndRecordsFailure()
     {
         var agent = new AgentRecord
         {

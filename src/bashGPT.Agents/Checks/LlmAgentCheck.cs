@@ -8,8 +8,6 @@ namespace BashGPT.Agents;
 
 public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionStore = null, ToolRegistry? toolRegistry = null) : IAgentCheck
 {
-    private const int MaxRounds = 5;
-
     public AgentCheckType Type => AgentCheckType.LlmAgent;
 
     public async Task<AgentCheckResult> RunAsync(AgentRecord agent, CancellationToken ct)
@@ -53,22 +51,18 @@ public sealed class LlmAgentCheck(ILlmProvider? provider, SessionStore? sessionS
         var tools = enabledITools.Count > 0
             ? enabledITools.Select(t => ToLlmToolDefinition(t.Definition)).ToArray()
             : [ToolDefinitions.Bash];
-        var lastContent = "";
         var commandsThisRun = new List<SessionCommand>();
 
-        for (var round = 0; round < MaxRounds; round++)
+        ct.ThrowIfCancellationRequested();
+
+        var response = await provider.ChatAsync(
+            new LlmChatRequest(messages, Tools: tools, Stream: false),
+            ct);
+
+        var lastContent = response.Content;
+
+        if (response.ToolCalls.Count > 0)
         {
-            ct.ThrowIfCancellationRequested();
-
-            var response = await provider.ChatAsync(
-                new LlmChatRequest(messages, Tools: tools, Stream: false),
-                ct);
-
-            lastContent = response.Content;
-
-            if (response.ToolCalls.Count == 0)
-                break;
-
             messages.Add(ChatMessage.AssistantWithToolCalls(response.ToolCalls, response.Content));
 
             foreach (var call in response.ToolCalls)

@@ -4,7 +4,7 @@ using BashGPT.Storage;
 namespace BashGPT.Agents;
 
 /// <summary>
-/// Führt aktive Agenten zyklisch aus, meldet Zustandsänderungen und
+/// Führt alle aktiven Agenten einmalig aus, meldet Zustandsänderungen und
 /// leitet diese optional ans LLM weiter. Die gesamte Session wird gespeichert.
 /// </summary>
 public sealed class AgentRunner
@@ -14,7 +14,6 @@ public sealed class AgentRunner
         "Reagiere knapp und präzise auf die jeweilige Änderung. Keine Befehle ausführen.";
 
     private const int LlmTimeoutSeconds = 30;
-    private const int HeartbeatSeconds = 60;
 
     private readonly AgentStore _store;
     private readonly IReadOnlyDictionary<AgentCheckType, IAgentCheck> _checks;
@@ -36,80 +35,51 @@ public sealed class AgentRunner
     public async Task RunAsync(CancellationToken ct)
     {
         var session = CreateSession();
-        var lastHeartbeat = DateTimeOffset.UtcNow;
 
-        while (!ct.IsCancellationRequested)
+        var agents = await _store.LoadAllAsync();
+
+        foreach (var agent in agents.Where(a => a.IsActive))
         {
+            if (ct.IsCancellationRequested) break;
+            if (!ShouldRun(agent)) continue;
+
+            if (!_checks.TryGetValue(agent.Type, out var check))
+            {
+                Console.Error.WriteLine($"[WARN] Kein Check für Typ {agent.Type} registriert.");
+                continue;
+            }
+
+            var now = DateTimeOffset.UtcNow;
             try
             {
-                var agents = await _store.LoadAllAsync();
+                var result = await check.RunAsync(agent, ct);
 
-                foreach (var agent in agents.Where(a => a.IsActive))
+                if (result.Changed)
                 {
-                    if (ct.IsCancellationRequested) break;
-                    if (!ShouldRun(agent)) continue;
-
-                    if (!_checks.TryGetValue(agent.Type, out var check))
-                    {
-                        Console.Error.WriteLine($"[WARN] Kein Check für Typ {agent.Type} registriert.");
-                        continue;
-                    }
-
-                    var now = DateTimeOffset.UtcNow;
-                    try
-                    {
-                        var result = await check.RunAsync(agent, ct);
-
-                        if (result.Changed)
-                        {
-                            Console.WriteLine($"[{now:HH:mm:ss}] {agent.Name}: {result.Message}");
-                            await ReactWithLlmAsync(result.Message, agent, session, ct);
-                        }
-
-                        agent.LastHash = result.Hash;
-                        agent.LastRun = now;
-                        agent.LastMessage = result.Message;
-                        agent.LastCheckSucceeded = result.Success;
-                        agent.FailureCount = result.Success ? 0 : agent.FailureCount + 1;
-                    }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        agent.FailureCount++;
-                        agent.LastCheckSucceeded = false;
-                        agent.LastRun = DateTimeOffset.UtcNow;
-                        Console.Error.WriteLine($"[ERROR] {agent.Name}: {ex.Message}");
-                    }
-
-                    try { await _store.UpsertAsync(agent); }
-                    catch (Exception ex) { Console.Error.WriteLine($"[WARN] Store-Fehler: {ex.Message}"); }
+                    Console.WriteLine($"[{now:HH:mm:ss}] {agent.Name}: {result.Message}");
+                    await ReactWithLlmAsync(result.Message, agent, session, ct);
                 }
 
-                // Heartbeat
-                if (DateTimeOffset.UtcNow - lastHeartbeat >= TimeSpan.FromSeconds(HeartbeatSeconds))
-                {
-                    var active = agents.Where(a => a.IsActive).ToList();
-                    var next = active
-                        .Where(a => a.LastRun.HasValue)
-                        .Select(a => new { a.Name, In = (int)(a.LastRun!.Value.AddSeconds(a.IntervalSeconds) - DateTimeOffset.UtcNow).TotalSeconds })
-                        .Where(x => x.In > 0)
-                        .OrderBy(x => x.In)
-                        .FirstOrDefault();
-
-                    var nextStr = next is not null ? $" | nächster Check: {next.Name} in {next.In}s" : "";
-                    Console.WriteLine($"[{DateTimeOffset.Now:HH:mm:ss}] ♥ Runner aktiv ({active.Count} Agent(en)){nextStr}");
-                    lastHeartbeat = DateTimeOffset.UtcNow;
-                }
+                agent.LastHash = result.Hash;
+                agent.LastRun = now;
+                agent.LastMessage = result.Message;
+                agent.LastCheckSucceeded = result.Success;
+                agent.FailureCount = result.Success ? 0 : agent.FailureCount + 1;
             }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                Console.Error.WriteLine($"[ERROR] Unerwarteter Fehler im Runner: {ex.Message}");
+                break;
+            }
+            catch (Exception ex)
+            {
+                agent.FailureCount++;
+                agent.LastCheckSucceeded = false;
+                agent.LastRun = DateTimeOffset.UtcNow;
+                Console.Error.WriteLine($"[ERROR] {agent.Name}: {ex.Message}");
             }
 
-            await Task.Delay(1_000, ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            try { await _store.UpsertAsync(agent); }
+            catch (Exception ex) { Console.Error.WriteLine($"[WARN] Store-Fehler: {ex.Message}"); }
         }
     }
 
