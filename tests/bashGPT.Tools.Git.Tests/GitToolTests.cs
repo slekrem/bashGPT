@@ -25,7 +25,7 @@ public class GitToolTests : IDisposable
         Run("commit -m \"initial commit\"");
     }
 
-    public void Dispose() => Directory.Delete(_repoDir, recursive: true);
+    public void Dispose() => DeleteDirectoryRobust(_repoDir);
 
     private void Run(string args)
     {
@@ -205,4 +205,46 @@ public class GitToolTests : IDisposable
 
     private static ToolCall Call(string name, object args) =>
         new(name, JsonSerializer.Serialize(args));
+
+    private static void DeleteDirectoryRobust(string path)
+    {
+        if (!Directory.Exists(path))
+            return;
+
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                ClearReadOnlyAttributes(path);
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch when (attempt < maxAttempts)
+            {
+                Thread.Sleep(100 * attempt);
+            }
+        }
+
+        // Let the final attempt throw with original context if deletion still fails.
+        ClearReadOnlyAttributes(path);
+        Directory.Delete(path, recursive: true);
+    }
+
+    private static void ClearReadOnlyAttributes(string root)
+    {
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            try
+            {
+                var attrs = File.GetAttributes(file);
+                if ((attrs & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
+            }
+            catch
+            {
+                // Best effort for cleanup in tests.
+            }
+        }
+    }
 }
