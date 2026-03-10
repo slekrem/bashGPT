@@ -11,7 +11,6 @@ namespace BashGPT.Server;
 
 internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
-    ServerState state,
     LegacyHistory legacyHistory,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
