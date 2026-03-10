@@ -205,7 +205,7 @@ internal sealed class StreamingChatApiHandler(
             try
             {
                 var errJson = JsonSerializer.Serialize(
-                    new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", message = ex.Message } } } } },
+                    new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", data = new { message = ex.Message } } } } } },
                     JsonDefaults.Options);
                 ApiResponse.WriteSseEvent(stream, errJson);
                 ApiResponse.WriteSseEvent(stream, "[DONE]");
