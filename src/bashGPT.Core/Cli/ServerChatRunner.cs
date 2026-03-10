@@ -1,5 +1,6 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using System.Text.Json;
 using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Execution;
 
@@ -120,17 +121,27 @@ public class ServerChatRunner(
 
                 foreach (var call in response.Response.ToolCalls)
                 {
+                    var commandLabel = TryExtractCommand(call.ArgumentsJson, out var parsedCommand)
+                        ? parsedCommand
+                        : call.Name;
+                    opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
+
+                    object commandResult = new { command = commandLabel, output = string.Empty, exitCode = 0, wasExecuted = true };
                     string toolResult;
                     if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
                     {
                         var r = await iTool.ExecuteAsync(
                             new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
                         toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
+                        commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
                     }
                     else
                     {
                         toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
+                        commandResult = new { command = commandLabel, output = toolResult, exitCode = 1, wasExecuted = false };
                     }
+
+                    opts.OnEvent?.Invoke(new SseEvent("command_result", commandResult));
                     messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
                 }
 
@@ -166,6 +177,62 @@ public class ServerChatRunner(
                 _limiterMinIntervalMs = delay;
             }
             return _sharedLimiter;
+        }
+    }
+
+    private static bool TryExtractCommand(string? argumentsJson, out string command)
+    {
+        command = string.Empty;
+        if (string.IsNullOrWhiteSpace(argumentsJson)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(argumentsJson);
+            if (!doc.RootElement.TryGetProperty("command", out var commandEl)) return false;
+            var value = commandEl.GetString();
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            command = value;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static object BuildCommandResult(string toolName, string command, string toolResult, bool success)
+    {
+        if (string.Equals(toolName, "shell_exec", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryParseShellExecOutput(toolResult, out var output, out var exitCode))
+            {
+                return new { command, output, exitCode, wasExecuted = true };
+            }
+
+            return new { command, output = toolResult, exitCode = success ? 0 : 1, wasExecuted = success };
+        }
+
+        return new { command, output = toolResult, exitCode = success ? 0 : 1, wasExecuted = success };
+    }
+
+    private static bool TryParseShellExecOutput(string content, out string output, out int exitCode)
+    {
+        output = content;
+        exitCode = 1;
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("exitCode", out var exitCodeEl)) return false;
+
+            var stdout = root.TryGetProperty("stdout", out var stdoutEl) ? (stdoutEl.GetString() ?? string.Empty) : string.Empty;
+            var stderr = root.TryGetProperty("stderr", out var stderrEl) ? (stderrEl.GetString() ?? string.Empty) : string.Empty;
+            exitCode = exitCodeEl.GetInt32();
+            output = string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}".Trim();
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

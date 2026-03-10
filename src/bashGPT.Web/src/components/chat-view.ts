@@ -2,10 +2,10 @@ import { LitElement, html, css } from 'lit'
 import { customElement, state, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
-import './terminal-panel'
+import './tool-calls-panel'
 import './chat-info-panel'
 import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools } from '../api'
-import type { CommandResult, FullShellContext, Settings, TerminalEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
+import type { CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -46,8 +46,8 @@ export class ChatView extends LitElement {
   }
 
   @state() private _panels = {
-    terminalOpen: true,
-    infoOpen:     false,
+    toolCallsOpen: true,
+    infoOpen:      false,
   }
 
   @state() private _ctx = {
@@ -64,7 +64,8 @@ export class ChatView extends LitElement {
   @state() private _reasoningContent = ''
   @state() private _streamingId: number | null = null
   private _newRoundPending = false
-  @state() private _streamingEntries: TerminalEntry[] = []
+  @state() private _streamingEntries: ToolCallEntry[] = []
+  @state() private _completedEntries: ToolCallEntry[] = []
   @state() private _enabledTools: string[] = []
   @state() private _toolPickerOpen = false
   @state() private _availableTools: ToolInfo[] = []
@@ -84,12 +85,12 @@ export class ChatView extends LitElement {
       overflow: hidden;
     }
 
-    bashgpt-terminal-panel {
+    bashgpt-tool-calls-panel {
       flex: 1;
       min-width: 0;
       transition: flex 0.2s ease, opacity 0.2s ease;
     }
-    bashgpt-terminal-panel.collapsed {
+    bashgpt-tool-calls-panel.collapsed {
       flex: 0;
       overflow: hidden;
       opacity: 0;
@@ -280,7 +281,7 @@ export class ChatView extends LitElement {
 
     /* ── Mobile ─────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      bashgpt-terminal-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
+      bashgpt-tool-calls-panel { flex: none; width: 100%; border-right: none; border-bottom: 1px solid #1e293b; }
       .split-wrapper { flex-direction: column; }
       bashgpt-chat-info-panel {
         width: 100%;
@@ -315,6 +316,7 @@ export class ChatView extends LitElement {
   /** Öffentlich: History neu laden (nach Session-Wechsel) */
   async reloadHistory() {
     this._chat = { ...this._chat, messages: [] }
+    this._completedEntries = []
     this._enabledTools = []
     this._toolPickerOpen = false
     await this._loadHistory(true)
@@ -340,6 +342,7 @@ export class ChatView extends LitElement {
       statusText: hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : ''),
       statusError: false,
     }
+    this._completedEntries = this._entriesFromMessages(newMessages)
     this._enabledTools = enabledTools ?? []
     this._toolPickerOpen = false
   }
@@ -371,6 +374,7 @@ export class ChatView extends LitElement {
       tokenUsage: this._sumTokenUsage(newMessages),
       shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
     }
+    this._completedEntries = this._entriesFromMessages(newMessages)
 
     void this.updateComplete.then(() => {
       const updatedChatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
@@ -401,6 +405,7 @@ export class ChatView extends LitElement {
         statusText: 'Verlauf gelöscht',
         statusError: false,
       }
+      this._completedEntries = []
       this._enabledTools = []
       this._toolPickerOpen = false
       this._emitMessagesChanged()
@@ -433,6 +438,7 @@ export class ChatView extends LitElement {
         tokenUsage:  this._sumTokenUsage(newMessages),
         statusError: false,
       }
+      this._completedEntries = this._entriesFromMessages(newMessages)
     } catch (e) {
       this._chat = {
         ...this._chat,
@@ -495,7 +501,7 @@ export class ChatView extends LitElement {
           this._chat = { ...this._chat, statusText: `Führe aus: ${data.command}` }
           this._streamingEntries = [
             ...this._streamingEntries,
-            { command: data.command, output: '', exitCode: -1, wasExecuted: false, status: 'running' },
+            { toolName: data.name || 'tool', command: data.command, output: '', exitCode: -1, wasExecuted: false, status: 'running' },
           ]
         },
         onCommandResult: data => {
@@ -504,6 +510,7 @@ export class ChatView extends LitElement {
             if (!updated && e.command === data.command && e.status === 'running') {
               updated = true
               return {
+                toolName: e.toolName,
                 command: data.command,
                 output: data.output ?? '',
                 exitCode: data.exitCode,
@@ -522,9 +529,27 @@ export class ChatView extends LitElement {
       }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined, this.agentId || undefined)
 
       // Finale Message mit vollständigen Daten übernehmen
+      const streamedCommands: CommandResult[] = this._streamingEntries
+        .map(e => ({
+          command: e.command,
+          exitCode: e.status === 'running' ? -1 : e.exitCode,
+          output: e.output ?? '',
+          wasExecuted: e.status === 'running' ? false : e.wasExecuted,
+        }))
+
+      const finalCommands = (result.commands?.length ?? 0) > 0
+        ? result.commands
+        : streamedCommands
+
       const newMessages = this._chat.messages.map(m =>
         m.id === assistantId
-          ? { ...m, content: result.response, usage: result.usage ?? undefined }
+          ? {
+              ...m,
+              content: result.response,
+              usage: result.usage ?? undefined,
+              commands: finalCommands,
+              usedToolCalls: result.usedToolCalls || finalCommands.length > 0,
+            }
           : m
       )
       this._chat = {
@@ -535,6 +560,14 @@ export class ChatView extends LitElement {
         statusText:  this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '',
         statusError: false,
       }
+      this._completedEntries = finalCommands.map(cmd => ({
+        toolName: 'shell_exec',
+        command: cmd.command,
+        output: cmd.output,
+        exitCode: cmd.exitCode,
+        wasExecuted: cmd.wasExecuted,
+        status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
+      }))
       this._streamingContent = ''
       this._reasoningContent = ''
       this._streamingId = null
@@ -551,6 +584,7 @@ export class ChatView extends LitElement {
         statusText:  errText,
         statusError: true,
       }
+      this._completedEntries = this._entriesFromMessages(newMessages)
       this._streamingContent = ''
       this._reasoningContent = ''
       this._streamingId = null
@@ -585,22 +619,41 @@ export class ChatView extends LitElement {
     }))
   }
 
-  /** Aggregiert alle CommandResults aus allen Nachrichten als TerminalEntries */
-  private get _terminalEntries(): TerminalEntry[] {
-    const entries: TerminalEntry[] = []
+  /** Aggregiert alle CommandResults aus allen Nachrichten als ToolCallEntries */
+  private get _toolCallEntries(): ToolCallEntry[] {
+    const entries: ToolCallEntry[] = []
     for (const msg of this._chat.messages) {
       if (msg.role !== 'assistant' || !msg.commands?.length) continue
       for (const cmd of msg.commands) {
-        let status: TerminalEntry['status']
+        let status: ToolCallEntry['status']
         if (!cmd.wasExecuted) status = 'skipped'
         else if (cmd.exitCode === 0) status = 'success'
         else status = 'error'
         entries.push({
+          toolName: 'shell_exec',
           command: cmd.command,
           output: cmd.output,
           exitCode: cmd.exitCode,
           wasExecuted: cmd.wasExecuted,
           status,
+        })
+      }
+    }
+    return entries
+  }
+
+  private _entriesFromMessages(messages: Message[]): ToolCallEntry[] {
+    const entries: ToolCallEntry[] = []
+    for (const msg of messages) {
+      if (msg.role !== 'assistant' || !msg.commands?.length) continue
+      for (const cmd of msg.commands) {
+        entries.push({
+          toolName: 'shell_exec',
+          command: cmd.command,
+          output: cmd.output,
+          exitCode: cmd.exitCode,
+          wasExecuted: cmd.wasExecuted,
+          status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
         })
       }
     }
@@ -663,28 +716,20 @@ export class ChatView extends LitElement {
     return this._chat.statusText || 'Denke…'
   }
 
-  private _fallbackShellContext(): ShellContext {
-    return {
-      user: 'benutzer',
-      host: window.location.hostname || 'maschine',
-      cwd: '~',
-    }
-  }
-
   render() {
     const isEmpty = this._chat.messages.length === 0
     const workingText = this._workingText()
-    const showPanel = this.showTerminal && this._panels.terminalOpen
+    const showPanel = this.showTerminal && this._panels.toolCallsOpen
+    const stableEntries = this._toolCallEntries.length > 0 ? this._toolCallEntries : this._completedEntries
 
     return html`
       <div class="split-wrapper">
         ${this.showTerminal ? html`
-          <bashgpt-terminal-panel
+          <bashgpt-tool-calls-panel
             class="${showPanel ? '' : 'collapsed'}"
-            .entries=${[...this._terminalEntries, ...this._streamingEntries]}
-            .shellContext=${this._chat.shellContext ?? this._fallbackShellContext()}
+            .entries=${[...stableEntries, ...this._streamingEntries]}
             ?loading=${this._chat.loading}
-          ></bashgpt-terminal-panel>
+          ></bashgpt-tool-calls-panel>
         ` : ''}
 
         <div class="chat-column">
@@ -773,12 +818,12 @@ export class ChatView extends LitElement {
 
           ${this.showTerminal ? html`
             <button
-              class="terminal-toggle ${this._panels.terminalOpen ? 'active' : ''}"
-              @click=${() => { this._panels = { ...this._panels, terminalOpen: !this._panels.terminalOpen } }}
-              title="Terminal ein-/ausblenden"
-              aria-pressed=${this._panels.terminalOpen ? 'true' : 'false'}
-              aria-label="Terminal ein-/ausblenden"
-            >⌃ Terminal</button>
+              class="terminal-toggle ${this._panels.toolCallsOpen ? 'active' : ''}"
+              @click=${() => { this._panels = { ...this._panels, toolCallsOpen: !this._panels.toolCallsOpen } }}
+              title="Tool-Calls ein-/ausblenden"
+              aria-pressed=${this._panels.toolCallsOpen ? 'true' : 'false'}
+              aria-label="Tool-Calls ein-/ausblenden"
+            >Tool Calls</button>
           ` : ''}
 
           <button
@@ -809,3 +854,6 @@ export class ChatView extends LitElement {
     `
   }
 }
+
+
+

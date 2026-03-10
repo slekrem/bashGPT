@@ -483,3 +483,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# bashGPT.Web (frontend build artifacts)
+src/bashGPT.Web/dist/
+src/bashGPT.Web/dist-ssr/
+src/bashGPT.Web/*.local
