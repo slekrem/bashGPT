@@ -121,7 +121,8 @@ export interface ToolInfo {
 
 export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents' | 'tools'
 
-export interface TerminalEntry {
+export interface ToolCallEntry {
+  toolName: string
   command: string
   output: string
   exitCode: number
