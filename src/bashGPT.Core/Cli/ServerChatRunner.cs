@@ -82,6 +82,7 @@ public class ServerChatRunner(
         var exchangeIdx  = 0;
         var commandResults = new List<CommandResult>();
         var usedToolCalls  = false;
+        var conversationDelta = new List<ChatMessage>();
 
         async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
         {
@@ -121,7 +122,9 @@ public class ServerChatRunner(
                 usedToolCalls = true;
 
                 opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
-                messages.Add(ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content));
+                var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content);
+                messages.Add(assistantToolCallMessage);
+                conversationDelta.Add(assistantToolCallMessage);
 
                 foreach (var call in response.Response.ToolCalls)
                 {
@@ -153,7 +156,9 @@ public class ServerChatRunner(
                         exitCode    = commandResult.ExitCode,
                         wasExecuted = commandResult.WasExecuted,
                     }));
-                    messages.Add(ChatMessage.ToolResult(toolResult, call.Id, call.Name));
+                    var toolMessage = ChatMessage.ToolResult(toolResult, call.Id, call.Name);
+                    messages.Add(toolMessage);
+                    conversationDelta.Add(toolMessage);
                 }
 
                 response = await CallOnce();
@@ -167,13 +172,17 @@ public class ServerChatRunner(
             ? new TokenUsage(totalInputTokens, totalOutputTokens)
             : null;
 
+        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, response.Response.Content);
+        conversationDelta.Add(finalAssistantMessage);
+
         return new ServerChatResult(
             Response:     response.Response.Content,
             Logs:         logs,
             Usage:        BuildUsage(),
             LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
             Commands:     commandResults.Count > 0 ? commandResults : null,
-            UsedToolCalls: usedToolCalls);
+            UsedToolCalls: usedToolCalls,
+            ConversationDelta: conversationDelta);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)

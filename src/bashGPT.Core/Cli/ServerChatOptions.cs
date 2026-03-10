@@ -30,7 +30,8 @@ public record ServerChatResult(
     TokenUsage? Usage = null,
     IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
     IReadOnlyList<CommandResult>? Commands = null,
-    bool UsedToolCalls = false
+    bool UsedToolCalls = false,
+    IReadOnlyList<ChatMessage>? ConversationDelta = null
 );
 
 public record SseEvent(string Event, object? Data = null);

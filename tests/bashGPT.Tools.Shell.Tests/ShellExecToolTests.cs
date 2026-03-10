@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Shell;
 
@@ -22,7 +23,7 @@ public class ShellExecToolTests
 
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Equal("hello\n", output.Stdout);
+        Assert.Equal($"hello{Environment.NewLine}", output.Stdout);
         Assert.Equal(0, output.ExitCode);
         Assert.False(output.TimedOut);
     }
@@ -31,11 +32,13 @@ public class ShellExecToolTests
     public async Task ExecuteAsync_PwdWithCwd_ReturnsCorrectPath()
     {
         var tool = new ShellExecTool();
-        var result = await tool.ExecuteAsync(Call("pwd", cwd: "/tmp"), CancellationToken.None);
+        var cwd = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var pwdCommand = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cd" : "pwd";
+        var result = await tool.ExecuteAsync(Call(pwdCommand, cwd: cwd), CancellationToken.None);
 
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Contains("/tmp", output.Stdout);
+        Assert.Contains(cwd, output.Stdout, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -65,7 +68,10 @@ public class ShellExecToolTests
     public async Task ExecuteAsync_Timeout_SetsTimedOutTrue()
     {
         var tool = new ShellExecTool();
-        var result = await tool.ExecuteAsync(Call("sleep 60", timeoutMs: 200), CancellationToken.None);
+        var sleepCommand = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? "powershell -NoProfile -Command \"Start-Sleep -Seconds 60\""
+            : "sleep 60";
+        var result = await tool.ExecuteAsync(Call(sleepCommand, timeoutMs: 200), CancellationToken.None);
 
         Assert.False(result.Success);
         var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
