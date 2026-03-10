@@ -28,10 +28,7 @@ public class FetchToolTests
         var result = await tool.ExecuteAsync(Call("https://example.com"), CancellationToken.None);
 
         Assert.True(result.Success);
-        var output = JsonSerializer.Deserialize<FetchOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Equal(200, output.StatusCode);
-        Assert.Equal("hello world", output.Body);
-        Assert.False(output.TimedOut);
+        Assert.Equal("hello world", result.Content);
     }
 
     [Fact]
@@ -42,8 +39,7 @@ public class FetchToolTests
         var result = await tool.ExecuteAsync(Call("https://example.com/missing"), CancellationToken.None);
 
         Assert.False(result.Success);
-        var output = JsonSerializer.Deserialize<FetchOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Equal(404, output.StatusCode);
+        Assert.Equal("not found", result.Content);
     }
 
     [Fact]
@@ -104,8 +100,68 @@ public class FetchToolTests
         var result = await tool.ExecuteAsync(Call("https://example.com", timeoutMs: 100), CancellationToken.None);
 
         Assert.False(result.Success);
-        var output = JsonSerializer.Deserialize<FetchOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.True(output.TimedOut);
+        Assert.Contains("timed out", result.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_HtmlResponse_ExtractsStructuredText()
+    {
+        const string html = """
+            <html>
+              <head><title>Example Article</title></head>
+              <body>
+                <nav>ignore me</nav>
+                <h1>Main Heading</h1>
+                <p>First paragraph.</p>
+                <p>Second paragraph.</p>
+                <a href="https://example.com/more">Read more</a>
+              </body>
+            </html>
+            """;
+        var tool = CreateTool(new FakeHandler(HttpStatusCode.OK, html, "text/html"));
+
+        var result = await tool.ExecuteAsync(Call("https://example.com/article"), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("Title: Example Article", result.Content);
+        Assert.Contains("# Main Heading", result.Content);
+        Assert.Contains("First paragraph.", result.Content);
+        Assert.Contains("Links:", result.Content);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NonHtmlResponse_DoesNotPopulateHtmlFields()
+    {
+        var tool = CreateTool(new FakeHandler(HttpStatusCode.OK, "plain text", "text/plain"));
+
+        var result = await tool.ExecuteAsync(Call("https://example.com/plain"), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal("plain text", result.Content);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_BrokenHtml_DoesNotFailRequest()
+    {
+        const string brokenHtml = "<html><head><title>Broken<title></head><body><h1>Heading<p>Text";
+        var tool = CreateTool(new FakeHandler(HttpStatusCode.OK, brokenHtml, "text/html"));
+
+        var result = await tool.ExecuteAsync(Call("https://example.com/broken"), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("Heading", result.Content);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LargeResponse_DefaultLimit_ReturnsCompleteBody()
+    {
+        var content = new string('x', 40_000);
+        var tool = CreateTool(new FakeHandler(HttpStatusCode.OK, content));
+
+        var result = await tool.ExecuteAsync(Call("https://example.com/large"), CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(40_000, result.Content.Length);
     }
 
     [Fact]
@@ -126,12 +182,12 @@ public class FetchToolTests
         Assert.False(policy.Allow(new FetchInput("ftp://example.com", "GET", null, null, 5000)));
     }
 
-    private sealed class FakeHandler(HttpStatusCode statusCode, string body) : HttpMessageHandler
+    private sealed class FakeHandler(HttpStatusCode statusCode, string body, string contentType = "text/plain") : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(new HttpResponseMessage(statusCode)
             {
-                Content = new StringContent(body, Encoding.UTF8, "text/plain")
+                Content = new StringContent(body, Encoding.UTF8, contentType)
             });
     }
 
