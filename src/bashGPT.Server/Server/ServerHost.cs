@@ -3,7 +3,6 @@ using System.Net;
 using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
-using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Storage;
 using BashGPT.Tools.Execution;
@@ -41,10 +40,10 @@ public class ServerHost
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService, _state);
-        _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry);
+        _chatHandler          = new ChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry, agentStore);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _state, _legacyHistory, sessionStore, toolRegistry, agentStore);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
-        _agentHandler         = new AgentApiHandler(agentStore, toolRegistry);
+        _agentHandler         = new AgentApiHandler(agentStore);
         _toolHandler          = new ToolApiHandler(toolRegistry);
     }
 
@@ -73,23 +72,6 @@ public class ServerHost
 
         Console.WriteLine($"bashGPT Server läuft auf {prefix}");
         Console.WriteLine("Beenden mit Ctrl+C");
-
-        if (_agentStore is not null)
-        {
-            ILlmProvider? agentProvider = null;
-            if (_configService is not null)
-                try { agentProvider = ProviderFactory.Create(appConfig ?? await _configService.LoadAsync()); }
-                catch (Exception ex) { Console.Error.WriteLine($"[WARN] LLM für Agenten nicht verfügbar: {ex.Message}"); }
-
-            var shellContextCollector = new ShellContextCollector();
-            var runner = new AgentRunner(_agentStore,
-                [new GitStatusCheck(), new HttpStatusCheck(), new BitcoinPriceCheck(),
-                 new LlmAgentCheck(agentProvider, _sessionStore, _toolRegistry),
-                 new ShellAgentCheck(agentProvider, shellContextCollector, _sessionStore)],
-                agentProvider, _sessionStore);
-            _ = Task.Run(() => runner.RunAsync(ct), ct);
-            Console.WriteLine($"Agent-Runner gestartet{(agentProvider is not null ? $" | LLM: {agentProvider.Name} ({agentProvider.Model})" : " | LLM: nicht konfiguriert")}.");
-        }
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);

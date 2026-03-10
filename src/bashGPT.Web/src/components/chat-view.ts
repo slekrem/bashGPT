@@ -31,6 +31,8 @@ export class ChatView extends LitElement {
   @property({ attribute: false }) beforeSend?: () => Promise<void>
   /** Session-ID für server-seitige Persistenz (optional) */
   @property() sessionId = ''
+  /** Agent-ID für agenten-spezifischen System-Prompt und Tools (optional) */
+  @property() agentId = ''
 
   // ── Grouped reactive state (3 @state instead of 13) ───────────────────────
 
@@ -517,7 +519,7 @@ export class ChatView extends LitElement {
           this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
           this._newRoundPending = true
         },
-      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined)
+      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined, this.agentId || undefined)
 
       // Finale Message mit vollständigen Daten übernehmen
       const newMessages = this._chat.messages.map(m =>

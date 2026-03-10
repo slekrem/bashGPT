@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Tools.Abstractions;
@@ -44,7 +45,15 @@ public sealed class ShellExecTool : ITool
         if (!_policy.Allow(input))
             return new ToolResult(Success: false, Content: "Command blocked by policy.");
 
-        var output = await RunAsync(input, ct);
+        ShellExecOutput output;
+        try
+        {
+            output = await RunAsync(input, ct);
+        }
+        catch (Exception ex)
+        {
+            return new ToolResult(Success: false, Content: $"Execution failed: {ex.Message}");
+        }
         _onExecuted?.Invoke(input, output);
 
         var json = JsonSerializer.Serialize(output, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
@@ -78,7 +87,8 @@ public sealed class ShellExecTool : ITool
         using var timeoutCts = new CancellationTokenSource(input.TimeoutMs);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCt, timeoutCts.Token);
 
-        var psi = new ProcessStartInfo("bash", ["-c", input.Command])
+        var (shellFile, shellArgs) = GetShellArgs(input.Command);
+        var psi = new ProcessStartInfo(shellFile, shellArgs)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -127,6 +137,19 @@ public sealed class ShellExecTool : ITool
             ExitCode: exitCode,
             DurationMs: sw.ElapsedMilliseconds,
             TimedOut: timedOut);
+    }
+
+    private static (string FileName, string[] Arguments) GetShellArgs(string command)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var shell = Environment.GetEnvironmentVariable("SHELL");
+            if (shell is not null)
+                return (shell, ["-c", command]);
+            return ("cmd.exe", ["/c", command]);
+        }
+        var unixShell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/bash";
+        return (unixShell, ["-c", command]);
     }
 
     private static async Task ReadLimitedAsync(StreamReader reader, StringBuilder target, int maxChars, CancellationToken ct)
