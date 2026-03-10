@@ -17,6 +17,7 @@
     <ProjectReference Include="..\bashGPT.Agents\bashGPT.Agents.csproj" />
     <ProjectReference Include="..\bashGPT.Tools\bashGPT.Tools.csproj" />
     <ProjectReference Include="..\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
+    <ProjectReference Include="..\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
   </ItemGroup>
 
   <ItemGroup>

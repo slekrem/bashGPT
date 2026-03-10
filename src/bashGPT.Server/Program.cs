@@ -5,10 +5,11 @@ using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Server;
 using BashGPT.Tools.Execution;
+using BashGPT.Tools.Fetch;
 using BashGPT.Tools.Shell;
 
 var configService = new ConfigurationService();
-var toolRegistry = new ToolRegistry([new ShellExecTool()]);
+var toolRegistry = new ToolRegistry([new ShellExecTool(), new FetchTool()]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var agentStore = AgentBootstrap.CreateAgentStore();
