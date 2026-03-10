@@ -101,23 +101,11 @@ export interface FullShellContext {
   git?: GitContext | null
 }
 
-export type AgentType = 'gitstatus' | 'httpstatus' | 'bitcoinprice' | 'llmagent' | 'shell'
-
 export interface Agent {
   id: string
   name: string
-  type: AgentType
-  path?: string
-  url?: string
-  intervalSeconds: number
   systemPrompt?: string
-  loopInstruction?: string
-  execMode?: string
   enabledTools: string[]
-  isActive: boolean
-  lastRun?: string
-  lastMessage?: string
-  lastCheckSucceeded: boolean
 }
 
 export interface ToolInfo {

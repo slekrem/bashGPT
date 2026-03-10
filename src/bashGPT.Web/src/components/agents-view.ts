@@ -1,29 +1,14 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
-import type { Agent, ToolInfo } from '../types'
-import { getAgents, createAgent, patchAgent, deleteAgent, getTools } from '../api'
+import type { Agent } from '../types'
+import { getAgents } from '../api'
 
 @customElement('bashgpt-agents-view')
 export class AgentsView extends LitElement {
   @state() private _agents: Agent[] = []
-  @state() private _availableTools: ToolInfo[] = []
   @state() private _loading = true
   @state() private _error = ''
-  @state() private _showForm = false
-  @state() private _formName = ''
-  @state() private _formType: 'llm' | 'shell' = 'shell'
-  @state() private _formSystemPrompt = ''
-  @state() private _formEnabledTools: string[] = []
-  @state() private _formError = ''
-  @state() private _saving = false
-
-  @state() private _editingId: string | null = null
-  @state() private _editName = ''
-  @state() private _editSystemPrompt = ''
-  @state() private _editEnabledTools: string[] = []
-  @state() private _editError = ''
-  @state() private _editSaving = false
 
   static styles = css`
     :host {
@@ -48,50 +33,6 @@ export class AgentsView extends LitElement {
       margin-bottom: 20px;
     }
 
-    .toolbar {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 16px;
-    }
-
-    .btn-primary {
-      background: #14532d;
-      border: 1px solid #16a34a;
-      color: #dcfce7;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 7px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.12s;
-    }
-    .btn-primary:hover { background: #166534; }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .btn-ghost {
-      background: none;
-      border: 1px solid #334155;
-      color: #94a3b8;
-      font-size: 12px;
-      padding: 5px 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: border-color 0.12s, color 0.12s;
-    }
-    .btn-ghost:hover { border-color: #64748b; color: #e2e8f0; }
-
-    .btn-danger {
-      background: none;
-      border: 1px solid #7f1d1d;
-      color: #fca5a5;
-      font-size: 12px;
-      padding: 5px 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: border-color 0.12s, color 0.12s;
-    }
-    .btn-danger:hover { border-color: #ef4444; color: #fca5a5; }
-
     .empty {
       text-align: center;
       color: #475569;
@@ -114,7 +55,6 @@ export class AgentsView extends LitElement {
       align-items: flex-start;
       gap: 12px;
     }
-    .agent-card.inactive { opacity: 0.55; }
 
     .agent-icon {
       font-size: 20px;
@@ -124,34 +64,12 @@ export class AgentsView extends LitElement {
 
     .agent-body { flex: 1; min-width: 0; }
 
-    .agent-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-    }
-
     .agent-name {
       font-size: 14px;
       font-weight: 600;
       color: #f1f5f9;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      margin-bottom: 4px;
     }
-
-    .badge {
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      flex-shrink: 0;
-    }
-    .badge-active   { background: #14532d; color: #86efac; }
-    .badge-inactive { background: #1e293b; color: #64748b; }
-    .badge-fail     { background: #7f1d1d; color: #fca5a5; }
 
     .agent-meta {
       font-size: 12px;
@@ -161,10 +79,20 @@ export class AgentsView extends LitElement {
       text-overflow: ellipsis;
     }
 
-    .agent-last {
-      font-size: 12px;
-      color: #64748b;
-      margin-top: 4px;
+    .agent-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .tool-badge {
+      font-size: 10px;
+      background: #0f2d1a;
+      border: 1px solid #166534;
+      color: #86efac;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     .agent-actions {
@@ -174,86 +102,17 @@ export class AgentsView extends LitElement {
       align-items: flex-start;
     }
 
-    /* ── Form ────────────────────────────────────────────────────────────── */
-
-    .form-card {
-      background: #0f172a;
-      border: 1px solid #22c55e44;
-      border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-
-    .form-card h3 {
-      margin: 0 0 16px;
-      font-size: 15px;
-      color: #f1f5f9;
-    }
-
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-
-    label {
-      font-size: 12px;
-      font-weight: 600;
-      color: #94a3b8;
-    }
-
-    input, select, textarea {
-      background: #020617;
-      border: 1px solid #1e293b;
-      border-radius: 6px;
-      color: #f1f5f9;
-      font-size: 13px;
-      padding: 7px 10px;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.12s;
-    }
-    input:focus, select:focus, textarea:focus { border-color: #22c55e; }
-    textarea { resize: vertical; min-height: 72px; }
-
-    .type-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .type-tab {
-      flex: 1;
-      padding: 8px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      text-align: center;
-      border: 1px solid #1e293b;
-      background: none;
-      color: #64748b;
-      transition: all 0.12s;
-    }
-    .type-tab.active {
+    .btn-chat {
       background: #14532d;
-      border-color: #16a34a;
-      color: #dcfce7;
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 16px;
-    }
-
-    .form-error {
+      border: 1px solid #16a34a;
+      color: #86efac;
       font-size: 12px;
-      color: #fca5a5;
-      margin-top: 8px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
     }
+    .btn-chat:hover { background: #166534; }
 
     .error-msg {
       color: #fca5a5;
@@ -262,36 +121,6 @@ export class AgentsView extends LitElement {
       background: #1e0a0a;
       border-radius: 8px;
       border: 1px solid #7f1d1d;
-    }
-
-    .tool-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .tool-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #cbd5e1;
-      cursor: pointer;
-    }
-
-    .tool-item input[type="checkbox"] {
-      accent-color: #22c55e;
-      width: 14px;
-      height: 14px;
-      cursor: pointer;
-      padding: 0;
-      border: none;
-      background: none;
-    }
-
-    .tool-desc {
-      font-size: 11px;
-      color: #475569;
     }
   `
 
@@ -304,7 +133,7 @@ export class AgentsView extends LitElement {
     this._loading = true
     this._error = ''
     try {
-      [this._agents, this._availableTools] = await Promise.all([getAgents(), getTools()])
+      this._agents = await getAgents()
     } catch (e) {
       this._error = e instanceof Error ? e.message : String(e)
     } finally {
@@ -312,167 +141,25 @@ export class AgentsView extends LitElement {
     }
   }
 
-  private async _toggleActive(agent: Agent) {
-    try {
-      const updated = await patchAgent(agent.id, { isActive: !agent.isActive })
-      this._agents = this._agents.map(a => a.id === updated.id ? updated : a)
-    } catch (e) {
-      this._error = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  private _startEdit(a: Agent) {
-    this._editingId        = a.id
-    this._editName         = a.name
-    this._editSystemPrompt = a.systemPrompt ?? ''
-    this._editEnabledTools = [...(a.enabledTools ?? [])]
-    this._editError        = ''
-  }
-
-  private _cancelEdit() {
-    this._editingId = null
-    this._editError = ''
-  }
-
-  private async _saveEdit() {
-    this._editError = ''
-    const agent = this._agents.find(a => a.id === this._editingId)
-    if (!agent) { this._editError = 'Agent nicht gefunden.'; return }
-    if (!this._editName.trim()) { this._editError = 'Name ist erforderlich.'; return }
-
-    this._editSaving = true
-    try {
-      const patch = {
-        name:         this._editName.trim(),
-        systemPrompt: this._editSystemPrompt.trim() || null,
-        enabledTools: this._editEnabledTools,
-      }
-      const updated = await patchAgent(this._editingId!, patch)
-      this._agents   = this._agents.map(a => a.id === updated.id ? updated : a)
-      this._editingId = null
-    } catch (e) {
-      this._editError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this._editSaving = false
-    }
-  }
-
-  private async _delete(agent: Agent) {
-    if (!confirm(`Agent "${agent.name}" wirklich löschen?`)) return
-    try {
-      await deleteAgent(agent.id)
-      this._agents = this._agents.filter(a => a.id !== agent.id)
-    } catch (e) {
-      this._error = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  private async _submit() {
-    this._formError = ''
-    if (!this._formName.trim()) { this._formError = 'Name ist erforderlich.'; return }
-
-    this._saving = true
-    try {
-      const agent = await createAgent({
-        name:         this._formName.trim(),
-        type:         this._formType,
-        systemPrompt: this._formSystemPrompt.trim() || undefined,
-        execMode:     'auto-exec',
-        enabledTools: this._formEnabledTools,
-      })
-      this._agents = [...this._agents, agent]
-      this._resetForm()
-    } catch (e) {
-      this._formError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this._saving = false
-    }
-  }
-
-  private _resetForm() {
-    this._showForm = false
-    this._formType = 'shell'
-    this._formError = ''
-    this._applyTypeDefaults('shell')
-  }
-
-  private _applyTypeDefaults(type: 'shell' | 'llm') {
-    this._formName = this._defaultAgentName(type)
-    if (type === 'shell') {
-      this._formSystemPrompt = 'Du bist ein autonomer Shell-Assistent. Führe die gegebene Aufgabe präzise aus.'
-      this._formEnabledTools = this._availableTools.length > 0
-        ? [this._availableTools[0].name]
-        : []
-    } else {
-      this._formSystemPrompt = ''
-      this._formEnabledTools = []
-    }
-  }
-
-  private _defaultAgentName(type: 'shell' | 'llm' = this._formType): string {
-    const label = type === 'shell' ? 'Shell Agent' : 'LLM Agent'
-    const existing = this._agents.filter(a =>
-      type === 'shell' ? (a.type === 'shell') : (a.type === 'llmagent')
-    ).length
-    return existing === 0 ? label : `${label} ${existing + 1}`
-  }
-
-  private _toggleTool(name: string, checked: boolean, target: 'form' | 'edit') {
-    const current = target === 'form' ? this._formEnabledTools : this._editEnabledTools
-    const updated = checked ? [...current, name] : current.filter(n => n !== name)
-    if (target === 'form') this._formEnabledTools = updated
-    else this._editEnabledTools = updated
-  }
-
-  private _renderToolList(selected: string[], target: 'form' | 'edit') {
-    if (this._availableTools.length === 0) return ''
-    return html`
-      <div class="form-row">
-        <label>Tools</label>
-        <div class="tool-list">
-          ${this._availableTools.map(t => html`
-            <label class="tool-item">
-              <input
-                type="checkbox"
-                .checked=${selected.includes(t.name)}
-                @change=${(e: Event) => this._toggleTool(t.name, (e.target as HTMLInputElement).checked, target)}
-              />
-              <span>
-                <strong>${t.name}</strong>
-                <span class="tool-desc"> — ${t.description}</span>
-              </span>
-            </label>
-          `)}
-        </div>
-      </div>
-    `
-  }
-
-  private _formatDate(iso?: string) {
-    if (!iso) return 'Noch nie'
-    try { return new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }
-    catch { return iso }
+  private _startChat(agent: Agent) {
+    this.dispatchEvent(new CustomEvent('agent-chat-start', {
+      detail: { agentId: agent.id, agentName: agent.name },
+      bubbles: true,
+      composed: true,
+    }))
   }
 
   render() {
     return html`
       <h2>Agenten</h2>
-      <div class="subtitle">Einmalige Ausführung mit automatischer LLM-Reaktion</div>
-
-      <div class="toolbar">
-        <button class="btn-primary" @click=${() => { this._showForm = !this._showForm; this._formError = ''; if (this._showForm) { this._formType = 'shell'; this._applyTypeDefaults('shell') } }}>
-          ${this._showForm ? '✕ Abbrechen' : '+ Neuer Agent'}
-        </button>
-      </div>
-
-      ${this._showForm ? this._renderForm() : ''}
+      <div class="subtitle">Vordefinierte KI-Assistenten – wähle einen aus und starte einen Chat</div>
 
       ${this._error ? html`<div class="error-msg">${this._error}</div>` : ''}
 
       ${this._loading
         ? html`<div class="empty">Lade Agenten…</div>`
         : this._agents.length === 0
-          ? html`<div class="empty">Noch keine Agenten. Erstelle deinen ersten Agenten!</div>`
+          ? html`<div class="empty">Keine Agenten verfügbar.</div>`
           : html`
             <div class="agent-list">
               ${repeat(this._agents, a => a.id, a => this._renderAgent(a))}
@@ -482,116 +169,24 @@ export class AgentsView extends LitElement {
   }
 
   private _renderAgent(a: Agent) {
-    const icon = a.type === 'gitstatus' ? '⎇' : a.type === 'llmagent' ? '🤖' : a.type === 'shell' ? '🐚' : '🌐'
-    const meta = a.type === 'gitstatus' ? a.path : (a.type === 'httpstatus' || a.type === 'bitcoinprice') ? a.url : ''
-    const badgeClass = !a.isActive ? 'badge-inactive' : !a.lastCheckSucceeded ? 'badge-fail' : 'badge-active'
-    const badgeLabel = !a.isActive ? 'Pausiert' : !a.lastCheckSucceeded ? 'Fehler' : 'Aktiv'
+    const promptPreview = a.systemPrompt
+      ? a.systemPrompt.slice(0, 80) + (a.systemPrompt.length > 80 ? '…' : '')
+      : 'Standard-Prompt'
 
     return html`
-      <div class="agent-card ${a.isActive ? '' : 'inactive'}">
-        <div class="agent-icon">${icon}</div>
+      <div class="agent-card">
+        <div class="agent-icon">🤖</div>
         <div class="agent-body">
-          <div class="agent-header">
-            <div class="agent-name">${a.name}</div>
-            <span class="badge ${badgeClass}">${badgeLabel}</span>
-          </div>
-          ${meta ? html`<div class="agent-meta">${meta}</div>` : ''}
-          ${a.lastMessage ? html`<div class="agent-last">${a.lastMessage}</div>` : ''}
-          <div class="agent-last">Letzter Check: ${this._formatDate(a.lastRun)}</div>
+          <div class="agent-name">${a.name}</div>
+          <div class="agent-meta">${promptPreview}</div>
+          ${a.enabledTools?.length ? html`
+            <div class="agent-tools">
+              ${a.enabledTools.map(t => html`<span class="tool-badge">${t}</span>`)}
+            </div>
+          ` : ''}
         </div>
         <div class="agent-actions">
-          <button class="btn-ghost" @click=${() => this._startEdit(a)}>Bearbeiten</button>
-          <button class="btn-ghost" @click=${() => this._toggleActive(a)}>
-            ${a.isActive ? 'Pausieren' : 'Fortsetzen'}
-          </button>
-          <button class="btn-danger" @click=${() => this._delete(a)}>Löschen</button>
-        </div>
-      </div>
-      ${this._editingId === a.id ? this._renderEditForm() : ''}
-    `
-  }
-
-  private _renderForm() {
-    return html`
-      <div class="form-card">
-        <h3>Neuer Agent</h3>
-
-        <div class="type-tabs">
-          <button
-            class="type-tab ${this._formType === 'shell' ? 'active' : ''}"
-            @click=${() => { this._formType = 'shell'; this._applyTypeDefaults('shell') }}
-          >🐚 Shell</button>
-          <button
-            class="type-tab ${this._formType === 'llm' ? 'active' : ''}"
-            @click=${() => { this._formType = 'llm'; this._applyTypeDefaults('llm') }}
-          >🤖 LLM</button>
-        </div>
-
-        <div class="form-row">
-          <label>Name</label>
-          <input
-            type="text"
-            placeholder="z.B. system-monitor"
-            .value=${this._formName}
-            @input=${(e: Event) => { this._formName = (e.target as HTMLInputElement).value }}
-          />
-        </div>
-
-        <div class="form-row">
-          <label>System-Prompt (optional)</label>
-          <textarea
-            placeholder="Du bist ein autonomer Shell-Assistent. Führe die gegebene Aufgabe präzise aus."
-            .value=${this._formSystemPrompt}
-            @input=${(e: Event) => { this._formSystemPrompt = (e.target as HTMLTextAreaElement).value }}
-          ></textarea>
-        </div>
-
-        ${this._renderToolList(this._formEnabledTools, 'form')}
-
-        ${this._formError ? html`<div class="form-error">${this._formError}</div>` : ''}
-
-        <div class="form-actions">
-          <button class="btn-ghost" @click=${this._resetForm}>Abbrechen</button>
-          <button class="btn-primary" ?disabled=${this._saving} @click=${this._submit}>
-            ${this._saving ? 'Speichern…' : 'Agent erstellen'}
-          </button>
-        </div>
-      </div>
-    `
-  }
-
-  private _renderEditForm() {
-    return html`
-      <div class="form-card" style="margin-top: 8px;">
-        <h3>Agent bearbeiten</h3>
-
-        <div class="form-row">
-          <label>Name</label>
-          <input
-            type="text"
-            .value=${this._editName}
-            @input=${(e: Event) => { this._editName = (e.target as HTMLInputElement).value }}
-          />
-        </div>
-
-        <div class="form-row">
-          <label>System-Prompt (optional)</label>
-          <textarea
-            placeholder="Du bist ein autonomer Assistent. Führe die gegebene Aufgabe präzise aus."
-            .value=${this._editSystemPrompt}
-            @input=${(e: Event) => { this._editSystemPrompt = (e.target as HTMLTextAreaElement).value }}
-          ></textarea>
-        </div>
-
-        ${this._renderToolList(this._editEnabledTools, 'edit')}
-
-        ${this._editError ? html`<div class="form-error">${this._editError}</div>` : ''}
-
-        <div class="form-actions">
-          <button class="btn-ghost" @click=${this._cancelEdit}>Abbrechen</button>
-          <button class="btn-primary" ?disabled=${this._editSaving} @click=${this._saveEdit}>
-            ${this._editSaving ? 'Speichern…' : 'Speichern'}
-          </button>
+          <button class="btn-chat" @click=${() => this._startChat(a)}>Chat starten</button>
         </div>
       </div>
     `

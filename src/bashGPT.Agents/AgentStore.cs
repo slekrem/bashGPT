@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 namespace BashGPT.Agents;
 
 /// <summary>
-/// Verwaltet Agent-Definitionen in ~/.config/bashgpt/agents.json.
-/// Thread-safe via SemaphoreSlim, atomisches Schreiben via Temp-Datei.
+/// Verwaltet Agent-Definitionen, je eine Datei pro Agent:
+/// {agentsDir}/{id}/config.json
 /// </summary>
 public sealed class AgentStore
 {
@@ -15,87 +15,102 @@ public sealed class AgentStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() },
     };
 
-    private readonly string _agentsFile;
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly string _agentsDir;
 
-    public AgentStore(string agentsFile)
+    public AgentStore(string agentsDir)
     {
-        _agentsFile = agentsFile;
+        _agentsDir = agentsDir;
     }
 
     public async Task<List<AgentRecord>> LoadAllAsync()
     {
-        await _lock.WaitAsync();
-        try { return (await ReadFileInternalAsync()).Agents; }
-        finally { _lock.Release(); }
+        if (!Directory.Exists(_agentsDir))
+            return [];
+
+        var result = new List<AgentRecord>();
+        foreach (var dir in Directory.GetDirectories(_agentsDir))
+        {
+            var agent = await LoadFromDirAsync(dir);
+            if (agent is not null)
+                result.Add(agent);
+        }
+        return result;
     }
 
     public async Task<AgentRecord?> LoadAsync(string idOrName)
     {
-        await _lock.WaitAsync();
-        try
+        // Try direct ID lookup first
+        var idDir = Path.Combine(_agentsDir, idOrName);
+        if (Directory.Exists(idDir))
         {
-            var file = await ReadFileInternalAsync();
-            return file.Agents.FirstOrDefault(a => a.Id == idOrName || a.Name == idOrName);
+            var agent = await LoadFromDirAsync(idDir);
+            if (agent is not null) return agent;
         }
-        finally { _lock.Release(); }
+
+        // Fall back to name search
+        var all = await LoadAllAsync();
+        return all.FirstOrDefault(a => a.Name == idOrName);
     }
 
     public async Task UpsertAsync(AgentRecord agent)
     {
-        await _lock.WaitAsync();
-        try
-        {
-            var file = await ReadFileInternalAsync();
-            var idx = file.Agents.FindIndex(a => a.Id == agent.Id);
-            if (idx >= 0)
-                file.Agents[idx] = agent;
-            else
-                file.Agents.Add(agent);
-            await WriteFileInternalAsync(file);
-        }
-        finally { _lock.Release(); }
-    }
-
-    public async Task DeleteAsync(string idOrName)
-    {
-        await _lock.WaitAsync();
-        try
-        {
-            var file = await ReadFileInternalAsync();
-            file.Agents.RemoveAll(a => a.Id == idOrName || a.Name == idOrName);
-            await WriteFileInternalAsync(file);
-        }
-        finally { _lock.Release(); }
-    }
-
-    private async Task<AgentsFile> ReadFileInternalAsync()
-    {
-        if (!File.Exists(_agentsFile))
-            return new AgentsFile();
-
-        try
-        {
-            var json = await File.ReadAllTextAsync(_agentsFile);
-            return JsonSerializer.Deserialize<AgentsFile>(json, JsonOptions) ?? new AgentsFile();
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return new AgentsFile();
-        }
-    }
-
-    private async Task WriteFileInternalAsync(AgentsFile file)
-    {
-        var dir = System.IO.Path.GetDirectoryName(_agentsFile)!;
+        var dir = Path.Combine(_agentsDir, agent.Id);
         Directory.CreateDirectory(dir);
 
-        var tmp = _agentsFile + ".tmp";
-        var json = JsonSerializer.Serialize(file, JsonOptions);
+        var file = Path.Combine(dir, "config.json");
+        var tmp  = file + ".tmp";
+        var json = JsonSerializer.Serialize(agent, JsonOptions);
         await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, _agentsFile, overwrite: true);
+        File.Move(tmp, file, overwrite: true);
+    }
+
+    public Task DeleteAsync(string idOrName)
+    {
+        // Try direct ID
+        var idDir = Path.Combine(_agentsDir, idOrName);
+        if (Directory.Exists(idDir))
+        {
+            Directory.Delete(idDir, recursive: true);
+            return Task.CompletedTask;
+        }
+
+        // Fall back to name search (synchronous scan is fine for delete)
+        if (!Directory.Exists(_agentsDir))
+            return Task.CompletedTask;
+
+        foreach (var dir in Directory.GetDirectories(_agentsDir))
+        {
+            var file = Path.Combine(dir, "config.json");
+            if (!File.Exists(file)) continue;
+            try
+            {
+                var json  = File.ReadAllText(file);
+                var agent = JsonSerializer.Deserialize<AgentRecord>(json, JsonOptions);
+                if (agent?.Name == idOrName)
+                {
+                    Directory.Delete(dir, recursive: true);
+                    break;
+                }
+            }
+            catch { /* skip unreadable entries */ }
+        }
+        return Task.CompletedTask;
+    }
+
+    private static async Task<AgentRecord?> LoadFromDirAsync(string dir)
+    {
+        var file = Path.Combine(dir, "config.json");
+        if (!File.Exists(file)) return null;
+        try
+        {
+            var json = await File.ReadAllTextAsync(file);
+            return JsonSerializer.Deserialize<AgentRecord>(json, JsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

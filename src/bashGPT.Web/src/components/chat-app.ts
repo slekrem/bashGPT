@@ -20,6 +20,7 @@ export class ChatApp extends LitElement {
   @state() private _pendingPrompt = ''
   @state() private _mobileMenuOpen = false
   @state() private _chatReadOnly = false
+  @state() private _activeAgentId = ''
 
   private readonly _sm = new SessionManager()
 
@@ -87,6 +88,7 @@ export class ChatApp extends LitElement {
     if (chatView) await chatView.reset()
     this._pendingPrompt = ''
     this._chatReadOnly = false
+    this._activeAgentId = ''
     this._view = 'chat'
     this._mobileMenuOpen = false
   }
@@ -98,6 +100,7 @@ export class ChatApp extends LitElement {
 
   private async _onSessionSelect(e: CustomEvent<{ id: string }>) {
     this._activeSessionId = e.detail.id
+    this._activeAgentId = ''
     this._view = 'chat'
     this._mobileMenuOpen = false
     await this._loadSessionIntoView(e.detail.id)
@@ -139,6 +142,13 @@ export class ChatApp extends LitElement {
       this._sessions = [{ id: activeId, title: 'Aktueller Chat', createdAt: now, updatedAt: now }, ...this._sessions]
     }
     if (this._sm.useFallback) this._activeSessionId = LIVE_SESSION_ID
+  }
+
+  private async _onAgentChatStart(e: CustomEvent<{ agentId: string; agentName: string }>) {
+    await this._onNewChat()
+    this._activeAgentId = e.detail.agentId
+    this._view = 'chat'
+    this._mobileMenuOpen = false
   }
 
   private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: any }>) {
@@ -193,7 +203,7 @@ export class ChatApp extends LitElement {
           ` : ''}
 
           ${this._view === 'agents' ? html`
-            <bashgpt-agents-view></bashgpt-agents-view>
+            <bashgpt-agents-view @agent-chat-start=${this._onAgentChatStart}></bashgpt-agents-view>
           ` : ''}
 
           ${this._view === 'tools' ? html`
@@ -204,6 +214,7 @@ export class ChatApp extends LitElement {
             style="display: ${this._view === 'chat' ? 'flex' : 'none'}; flex-direction: column; height: 100%;"
             pendingPrompt=${this._pendingPrompt}
             sessionId=${this._activeSessionId ?? ''}
+            agentId=${this._activeAgentId}
             ?showTerminal=${true}
             ?active=${this._view === 'chat'}
             ?readOnly=${this._chatReadOnly}

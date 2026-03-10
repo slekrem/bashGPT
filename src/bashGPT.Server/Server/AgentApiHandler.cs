@@ -2,17 +2,16 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BashGPT.Agents;
-using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
-internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? toolRegistry = null)
+internal sealed class AgentApiHandler(AgentStore? agentStore)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() },
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
     public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
@@ -26,15 +25,12 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             return;
         }
 
-        // GET /api/agents
         if (method == "GET" && path == "/api/agents")
         { await HandleListAsync(ctx.Response, ct); return; }
 
-        // POST /api/agents
         if (method == "POST" && path == "/api/agents")
         { await HandleCreateAsync(ctx, ct); return; }
 
-        // PATCH /api/agents/:id
         if (method == "PATCH" && path.StartsWith("/api/agents/", StringComparison.Ordinal))
         {
             var id = path["/api/agents/".Length..];
@@ -42,7 +38,6 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             return;
         }
 
-        // DELETE /api/agents/:id
         if (method == "DELETE" && path.StartsWith("/api/agents/", StringComparison.Ordinal))
         {
             var id = path["/api/agents/".Length..];
@@ -53,15 +48,11 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
         await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
     }
 
-    // ── GET /api/agents ──────────────────────────────────────────────────────
-
     private async Task HandleListAsync(HttpListenerResponse response, CancellationToken ct)
     {
         var agents = await agentStore!.LoadAllAsync();
         await ApiResponse.WriteJsonAsync(response, new { agents = agents.Select(ToDto) });
     }
-
-    // ── POST /api/agents ─────────────────────────────────────────────────────
 
     private async Task HandleCreateAsync(HttpListenerContext ctx, CancellationToken ct)
     {
@@ -83,66 +74,18 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             return;
         }
 
-        var type = body.Type?.ToLowerInvariant() switch
-        {
-            "git" or "gitstatus"   => AgentCheckType.GitStatus,
-            "http" or "httpstatus" => AgentCheckType.HttpStatus,
-            "llm" or "llmagent"    => AgentCheckType.LlmAgent,
-            "shell"                => AgentCheckType.Shell,
-            _ => (AgentCheckType?)null
-        };
-
-        if (type is null)
-        {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "type muss 'git', 'http', 'llm' oder 'shell' sein." }, statusCode: 400);
-            return;
-        }
-
-        if (type == AgentCheckType.GitStatus && string.IsNullOrWhiteSpace(body.Path))
-        {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "path ist für Git-Agenten erforderlich." }, statusCode: 400);
-            return;
-        }
-
-        if (type == AgentCheckType.HttpStatus && string.IsNullOrWhiteSpace(body.Url))
-        {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "url ist für HTTP-Agenten erforderlich." }, statusCode: 400);
-            return;
-        }
-
-        if (type == AgentCheckType.LlmAgent && string.IsNullOrWhiteSpace(body.LoopInstruction))
-        {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für LLM-Agenten erforderlich." }, statusCode: 400);
-            return;
-        }
-
-        if (type == AgentCheckType.Shell && string.IsNullOrWhiteSpace(body.LoopInstruction))
-        {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "loopInstruction ist für Shell-Agenten erforderlich." }, statusCode: 400);
-            return;
-        }
-
         var agent = new AgentRecord
         {
-            Id              = Guid.NewGuid().ToString("N")[..8],
-            Name            = body.Name.Trim(),
-            Type            = type.Value,
-            Path            = body.Path?.Trim(),
-            Url             = body.Url?.Trim(),
-            IntervalSeconds = body.IntervalSeconds is > 0 ? body.IntervalSeconds.Value : 60,
-            SystemPrompt    = body.SystemPrompt?.Trim(),
-            LoopInstruction = body.LoopInstruction?.Trim(),
-            ExecMode        = body.ExecMode?.Trim(),
-            EnabledTools    = FilterEnabledTools(body.EnabledTools),
-            IsActive        = true,
+            Id           = Guid.NewGuid().ToString("N")[..8],
+            Name         = body.Name.Trim(),
+            SystemPrompt = body.SystemPrompt?.Trim(),
+            EnabledTools = body.EnabledTools ?? [],
         };
 
         await agentStore!.UpsertAsync(agent);
         ctx.Response.StatusCode = 201;
         await ApiResponse.WriteJsonAsync(ctx.Response, ToDto(agent));
     }
-
-    // ── PATCH /api/agents/:id ────────────────────────────────────────────────
 
     private async Task HandlePatchAsync(HttpListenerContext ctx, string id, CancellationToken ct)
     {
@@ -165,34 +108,24 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
             return;
         }
 
-        if (body?.IsActive is bool active)
-            agent.IsActive = active;
         if (body?.Name is not null)
         {
-            var trimmedName = body.Name.Trim();
-            if (trimmedName.Length == 0)
+            var trimmed = body.Name.Trim();
+            if (trimmed.Length == 0)
             {
                 await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "name darf nicht leer sein." }, statusCode: 400);
                 return;
             }
-            agent.Name = trimmedName;
+            agent.Name = trimmed;
         }
-        if (body?.IntervalSeconds is int interval && interval > 0)
-            agent.IntervalSeconds = interval;
         if (body?.SystemPrompt is not null)
             agent.SystemPrompt = body.SystemPrompt.Trim().Length > 0 ? body.SystemPrompt.Trim() : null;
-        if (body?.LoopInstruction is { Length: > 0 } loop)
-            agent.LoopInstruction = loop.Trim();
-        if (body?.ExecMode is not null)
-            agent.ExecMode = body.ExecMode.Trim();
         if (body?.EnabledTools is not null)
-            agent.EnabledTools = FilterEnabledTools(body.EnabledTools);
+            agent.EnabledTools = body.EnabledTools;
 
         await agentStore!.UpsertAsync(agent);
         await ApiResponse.WriteJsonAsync(ctx.Response, ToDto(agent));
     }
-
-    // ── DELETE /api/agents/:id ───────────────────────────────────────────────
 
     private async Task HandleDeleteAsync(HttpListenerResponse response, string id, CancellationToken ct)
     {
@@ -200,54 +133,21 @@ internal sealed class AgentApiHandler(AgentStore? agentStore, ToolRegistry? tool
         await ApiResponse.WriteJsonAsync(response, new { ok = true });
     }
 
-    // ── DTO ──────────────────────────────────────────────────────────────────
-
     private static object ToDto(AgentRecord a) => new
     {
-        id                 = a.Id,
-        name               = a.Name,
-        type               = a.Type.ToString().ToLower(),
-        path               = a.Path,
-        url                = a.Url,
-        intervalSeconds    = a.IntervalSeconds,
-        systemPrompt       = a.SystemPrompt,
-        loopInstruction    = a.LoopInstruction,
-        execMode           = a.ExecMode,
-        enabledTools       = a.EnabledTools,
-        isActive           = a.IsActive,
-        lastRun            = a.LastRun,
-        lastMessage        = a.LastMessage,
-        lastCheckSucceeded = a.LastCheckSucceeded,
+        id           = a.Id,
+        name         = a.Name,
+        systemPrompt = a.SystemPrompt,
+        enabledTools = a.EnabledTools,
     };
-
-    // ── Request-DTOs ─────────────────────────────────────────────────────────
 
     private sealed record CreateAgentRequest(
         string? Name,
-        string? Type,
-        string? Path,
-        string? Url,
-        int? IntervalSeconds,
         string? SystemPrompt,
-        string? LoopInstruction,
-        string? ExecMode,
         List<string>? EnabledTools = null);
 
     private sealed record PatchAgentRequest(
-        bool?   IsActive,
         string? Name,
-        int?    IntervalSeconds,
         string? SystemPrompt,
-        string? LoopInstruction,
-        string? ExecMode,
         List<string>? EnabledTools = null);
-
-    private List<string> FilterEnabledTools(List<string>? requested)
-    {
-        if (requested is null || requested.Count == 0)
-            return [];
-        if (toolRegistry is null)
-            return requested;
-        return requested.Where(n => toolRegistry.TryGet(n, out _)).ToList();
-    }
 }

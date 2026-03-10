@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Providers;
 using BashGPT.Storage;
@@ -12,7 +13,8 @@ internal sealed class StreamingChatApiHandler(
     ServerState state,
     LegacyHistory legacyHistory,
     SessionStore? sessionStore = null,
-    ToolRegistry? toolRegistry = null)
+    ToolRegistry? toolRegistry = null,
+    AgentStore? agentStore = null)
 {
     public async Task HandleAsync(HttpListenerContext ctx, ServerOptions options, CancellationToken ct)
     {
@@ -33,6 +35,11 @@ internal sealed class StreamingChatApiHandler(
 
         try
         {
+            // Agent laden (optional)
+            AgentRecord? agent = null;
+            if (agentStore is not null && !string.IsNullOrWhiteSpace(body.AgentId))
+                agent = await agentStore.LoadAsync(body.AgentId);
+
             // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
             SessionRecord? session = null;
             if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
@@ -56,10 +63,12 @@ internal sealed class StreamingChatApiHandler(
                 historySnapshot = legacyHistory.GetSnapshot();
             }
 
-            // EnabledTools: Session-Wert hat Vorrang, danach Request-Wert (nur erster Chat)
-            var effectiveToolNames = session?.EnabledTools?.Count > 0
-                ? session.EnabledTools
-                : body.EnabledTools?.ToList();
+            // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
+            var effectiveToolNames = agent?.EnabledTools?.Count > 0
+                ? agent.EnabledTools
+                : session?.EnabledTools?.Count > 0
+                    ? session.EnabledTools
+                    : body.EnabledTools?.ToList();
 
             var resolvedTools = ToolHelper.Resolve(effectiveToolNames, toolRegistry);
 
@@ -100,7 +109,8 @@ internal sealed class StreamingChatApiHandler(
                 OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
-                Tools: resolvedTools.Count > 0 ? resolvedTools : null);
+                Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
+                SystemPrompt: agent?.SystemPrompt);
 
             var result = await handler.RunServerChatAsync(chatOpts, ct);
 
@@ -163,6 +173,7 @@ internal sealed class StreamingChatApiHandler(
                     Messages     = allMessages,
                     ShellContext = shellCtx,
                     EnabledTools = effectiveToolNames,
+                    AgentId      = agent?.Id ?? session?.AgentId,
                 });
 
                 var reqRecord = new SessionRequestRecord
@@ -207,5 +218,5 @@ internal sealed class StreamingChatApiHandler(
         }
     }
 
-    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools);
+    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);
 }

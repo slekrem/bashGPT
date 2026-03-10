@@ -18,7 +18,7 @@ async function assertOk(res: Response): Promise<void> {
   throw new Error(await readErrorMessage(res))
 }
 
-export async function sendChat(prompt: string, sessionId?: string, enabledTools?: string[]): Promise<ChatResponse> {
+export async function sendChat(prompt: string, sessionId?: string, enabledTools?: string[], agentId?: string): Promise<ChatResponse> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
   let res: Response
@@ -30,6 +30,7 @@ export async function sendChat(prompt: string, sessionId?: string, enabledTools?
         prompt,
         ...(sessionId ? { sessionId } : {}),
         ...(enabledTools?.length ? { enabledTools } : {}),
+        ...(agentId ? { agentId } : {}),
       }),
       signal: controller.signal,
     })
@@ -57,7 +58,8 @@ export async function streamChat(
   prompt: string,
   handlers: StreamHandlers,
   sessionId?: string,
-  enabledTools?: string[]
+  enabledTools?: string[],
+  agentId?: string
 ): Promise<ChatResponse> {
   const res = await fetch('/api/chat/stream', {
     method: 'POST',
@@ -66,6 +68,7 @@ export async function streamChat(
       prompt,
       ...(sessionId ? { sessionId } : {}),
       ...(enabledTools?.length ? { enabledTools } : {}),
+      ...(agentId ? { agentId } : {}),
     }),
   })
 
@@ -258,49 +261,6 @@ export async function getAgents(): Promise<Agent[]> {
     const data = await res.json()
     return Array.isArray(data.agents) ? data.agents : []
   } catch { return [] }
-}
-
-export async function createAgent(payload: {
-  name: string
-  type: 'git' | 'http' | 'llm' | 'shell'
-  path?: string
-  url?: string
-  intervalSeconds?: number
-  systemPrompt?: string
-  loopInstruction?: string
-  execMode?: string
-  enabledTools?: string[]
-}): Promise<Agent> {
-  const res = await fetch('/api/agents', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  await assertOk(res)
-  return res.json()
-}
-
-export async function patchAgent(id: string, patch: {
-  isActive?: boolean
-  name?: string
-  intervalSeconds?: number
-  systemPrompt?: string | null
-  loopInstruction?: string
-  execMode?: string
-  enabledTools?: string[]
-}): Promise<Agent> {
-  const res = await fetch(`/api/agents/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-  await assertOk(res)
-  return res.json()
-}
-
-export async function deleteAgent(id: string): Promise<void> {
-  const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' })
-  await assertOk(res)
 }
 
 // ── Tools API ─────────────────────────────────────────────────────────────────
