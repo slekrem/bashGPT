@@ -1,5 +1,4 @@
 import type { Agent, ChatResponse, CommandResult, FullShellContext, HistoryMessage, Session, Settings, ToolInfo } from './types'
-import { CHAT_TIMEOUT_MS } from './constants'
 
 async function readErrorMessage(res: Response): Promise<string> {
   try {
@@ -16,34 +15,6 @@ async function readErrorMessage(res: Response): Promise<string> {
 async function assertOk(res: Response): Promise<void> {
   if (res.ok) return
   throw new Error(await readErrorMessage(res))
-}
-
-export async function sendChat(prompt: string, sessionId?: string, enabledTools?: string[], agentId?: string): Promise<ChatResponse> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
-  let res: Response
-  try {
-    res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt,
-        ...(sessionId ? { sessionId } : {}),
-        ...(enabledTools?.length ? { enabledTools } : {}),
-        ...(agentId ? { agentId } : {}),
-      }),
-      signal: controller.signal,
-    })
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError')
-      throw new Error(`Zeitlimit erreicht (${Math.round(CHAT_TIMEOUT_MS / 1000)}s)`)
-    throw err
-  } finally {
-    clearTimeout(timeout)
-  }
-
-  await assertOk(res)
-  return res.json()
 }
 
 export type StreamHandlers = {

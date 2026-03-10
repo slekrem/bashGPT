@@ -121,8 +121,6 @@ export interface ToolInfo {
 
 export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents' | 'tools'
 
-export type ChatStatus = 'idle' | 'loading' | 'error'
-
 export interface TerminalEntry {
   command: string
   output: string
