@@ -52,9 +52,36 @@ public sealed class GitCheckoutTool : ITool
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var branch = root.GetProperty("branch").GetString() ?? throw new ArgumentException("branch must not be null");
-        bool create = root.TryGetProperty("create", out var c) && c.GetBoolean();
-        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
+
+        if (!root.TryGetProperty("branch", out var branchEl))
+            throw new ArgumentException("missing_required_field: 'branch' is required.");
+        if (branchEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'branch' must be a string.");
+        var branch = branchEl.GetString();
+        if (string.IsNullOrWhiteSpace(branch))
+            throw new ArgumentException("invalid_value: 'branch' must not be empty.");
+
+        bool create = root.TryGetProperty("create", out var c)
+            ? c.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => false,
+                _ => throw new ArgumentException("invalid_type: 'create' must be a boolean."),
+            }
+            : false;
+
+        var path = root.TryGetProperty("path", out var p)
+            ? p.ValueKind switch
+            {
+                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
+                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
+            }
+            : Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
         return (path, branch, create);
     }
 }
