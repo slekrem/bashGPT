@@ -93,4 +93,27 @@ public class FilesystemReadToolTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("Invalid arguments", result.Content);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingPath_ReturnsStructuredValidationError()
+    {
+        var result = await CreateTool().ExecuteAsync(new ToolCall("filesystem_read", """{"startLine":1}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'path'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EndBeforeStart_ReturnsStructuredValidationError()
+    {
+        var file = Path.Combine(_tempDir, "test.txt");
+        await File.WriteAllTextAsync(file, "line1\nline2\nline3");
+
+        var result = await CreateTool().ExecuteAsync(Call(file, startLine: 3, endLine: 2), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_value", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'endLine'", result.Content, StringComparison.Ordinal);
+    }
 }
