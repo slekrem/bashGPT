@@ -21,6 +21,7 @@ Regeln fuer Tool-Calls:
 """,
         EnabledTools =
         [
+            "fetch",
             "filesystem_read",
             "filesystem_write",
             "filesystem_search",

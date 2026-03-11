@@ -71,22 +71,63 @@ public sealed class FetchTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var url = root.GetProperty("url").GetString()
-            ?? throw new ArgumentException("url must not be null");
+        if (!root.TryGetProperty("url", out var urlEl))
+            throw new ArgumentException("missing_required_field: 'url' is required. Example: {\"url\":\"https://example.com\",\"method\":\"GET\"}");
+        if (urlEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'url' must be a string.");
+        var url = urlEl.GetString();
+        if (string.IsNullOrWhiteSpace(url))
+            throw new ArgumentException("invalid_value: 'url' must not be empty.");
 
-        string method = root.TryGetProperty("method", out var methodEl) ? methodEl.GetString() ?? "GET" : "GET";
-        string? body = root.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() : null;
-        int timeoutMs = root.TryGetProperty("timeoutMs", out var toEl) ? toEl.GetInt32() : 10_000;
+        string method = ReadOptionalString(root, "method") ?? "GET";
+        if (string.IsNullOrWhiteSpace(method))
+            method = "GET";
+        string? body = ReadOptionalString(root, "body");
+        int timeoutMs = ReadOptionalInt(root, "timeoutMs") ?? 10_000;
+        if (timeoutMs <= 0)
+            throw new ArgumentException("invalid_value: 'timeoutMs' must be greater than 0.");
 
         Dictionary<string, string>? headers = null;
-        if (root.TryGetProperty("headers", out var headersEl) && headersEl.ValueKind == JsonValueKind.Object)
+        if (root.TryGetProperty("headers", out var headersEl))
         {
-            headers = [];
-            foreach (var prop in headersEl.EnumerateObject())
-                headers[prop.Name] = prop.Value.GetString() ?? string.Empty;
+            if (headersEl.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null))
+                throw new ArgumentException("invalid_type: 'headers' must be an object.");
+
+            if (headersEl.ValueKind == JsonValueKind.Object)
+            {
+                headers = [];
+                foreach (var prop in headersEl.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+                        throw new ArgumentException($"invalid_type: header '{prop.Name}' must be a string.");
+                    headers[prop.Name] = prop.Value.GetString() ?? string.Empty;
+                }
+            }
         }
 
         return new FetchInput(url, method, headers, body, timeoutMs);
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.String => valueEl.GetString(),
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a string."),
+        };
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.Number when valueEl.TryGetInt32(out var i) => i,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be an integer."),
+        };
     }
 
     private async Task<FetchOutput> RunAsync(FetchInput input, CancellationToken externalCt)

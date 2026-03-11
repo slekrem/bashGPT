@@ -11,6 +11,7 @@ public class DevAgentBootstrapTests
 
         Assert.Equal("dev", dev.Id);
         Assert.Equal("Dev-Agent", dev.Name);
+        Assert.Contains("fetch", dev.EnabledTools);
         Assert.Contains("filesystem_search", dev.EnabledTools);
         Assert.Contains("shell_exec", dev.EnabledTools);
         Assert.Contains("Required Fields", dev.SystemPrompt, StringComparison.Ordinal);

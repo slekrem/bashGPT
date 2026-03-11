@@ -75,6 +75,58 @@ public class FetchToolTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_MissingUrl_ReturnsStructuredValidationError()
+    {
+        var tool = new FetchTool();
+
+        var result = await tool.ExecuteAsync(new ToolCall("fetch", """{"method":"GET"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'url'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmptyUrl_ReturnsStructuredValidationError()
+    {
+        var tool = new FetchTool();
+
+        var result = await tool.ExecuteAsync(new ToolCall("fetch", """{"url":""}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_value", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'url'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidHeadersType_ReturnsStructuredValidationError()
+    {
+        var tool = new FetchTool();
+
+        var result = await tool.ExecuteAsync(
+            new ToolCall("fetch", """{"url":"https://example.com","headers":"x"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'headers'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidTimeoutType_ReturnsStructuredValidationError()
+    {
+        var tool = new FetchTool();
+
+        var result = await tool.ExecuteAsync(
+            new ToolCall("fetch", """{"url":"https://example.com","timeoutMs":"fast"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'timeoutMs'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_LoggingHook_IsCalled()
     {
         FetchInput? capturedInput = null;
