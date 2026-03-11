@@ -37,6 +37,14 @@ public sealed class ShellExecTool : ITool
         {
             input = ParseInput(call.ArgumentsJson);
         }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
+        }
+        catch (ArgumentException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
         catch (Exception ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
@@ -65,21 +73,61 @@ public sealed class ShellExecTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var command = root.GetProperty("command").GetString()
-            ?? throw new ArgumentException("command must not be null");
+        if (!root.TryGetProperty("command", out var commandEl))
+            throw new ArgumentException("missing_required_field: 'command' is required.");
+        if (commandEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'command' must be a string.");
+        var command = commandEl.GetString();
+        if (string.IsNullOrWhiteSpace(command))
+            throw new ArgumentException("invalid_value: 'command' must not be empty.");
 
-        string? cwd = root.TryGetProperty("cwd", out var cwdEl) ? cwdEl.GetString() : null;
-        int timeoutMs = root.TryGetProperty("timeoutMs", out var toEl) ? toEl.GetInt32() : 5000;
+        var cwd = ReadOptionalString(root, "cwd");
+        int timeoutMs = ReadOptionalInt(root, "timeoutMs") ?? 5000;
+        if (timeoutMs <= 0)
+            throw new ArgumentException("invalid_value: 'timeoutMs' must be greater than 0.");
 
         Dictionary<string, string>? env = null;
-        if (root.TryGetProperty("env", out var envEl) && envEl.ValueKind == JsonValueKind.Object)
+        if (root.TryGetProperty("env", out var envEl))
         {
-            env = [];
-            foreach (var prop in envEl.EnumerateObject())
-                env[prop.Name] = prop.Value.GetString() ?? string.Empty;
+            if (envEl.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null))
+                throw new ArgumentException("invalid_type: 'env' must be an object.");
+
+            if (envEl.ValueKind == JsonValueKind.Object)
+            {
+                env = [];
+                foreach (var prop in envEl.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+                        throw new ArgumentException($"invalid_type: env '{prop.Name}' must be a string.");
+
+                    env[prop.Name] = prop.Value.GetString() ?? string.Empty;
+                }
+            }
         }
 
         return new ShellExecInput(command, cwd, timeoutMs, env);
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.String => valueEl.GetString(),
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a string."),
+        };
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.Number when valueEl.TryGetInt32(out var i) => i,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be an integer."),
+        };
     }
 
     private static async Task<ShellExecOutput> RunAsync(ShellExecInput input, CancellationToken externalCt)
