@@ -67,9 +67,38 @@ public sealed class GitLogTool : ITool
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
-        int limit = root.TryGetProperty("limit", out var l) ? l.GetInt32() : 20;
-        var branch = root.TryGetProperty("branch", out var b) ? b.GetString() ?? string.Empty : string.Empty;
+
+        var path = root.TryGetProperty("path", out var p)
+            ? p.ValueKind switch
+            {
+                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
+                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
+            }
+            : Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
+        int limit = root.TryGetProperty("limit", out var l)
+            ? l.ValueKind switch
+            {
+                JsonValueKind.Number when l.TryGetInt32(out var i) => i,
+                JsonValueKind.Null => 20,
+                _ => throw new ArgumentException("invalid_type: 'limit' must be an integer."),
+            }
+            : 20;
+        if (limit <= 0)
+            throw new ArgumentException("invalid_value: 'limit' must be greater than 0.");
+
+        var branch = root.TryGetProperty("branch", out var b)
+            ? b.ValueKind switch
+            {
+                JsonValueKind.String => b.GetString() ?? string.Empty,
+                JsonValueKind.Null => string.Empty,
+                _ => throw new ArgumentException("invalid_type: 'branch' must be a string."),
+            }
+            : string.Empty;
+
         return (path, limit, branch);
     }
 }

@@ -76,6 +76,17 @@ public class GitToolTests : IDisposable
         Assert.True(result.Success);
     }
 
+    [Fact]
+    public async Task GitStatus_InvalidPathType_ReturnsStructuredValidationError()
+    {
+        var tool = new GitStatusTool();
+        var result = await tool.ExecuteAsync(new ToolCall("git_status", """{"path":123}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'path'", result.Content, StringComparison.Ordinal);
+    }
+
     // ── GitDiffTool ───────────────────────────────────────────────
 
     [Fact]
@@ -100,6 +111,19 @@ public class GitToolTests : IDisposable
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
         Assert.Equal(string.Empty, output.GetProperty("diff").GetString());
+    }
+
+    [Fact]
+    public async Task GitDiff_InvalidStagedType_ReturnsStructuredValidationError()
+    {
+        var tool = new GitDiffTool();
+        var result = await tool.ExecuteAsync(
+            new ToolCall("git_diff", $$"""{"path":"{{_repoDir}}","staged":"yes"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'staged'", result.Content, StringComparison.Ordinal);
     }
 
     // ── GitLogTool ────────────────────────────────────────────────
@@ -130,6 +154,17 @@ public class GitToolTests : IDisposable
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
         Assert.Equal(1, output.GetProperty("commits").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GitLog_NonPositiveLimit_ReturnsStructuredValidationError()
+    {
+        var tool = new GitLogTool();
+        var result = await tool.ExecuteAsync(Call("git_log", new { path = _repoDir, limit = 0 }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_value", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'limit'", result.Content, StringComparison.Ordinal);
     }
 
     // ── GitBranchTool ────────────────────────────────────────────

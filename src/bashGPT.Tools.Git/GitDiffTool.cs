@@ -59,9 +59,37 @@ public sealed class GitDiffTool : ITool
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
-        bool staged = root.TryGetProperty("staged", out var s) && s.GetBoolean();
-        var files = root.TryGetProperty("files", out var f) ? f.GetString() ?? string.Empty : string.Empty;
+
+        var path = root.TryGetProperty("path", out var p)
+            ? p.ValueKind switch
+            {
+                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
+                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
+            }
+            : Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
+        bool staged = root.TryGetProperty("staged", out var s)
+            ? s.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => false,
+                _ => throw new ArgumentException("invalid_type: 'staged' must be a boolean."),
+            }
+            : false;
+
+        var files = root.TryGetProperty("files", out var f)
+            ? f.ValueKind switch
+            {
+                JsonValueKind.String => f.GetString() ?? string.Empty,
+                JsonValueKind.Null => string.Empty,
+                _ => throw new ArgumentException("invalid_type: 'files' must be a string."),
+            }
+            : string.Empty;
+
         return (path, staged, files);
     }
 }
