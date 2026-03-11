@@ -255,6 +255,39 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
+    public async Task RunServerChatAsync_WithToolCalls_DoesNotForwardAssistantPlanningContent()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse(
+            "Planungs- und Reasoning-Text, der nicht in Runde 2 landen soll.",
+            [new Providers.ToolCall("call-1", "my_tool", "{}")]));
+        provider.Enqueue(new LlmChatResponse("Finale Antwort.", []));
+
+        var fakeTool = new FakeTool("my_tool", returnValue: "ok");
+        var registry = new ToolRegistry([fakeTool]);
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Nutze ein Tool",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Finale Antwort.", result.Response);
+        Assert.NotNull(provider.LastRequestMessages);
+
+        var assistantToolCallMessage = provider.LastRequestMessages!
+            .FirstOrDefault(m => m.Role == ChatRole.Assistant && m.ToolCalls is { Count: > 0 });
+        Assert.NotNull(assistantToolCallMessage);
+        Assert.Equal(string.Empty, assistantToolCallMessage!.Content);
+    }
+
+    [Fact]
     public async Task RunServerChatAsync_WithTools_UnknownTool_ReturnsErrorInToolResult()
     {
         var provider = new FakeLlmProvider();
@@ -282,9 +315,9 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithTools_MaxRoundsReached_StopsLoop()
+    public async Task RunServerChatAsync_WithTools_NoHardRoundLimit_ProcessesUntilNoToolCalls()
     {
-        // Immer Tool-Calls zurÃ¼ckgeben â†’ Loop soll nach MaxToolRounds stoppen
+        // Mehrere Tool-Calls in Folge â†’ Verarbeitung bis die finale Antwort ohne Tool-Calls kommt
         var provider = new FakeLlmProvider();
         for (var i = 0; i < 10; i++)
         {
@@ -309,9 +342,9 @@ public sealed class ServerChatRunnerTests
 
         var result = await sut.RunServerChatAsync(opts);
 
-        // 1 initialer Call + MaxToolRounds (5) = 6 LLM-Calls gesamt
-        Assert.Equal(6, provider.CallCount);
-        Assert.Equal(5, fakeTool.CallCount);
+        Assert.Equal("Nach Loop.", result.Response);
+        Assert.Equal(11, provider.CallCount);
+        Assert.Equal(10, fakeTool.CallCount);
     }
 
     [Fact]

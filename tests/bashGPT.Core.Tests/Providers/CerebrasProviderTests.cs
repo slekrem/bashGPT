@@ -211,6 +211,61 @@ public class CerebrasProviderTests
     }
 
     [Fact]
+    public async Task ChatAsync_Stream_IncompleteStream_RetriesMandatory_AndSucceeds()
+    {
+        var firstIncomplete = """
+            data: {"choices":[{"delta":{"reasoning":"plan"}}]}
+            """;
+        var secondComplete = """
+            data: {"choices":[{"delta":{"content":"ok"}}]}
+            data: [DONE]
+            """;
+        var handler = new SequentialHttpMessageHandler(
+            SequentialHttpMessageHandler.Ok(firstIncomplete, "text/event-stream"),
+            SequentialHttpMessageHandler.Ok(secondComplete, "text/event-stream"));
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        var result = await provider.ChatAsync(
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: true));
+
+        Assert.Equal(2, handler.CallCount);
+        Assert.Equal("ok", result.Content);
+    }
+
+    [Fact]
+    public async Task ChatAsync_Stream_IncompleteStream_StillEmitsResponseJson_OnFailure()
+    {
+        var incomplete = """
+            data: {"choices":[{"delta":{"reasoning":"plan"}}]}
+            """;
+        var handler = new SequentialHttpMessageHandler(
+            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
+            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
+            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
+            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"));
+        var provider = new CerebrasProvider(
+            new CerebrasConfig { ApiKey = "key", Model = "test" },
+            new HttpClient(handler));
+
+        string? capturedResponseJson = null;
+
+        await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(new LlmChatRequest(
+                [new ChatMessage(ChatRole.User, "test")],
+                Stream: true,
+                OnResponseJson: json =>
+                {
+                    capturedResponseJson = json;
+                    return Task.CompletedTask;
+                })));
+
+        Assert.NotNull(capturedResponseJson);
+        Assert.Contains("# attempt 1", capturedResponseJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ChatAsync_IncludesConfiguredCerebrasOptions()
     {
         var json = """{"choices":[{"message":{"content":"ok","tool_calls":null}}]}""";
