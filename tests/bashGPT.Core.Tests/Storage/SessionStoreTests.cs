@@ -755,6 +755,38 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Contains("http_check", loaded.EnabledTools);
     }
 
+    [Fact]
+    public async Task UpsertAsync_WithAgentId_PersistsAndLoadsAgentId()
+    {
+        var store   = CreateStore();
+        var session = MakeSession("s1");
+        session.AgentId = "agent-planner";
+
+        await store.UpsertAsync(session);
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Equal("agent-planner", loaded!.AgentId);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_UpdateAgentId_PersistsNewValue()
+    {
+        var store   = CreateStore();
+        var session = MakeSession("s1");
+        session.AgentId = "agent-a";
+        await store.UpsertAsync(session);
+
+        var updated = MakeSession("s1");
+        updated.AgentId = "agent-b";
+        await store.UpsertAsync(updated);
+
+        var loaded = await store.LoadAsync("s1");
+
+        Assert.NotNull(loaded);
+        Assert.Equal("agent-b", loaded!.AgentId);
+    }
+
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
     private static SessionRecord MakeSession(
