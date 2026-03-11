@@ -1,5 +1,11 @@
 namespace BashGPT.Agents;
 
+/// <summary>
+/// Basismodul fuer Agent-Infrastruktur.
+/// Enthält absichtlich keine konkreten Agent-Definitionen.
+/// Konkrete Agenten werden in separaten Projekten gepflegt
+/// (z. B. bashGPT.Agents.Dev, bashGPT.Agents.Shell).
+/// </summary>
 public static class AgentBootstrap
 {
     public static string GetConfigDir() => Path.Combine(
