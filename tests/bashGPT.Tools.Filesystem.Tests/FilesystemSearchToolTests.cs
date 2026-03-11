@@ -116,4 +116,38 @@ public class FilesystemSearchToolTests : IDisposable
         Assert.False(result.Success);
         Assert.Contains("Invalid regex", result.Content);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingPattern_ReturnsStructuredValidationError()
+    {
+        var call = new ToolCall("filesystem_search", """{"path":"."}""");
+
+        var result = await CreateTool().ExecuteAsync(call, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'pattern'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmptyPath_UsesCurrentDirectory()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "needle.txt"), "abc needle xyz");
+        var cwd = Directory.GetCurrentDirectory();
+        try
+        {
+            Directory.SetCurrentDirectory(_tempDir);
+            var call = new ToolCall("filesystem_search", """{"pattern":"needle","path":""}""");
+
+            var result = await CreateTool().ExecuteAsync(call, CancellationToken.None);
+
+            Assert.True(result.Success);
+            var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
+            Assert.Equal(1, output.GetProperty("totalMatches").GetInt32());
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(cwd);
+        }
+    }
 }
