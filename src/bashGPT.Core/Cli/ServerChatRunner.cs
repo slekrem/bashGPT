@@ -124,7 +124,7 @@ public class ServerChatRunner(
                 opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
                 var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(
                     response.Response.ToolCalls,
-                    content: string.Empty);
+                    content: response.Response.Content);
                 messages.Add(assistantToolCallMessage);
                 conversationDelta.Add(assistantToolCallMessage);
 

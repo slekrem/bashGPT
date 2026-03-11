@@ -86,6 +86,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
                 temperature = config.Ollama.Temperature,
                 topP = config.Ollama.TopP,
                 seed = config.Ollama.Seed,
+                numCtx = config.Ollama.NumCtx,
             },
         });
     }
@@ -128,6 +129,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             if (body.Ollama.Temperature is not null) config.Ollama.Temperature = body.Ollama.Temperature;
             if (body.Ollama.TopP is not null) config.Ollama.TopP = body.Ollama.TopP;
             if (body.Ollama.Seed is not null) config.Ollama.Seed = body.Ollama.Seed;
+            if (body.Ollama.NumCtx is not null && body.Ollama.NumCtx > 0) config.Ollama.NumCtx = body.Ollama.NumCtx;
         }
 
         if (body.Model is not null)
@@ -261,6 +263,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         double? TopP,
         int? MaxCompletionTokens,
         int? Seed,
+        int? NumCtx,
         string? ReasoningEffort);
 
     private sealed class CerebrasModelMetadata

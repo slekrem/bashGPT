@@ -255,11 +255,11 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithToolCalls_DoesNotForwardAssistantPlanningContent()
+    public async Task RunServerChatAsync_WithToolCalls_ForwardsAssistantContentWithToolCalls()
     {
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
-            "Planungs- und Reasoning-Text, der nicht in Runde 2 landen soll.",
+            "Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.",
             [new Providers.ToolCall("call-1", "my_tool", "{}")]));
         provider.Enqueue(new LlmChatResponse("Finale Antwort.", []));
 
@@ -284,7 +284,7 @@ public sealed class ServerChatRunnerTests
         var assistantToolCallMessage = provider.LastRequestMessages!
             .FirstOrDefault(m => m.Role == ChatRole.Assistant && m.ToolCalls is { Count: > 0 });
         Assert.NotNull(assistantToolCallMessage);
-        Assert.Equal(string.Empty, assistantToolCallMessage!.Content);
+        Assert.Equal("Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.", assistantToolCallMessage!.Content);
     }
 
     [Fact]

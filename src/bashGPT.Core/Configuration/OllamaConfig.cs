@@ -7,4 +7,5 @@ public class OllamaConfig
     public double? Temperature { get; set; } = 0.2;
     public double? TopP { get; set; } = 0.9;
     public int? Seed { get; set; }
+    public int? NumCtx { get; set; } = 65536;
 }

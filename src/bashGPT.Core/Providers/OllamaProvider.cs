@@ -22,6 +22,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             Temperature = config.Temperature,
             TopP        = config.TopP,
             Seed        = config.Seed,
+            Options     = config.NumCtx is > 0
+                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
+                : null,
         };
 
         if (request.Tools is { Count: > 0 })
@@ -223,6 +226,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             Temperature = config.Temperature,
             TopP        = config.TopP,
             Seed        = config.Seed,
+            Options     = config.NumCtx is > 0
+                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
+                : null,
         };
 
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";

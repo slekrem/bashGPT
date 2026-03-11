@@ -293,8 +293,8 @@ public class OllamaProviderTests
         Assert.Equal(0.2, root.GetProperty("temperature").GetDouble());
         Assert.Equal(0.95, root.GetProperty("top_p").GetDouble());
         Assert.Equal(42, root.GetProperty("seed").GetInt32());
-        // Kein options-Objekt bei OpenAI-Format
-        Assert.False(root.TryGetProperty("options", out _));
+        Assert.True(root.TryGetProperty("options", out var options));
+        Assert.Equal(65536, options.GetProperty("num_ctx").GetInt32());
     }
 
     [Fact]
