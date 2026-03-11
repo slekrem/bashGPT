@@ -94,7 +94,7 @@ public class BuildRunToolTests
         var result = await tool.ExecuteAsync(new ToolCall("build_run", "{bad}"), CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Contains("Invalid arguments", result.Content);
+        Assert.Contains("invalid_json", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]

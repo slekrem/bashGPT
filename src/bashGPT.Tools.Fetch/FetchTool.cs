@@ -42,6 +42,14 @@ public sealed class FetchTool : ITool
         {
             input = ParseInput(call.ArgumentsJson);
         }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
+        }
+        catch (ArgumentException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
         catch (Exception ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");

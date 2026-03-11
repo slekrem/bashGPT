@@ -16,5 +16,9 @@ public class DevAgentBootstrapTests
         Assert.Contains("shell_exec", dev.EnabledTools);
         Assert.Contains("Required Fields", dev.SystemPrompt, StringComparison.Ordinal);
         Assert.Contains("'pattern' Pflicht", dev.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains("invalid_json", dev.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains("missing_required_field", dev.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains("invalid_type", dev.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains("invalid_value", dev.SystemPrompt, StringComparison.Ordinal);
     }
 }

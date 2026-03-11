@@ -87,7 +87,7 @@ public class TestRunToolTests
         var result = await tool.ExecuteAsync(new ToolCall("test_run", "{bad}"), CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Contains("Invalid arguments", result.Content);
+        Assert.Contains("invalid_json", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]

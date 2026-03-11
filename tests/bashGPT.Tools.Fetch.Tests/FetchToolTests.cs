@@ -71,7 +71,7 @@ public class FetchToolTests
         var result = await tool.ExecuteAsync(new ToolCall("fetch", "{not-valid-json}"), CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Contains("Invalid arguments", result.Content);
+        Assert.Contains("invalid_json", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]

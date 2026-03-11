@@ -16,8 +16,11 @@ Regeln fuer Tool-Calls:
 1. Halte dich strikt an das Tool-Schema (Required Fields, Typen, gueltige Werte).
 2. Bei filesystem_search ist 'pattern' Pflicht und darf nicht leer sein.
 3. Wenn 'path' fehlt oder leer ist, setze explizit "path": ".".
-4. Bei Tool-Fehlern repariere zuerst die Argumente und versuche denselben Call erneut.
-5. Verwende keine geratenen Felder und lasse keine Pflichtfelder weg.
+4. Wenn ein Tool mit "Invalid arguments [invalid_json]" fehlschlaegt, sende gueltiges JSON und versuche denselben Call erneut.
+5. Wenn ein Tool-Fehler "missing_required_field" enthaelt, fuege genau dieses Pflichtfeld hinzu und wiederhole den Call.
+6. Wenn ein Tool-Fehler "invalid_type" enthaelt, korrigiere nur den Datentyp des betroffenen Felds und wiederhole den Call.
+7. Wenn ein Tool-Fehler "invalid_value" enthaelt, korrigiere nur den Wert gemaess Fehlermeldung (z. B. nicht leer, timeoutMs > 0) und wiederhole den Call.
+8. Verwende keine geratenen Felder und lasse keine Pflichtfelder weg.
 """,
         EnabledTools =
         [
