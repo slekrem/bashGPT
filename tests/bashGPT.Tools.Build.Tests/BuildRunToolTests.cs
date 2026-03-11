@@ -98,6 +98,30 @@ public class BuildRunToolTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_MissingRunner_ReturnsStructuredValidationError()
+    {
+        var tool = new BuildRunTool();
+        var result = await tool.ExecuteAsync(new ToolCall("build_run", """{"project":"x"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'runner'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidTimeoutType_ReturnsStructuredValidationError()
+    {
+        var tool = new BuildRunTool();
+        var result = await tool.ExecuteAsync(
+            new ToolCall("build_run", """{"runner":"dotnet","timeoutMs":"slow"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'timeoutMs'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SuccessfulBuild_ReturnsSuccess()
     {
         var tool = ToolWith("Build succeeded.\n0 Error(s)\n0 Warning(s)", exitCode: 0);

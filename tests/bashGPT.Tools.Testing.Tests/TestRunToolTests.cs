@@ -91,6 +91,30 @@ public class TestRunToolTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_MissingRunner_ReturnsStructuredValidationError()
+    {
+        var tool = new TestRunTool();
+        var result = await tool.ExecuteAsync(new ToolCall("test_run", """{"project":"x"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'runner'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidTimeoutType_ReturnsStructuredValidationError()
+    {
+        var tool = new TestRunTool();
+        var result = await tool.ExecuteAsync(
+            new ToolCall("test_run", """{"runner":"dotnet","timeoutMs":"fast"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'timeoutMs'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DotnetAllPassed_ReturnsSuccess()
     {
         var fakeOutput = "Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 50 ms";
