@@ -80,6 +80,7 @@ public class SessionStore
             Messages     = content.Messages,
             ShellContext = content.ShellContext,
             EnabledTools = content.EnabledTools,
+            AgentId      = content.AgentId,
         };
     }
 
@@ -101,6 +102,7 @@ public class SessionStore
                 Messages     = session.Messages,
                 ShellContext = session.ShellContext,
                 EnabledTools = session.EnabledTools,
+                AgentId      = session.AgentId,
             };
             await WriteContentInternalAsync(session.Id, content);
 
@@ -352,6 +354,8 @@ public class SessionStore
                 {
                     Messages     = session.Messages,
                     ShellContext = session.ShellContext,
+                    EnabledTools = session.EnabledTools,
+                    AgentId      = session.AgentId,
                 };
                 await WriteContentInternalAsync(session.Id, content);
                 indexEntries.Add(new SessionIndexEntry

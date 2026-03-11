@@ -1,4 +1,4 @@
-using BashGPT.Cli;
+﻿using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Tools.Execution;
@@ -7,12 +7,12 @@ using System.Reflection;
 namespace BashGPT.Cli.Tests;
 
 /// <summary>
-/// Unit-Tests für ServerChatRunner.RunServerChatAsync.
-/// Nutzt FakeLlmProvider (via providerOverride) – reines LLM-Chat ohne Tools.
+/// Unit-Tests fÃ¼r ServerChatRunner.RunServerChatAsync.
+/// Nutzt FakeLlmProvider (via providerOverride) â€“ reines LLM-Chat ohne Tools.
 /// </summary>
 public sealed class ServerChatRunnerTests
 {
-    // ── Hilfsmethoden ───────────────────────────────────────────────────────
+    // â”€â”€ Hilfsmethoden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static ServerChatRunner CreateRunner(FakeLlmProvider provider) =>
         new(new ConfigurationService(), provider);
@@ -28,7 +28,7 @@ public sealed class ServerChatRunnerTests
             Model:    null,
             Verbose:  verbose);
 
-    // ── Tests ────────────────────────────────────────────────────────────────
+    // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_SimpleText_ReturnsContent()
@@ -111,8 +111,8 @@ public sealed class ServerChatRunnerTests
     {
         var history = new List<ChatMessage>
         {
-            new(ChatRole.User,      "Frühere Frage"),
-            new(ChatRole.Assistant, "Frühere Antwort"),
+            new(ChatRole.User,      "FrÃ¼here Frage"),
+            new(ChatRole.Assistant, "FrÃ¼here Antwort"),
         };
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Antwort.", []));
@@ -122,9 +122,9 @@ public sealed class ServerChatRunnerTests
 
         Assert.NotNull(provider.LastRequestMessages);
         Assert.Contains(provider.LastRequestMessages!, m =>
-            m.Role == ChatRole.User && m.Content == "Frühere Frage");
+            m.Role == ChatRole.User && m.Content == "FrÃ¼here Frage");
         Assert.Contains(provider.LastRequestMessages!, m =>
-            m.Role == ChatRole.Assistant && m.Content == "Frühere Antwort");
+            m.Role == ChatRole.Assistant && m.Content == "FrÃ¼here Antwort");
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class ServerChatRunnerTests
         }
     }
 
-    // ── Tool-Call-Loop-Tests ─────────────────────────────────────────────────
+    // â”€â”€ Tool-Call-Loop-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_WithToolsAndNoToolCallsInResponse_SingleLlmCall()
@@ -284,7 +284,7 @@ public sealed class ServerChatRunnerTests
     [Fact]
     public async Task RunServerChatAsync_WithTools_MaxRoundsReached_StopsLoop()
     {
-        // Immer Tool-Calls zurückgeben → Loop soll nach MaxToolRounds stoppen
+        // Immer Tool-Calls zurÃ¼ckgeben â†’ Loop soll nach MaxToolRounds stoppen
         var provider = new FakeLlmProvider();
         for (var i = 0; i < 10; i++)
         {
@@ -317,7 +317,7 @@ public sealed class ServerChatRunnerTests
     [Fact]
     public async Task RunServerChatAsync_WithoutToolRegistry_ToolCallsNotExecuted()
     {
-        // Kein Registry → Loop wird nie gestartet, auch wenn Tools in opts stehen
+        // Kein Registry â†’ Loop wird nie gestartet, auch wenn Tools in opts stehen
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Antwort mit Tool-Call.",
@@ -340,7 +340,41 @@ public sealed class ServerChatRunnerTests
         Assert.Equal(1, provider.CallCount); // nur ein Aufruf
     }
 
-    // ── LlmExchanges-Tests ───────────────────────────────────────────────────
+    [Fact]
+    public async Task RunServerChatAsync_WithTools_ToolThrows_PreservesToolCallFlow()
+    {
+        var provider = new FakeLlmProvider();
+        provider.Enqueue(new LlmChatResponse(
+            "Ich rufe ein Tool auf.",
+            [new Providers.ToolCall("call-1", "my_tool", "{\"path\":\"\"}")]));
+        provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
+
+        var fakeTool = new FakeTool("my_tool", throwException: new ArgumentException("The path is empty. (Parameter 'path')"));
+        var registry = new ToolRegistry([fakeTool]);
+        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+
+        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var opts  = new ServerChatOptions(
+            Prompt:   "Benutze Tool",
+            History:  [],
+            Provider: null,
+            Model:    null,
+            Verbose:  false,
+            Tools:    tools);
+
+        var result = await sut.RunServerChatAsync(opts);
+
+        Assert.Equal("Fehler verarbeitet.", result.Response);
+        Assert.Equal(2, provider.CallCount);
+        Assert.Equal(1, fakeTool.CallCount);
+        Assert.NotNull(provider.LastRequestMessages);
+        Assert.Contains(provider.LastRequestMessages!, m =>
+            m.Role == ChatRole.Tool &&
+            m.ToolCallId == "call-1" &&
+            m.Content.Contains("The path is empty.", StringComparison.Ordinal));
+    }
+
+    // â”€â”€ LlmExchanges-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_SimpleResponse_OneLlmExchange()
@@ -357,7 +391,7 @@ public sealed class ServerChatRunnerTests
         Assert.NotNull(result.LlmExchanges[0].ResponseJson);
     }
 
-    // ── Rate-Limiter-Tests ───────────────────────────────────────────────────
+    // â”€â”€ Rate-Limiter-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void GetOrCreateLimiter_ReusesAndRecreates_ByConfig()
@@ -400,26 +434,32 @@ public sealed class ServerChatRunnerTests
     }
 }
 
-// ── FakeTool ─────────────────────────────────────────────────────────────────
+// â”€â”€ FakeTool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
 {
     private readonly string _returnValue;
+    private readonly Exception? _throwException;
 
     public int CallCount { get; private set; }
 
     public BashGPT.Tools.Abstractions.ToolDefinition Definition { get; }
 
-    public FakeTool(string name, string returnValue = "Tool-Ergebnis")
+    public FakeTool(string name, string returnValue = "Tool-Ergebnis", Exception? throwException = null)
     {
         _returnValue = returnValue;
-        Definition   = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake-Tool für Tests", []);
+        _throwException = throwException;
+        Definition   = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake-Tool fuer Tests", []);
     }
 
     public Task<BashGPT.Tools.Abstractions.ToolResult> ExecuteAsync(
         BashGPT.Tools.Abstractions.ToolCall call, CancellationToken ct)
     {
         CallCount++;
+        if (_throwException is not null)
+            throw _throwException;
+
         return Task.FromResult(new BashGPT.Tools.Abstractions.ToolResult(true, _returnValue));
     }
 }
+

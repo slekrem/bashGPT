@@ -137,10 +137,18 @@ public class ServerChatRunner(
                     string toolResult;
                     if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
                     {
-                        var r = await iTool.ExecuteAsync(
-                            new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
-                        toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
-                        commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+                        try
+                        {
+                            var r = await iTool.ExecuteAsync(
+                                new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
+                            toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
+                            commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            toolResult = $"Fehler: {ex.Message}";
+                            commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
+                        }
                     }
                     else
                     {
