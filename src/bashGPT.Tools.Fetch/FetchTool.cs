@@ -172,6 +172,10 @@ public sealed class FetchTool : ITool
         var responseBody = await ReadAsync(response.Content, linkedCts.Token);
         sw.Stop();
 
+        // ReadAsync schluckt OperationCanceledException – Timeout-Zustand nachholen
+        if (timeoutCts.IsCancellationRequested)
+            timedOut = true;
+
         var contentType = response.Content.Headers.ContentType?.ToString();
         var html = TryExtractHtml(contentType, responseBody);
         var optimizedBody = html?.LlmText;
@@ -191,7 +195,7 @@ public sealed class FetchTool : ITool
             RawBody: rawBody,
             BodyTruncated: false,
             DurationMs: sw.ElapsedMilliseconds,
-            TimedOut: false,
+            TimedOut: timedOut,
             ContentType: contentType,
             ExtractedText: html?.ExtractedText,
             LlmText: html?.LlmText,

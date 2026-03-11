@@ -70,7 +70,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             // Fallback: JSON aus dem raw-Feld extrahieren und Tool-Call rekonstruieren.
             if ((int)response.StatusCode == 500)
             {
-                var recovered = TryRecoverToolCall(body);
+                var firstToolName = openAiRequest.Tools?.FirstOrDefault()?.Function?.Name;
+                var recovered = TryRecoverToolCall(body, firstToolName);
                 if (recovered is not null)
                     return recovered;
             }
@@ -183,6 +184,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             if (attempt >= AppDefaults.MaxProviderRetries || ct.IsCancellationRequested)
                 break;
 
+            response.Dispose();
             using var retryRequest = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = new StringContent(serialized, Encoding.UTF8, "application/json")
@@ -295,8 +297,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
     /// die durch Reasoning-Text vor dem JSON-Argument entstanden ist.
     /// Format der Fehlermeldung: "error parsing tool call: raw='&lt;text&gt;{json}', err=..."
     /// </summary>
-    private static LlmChatResponse? TryRecoverToolCall(string errorBody)
+    private static LlmChatResponse? TryRecoverToolCall(string errorBody, string? toolName)
     {
+        if (toolName is null) return null;
         try
         {
             using var doc = JsonDocument.Parse(errorBody);
@@ -326,7 +329,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             JsonDocument.Parse(jsonStr).Dispose();
 
             var reasoningText = raw[..jsonStart].Trim();
-            var toolCall = new ToolCall("recovered-0", "bash", jsonStr);
+            var toolCall = new ToolCall("recovered-0", toolName, jsonStr);
             return new LlmChatResponse(reasoningText, [toolCall], null);
         }
         catch (JsonException)
