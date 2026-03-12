@@ -37,6 +37,16 @@ internal sealed class OpenAiChatRequest
     [JsonPropertyName("parallel_tool_calls")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? ParallelToolCalls { get; set; }
+    [JsonPropertyName("options")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OpenAiOllamaOptions? Options { get; set; }
+}
+
+internal sealed class OpenAiOllamaOptions
+{
+    [JsonPropertyName("num_ctx")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? NumCtx { get; set; }
 }
 
 internal sealed class OpenAiStreamOptions

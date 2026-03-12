@@ -31,9 +31,13 @@ public sealed class FilesystemWriteTool : ITool
         {
             (path, content, overwrite, createDirectories) = ParseInput(call.ArgumentsJson);
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
         }
 
         var absolute = Path.GetFullPath(path);
@@ -71,13 +75,37 @@ public sealed class FilesystemWriteTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var path = root.GetProperty("path").GetString()
-            ?? throw new ArgumentException("path must not be null");
-        var content = root.GetProperty("content").GetString()
-            ?? throw new ArgumentException("content must not be null");
-        bool overwrite = root.TryGetProperty("overwrite", out var ow) && ow.GetBoolean();
-        bool createDirectories = !root.TryGetProperty("createDirectories", out var cd) || cd.GetBoolean();
+        if (!root.TryGetProperty("path", out var pathEl))
+            throw new ArgumentException("missing_required_field: 'path' is required. Example: {\"path\":\"src/NewFile.cs\",\"content\":\"...\"}");
+        if (pathEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'path' must be a string.");
+        var path = pathEl.GetString();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("invalid_value: 'path' must not be empty.");
+
+        if (!root.TryGetProperty("content", out var contentEl))
+            throw new ArgumentException("missing_required_field: 'content' is required.");
+        if (contentEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'content' must be a string.");
+        var content = contentEl.GetString();
+        if (content is null)
+            throw new ArgumentException("invalid_value: 'content' must not be null.");
+
+        bool overwrite = ReadOptionalBool(root, "overwrite") ?? false;
+        bool createDirectories = ReadOptionalBool(root, "createDirectories") ?? true;
 
         return (path, content, overwrite, createDirectories);
+    }
+
+    private static bool? ReadOptionalBool(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a boolean."),
+        };
     }
 }

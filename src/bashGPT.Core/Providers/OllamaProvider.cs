@@ -22,6 +22,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             Temperature = config.Temperature,
             TopP        = config.TopP,
             Seed        = config.Seed,
+            Options     = config.NumCtx is > 0
+                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
+                : null,
         };
 
         if (request.Tools is { Count: > 0 })
@@ -67,7 +70,8 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             // Fallback: JSON aus dem raw-Feld extrahieren und Tool-Call rekonstruieren.
             if ((int)response.StatusCode == 500)
             {
-                var recovered = TryRecoverToolCall(body);
+                var firstToolName = openAiRequest.Tools?.FirstOrDefault()?.Function?.Name;
+                var recovered = TryRecoverToolCall(body, firstToolName);
                 if (recovered is not null)
                     return recovered;
             }
@@ -92,71 +96,124 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
 
-        var contentBuilder = new StringBuilder();
-        var toolBuilder = new Dictionary<int, ToolCallBuilder>();
-        var rawLines = new StringBuilder();
-        OpenAiUsage? streamUsage = null;
-
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new System.IO.StreamReader(stream);
-
-        while (!reader.EndOfStream && !ct.IsCancellationRequested)
+        var aggregateRaw = new StringBuilder();
+        string? incompleteRaw = null;
+        for (var attempt = 0; attempt <= AppDefaults.MaxProviderRetries; attempt++)
         {
-            var line = await reader.ReadLineAsync(ct);
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            var contentBuilder = new StringBuilder();
+            var toolBuilder = new Dictionary<int, ToolCallBuilder>();
+            var rawLines = new StringBuilder();
+            OpenAiUsage? streamUsage = null;
+            var streamCompleted = false;
 
-            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            await using (var stream = await response.Content.ReadAsStreamAsync(ct))
+            using (var reader = new System.IO.StreamReader(stream))
+            {
+                while (!reader.EndOfStream && !ct.IsCancellationRequested)
+                {
+                    var line = await reader.ReadLineAsync(ct);
+                    if (string.IsNullOrWhiteSpace(line)) continue;
 
-            rawLines.AppendLine(line);
+                    if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
 
-            var json = line["data:".Length..].Trim();
-            if (json == "[DONE]") break;
+                    rawLines.AppendLine(line);
 
-            OpenAiStreamChunk? chunk;
+                    var json = line["data:".Length..].Trim();
+                    if (json == "[DONE]")
+                    {
+                        streamCompleted = true;
+                        break;
+                    }
+
+                    OpenAiStreamChunk? chunk;
+                    try
+                    {
+                        chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
+                    }
+                    catch (JsonException)
+                    {
+                        continue;
+                    }
+
+                    var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
+
+                    var reasoning = delta?.ReasoningContent;
+                    if (!string.IsNullOrEmpty(reasoning))
+                        request.OnReasoningToken?.Invoke(reasoning);
+
+                    var content = delta?.Content;
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        request.OnToken?.Invoke(content);
+                        contentBuilder.Append(content);
+                    }
+
+                    if (delta?.ToolCalls is { Count: > 0 })
+                    {
+                        foreach (var toolDelta in delta.ToolCalls)
+                            ApplyToolDelta(toolBuilder, toolDelta);
+                    }
+
+                    if (chunk?.Usage is not null)
+                        streamUsage = chunk.Usage;
+                }
+            }
+
+            if (aggregateRaw.Length > 0)
+                aggregateRaw.AppendLine();
+            aggregateRaw.AppendLine($"# attempt {attempt + 1}");
+            aggregateRaw.Append(rawLines.ToString());
+
+            if (streamCompleted)
+            {
+                if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
+
+                var toolCallsFinal = toolBuilder
+                    .OrderBy(kvp => kvp.Key)
+                    .Select(kvp => kvp.Value.ToToolCall())
+                    .ToList();
+
+                var usage = streamUsage is not null
+                    ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
+                    : null;
+
+                return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
+            }
+
+            incompleteRaw = rawLines.ToString();
+            if (attempt >= AppDefaults.MaxProviderRetries || ct.IsCancellationRequested)
+                break;
+
+            response.Dispose();
+            using var retryRequest = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(serialized, Encoding.UTF8, "application/json")
+            };
             try
             {
-                chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
+                response = await Http.SendAsync(retryRequest, HttpCompletionOption.ResponseHeadersRead, ct);
             }
-            catch (JsonException)
+            catch (HttpRequestException ex)
             {
-                continue;
+                throw WrapHttpException(ex, config.BaseUrl);
             }
-
-            var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
-
-            var reasoning = delta?.ReasoningContent;
-            if (!string.IsNullOrEmpty(reasoning))
-                request.OnReasoningToken?.Invoke(reasoning);
-
-            var content = delta?.Content;
-            if (!string.IsNullOrEmpty(content))
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
             {
-                request.OnToken?.Invoke(content);
-                contentBuilder.Append(content);
+                throw WrapTimeoutException(ex, $"Ollama ({config.BaseUrl})");
             }
-
-            if (delta?.ToolCalls is { Count: > 0 })
+            if (!response.IsSuccessStatusCode)
             {
-                foreach (var toolDelta in delta.ToolCalls)
-                    ApplyToolDelta(toolBuilder, toolDelta);
+                var body = await response.Content.ReadAsStringAsync(ct);
+                if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
+                throw new LlmProviderException(
+                    $"Ollama antwortete mit HTTP {(int)response.StatusCode}: {body}");
             }
-
-            if (chunk?.Usage is not null)
-                streamUsage = chunk.Usage;
         }
 
-        if (request.OnResponseJson is not null) await request.OnResponseJson(rawLines.ToString());
-
-        var toolCallsFinal = toolBuilder
-            .OrderBy(kvp => kvp.Key)
-            .Select(kvp => kvp.Value.ToToolCall())
-            .ToList();
-
-        var usage = streamUsage is not null
-            ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
-            : null;
-
-        return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
+        if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
+        throw new LlmProviderException(
+            $"Ollama stream ended before [DONE] after {AppDefaults.MaxProviderRetries + 1} attempts." +
+            (string.IsNullOrWhiteSpace(incompleteRaw) ? "" : $"\nLast stream chunk:\n{incompleteRaw}"));
     }
 
     public override async IAsyncEnumerable<string> StreamAsync(
@@ -171,6 +228,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             Temperature = config.Temperature,
             TopP        = config.TopP,
             Seed        = config.Seed,
+            Options     = config.NumCtx is > 0
+                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
+                : null,
         };
 
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";
@@ -237,8 +297,9 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
     /// die durch Reasoning-Text vor dem JSON-Argument entstanden ist.
     /// Format der Fehlermeldung: "error parsing tool call: raw='&lt;text&gt;{json}', err=..."
     /// </summary>
-    private static LlmChatResponse? TryRecoverToolCall(string errorBody)
+    private static LlmChatResponse? TryRecoverToolCall(string errorBody, string? toolName)
     {
+        if (toolName is null) return null;
         try
         {
             using var doc = JsonDocument.Parse(errorBody);
@@ -268,7 +329,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             JsonDocument.Parse(jsonStr).Dispose();
 
             var reasoningText = raw[..jsonStart].Trim();
-            var toolCall = new ToolCall("recovered-0", "bash", jsonStr);
+            var toolCall = new ToolCall("recovered-0", toolName, jsonStr);
             return new LlmChatResponse(reasoningText, [toolCall], null);
         }
         catch (JsonException)

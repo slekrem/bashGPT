@@ -50,6 +50,14 @@ public sealed class BuildRunTool : ITool
         {
             input = ParseInput(call.ArgumentsJson);
         }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
+        }
+        catch (ArgumentException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
         catch (Exception ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
@@ -146,13 +154,43 @@ public sealed class BuildRunTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var runner = root.GetProperty("runner").GetString()
-            ?? throw new ArgumentException("runner must not be null");
-        var project  = root.TryGetProperty("project",       out var p) ? p.GetString() : null;
-        var config   = root.TryGetProperty("configuration", out var c) ? c.GetString() : null;
-        var cwd      = root.TryGetProperty("cwd",           out var w) ? w.GetString() : null;
-        int timeout  = root.TryGetProperty("timeoutMs",     out var t) ? t.GetInt32()  : 120_000;
+        if (!root.TryGetProperty("runner", out var runnerEl))
+            throw new ArgumentException("missing_required_field: 'runner' is required. Supported: dotnet, npm.");
+        if (runnerEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'runner' must be a string.");
+        var runner = runnerEl.GetString();
+        if (string.IsNullOrWhiteSpace(runner))
+            throw new ArgumentException("invalid_value: 'runner' must not be empty.");
+
+        var project  = ReadOptionalString(root, "project");
+        var config   = ReadOptionalString(root, "configuration");
+        var cwd      = ReadOptionalString(root, "cwd");
+        int timeout  = ReadOptionalInt(root, "timeoutMs") ?? 120_000;
+        if (timeout <= 0)
+            throw new ArgumentException("invalid_value: 'timeoutMs' must be greater than 0.");
 
         return new BuildRunInput(runner, project, config, cwd, timeout);
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.String => valueEl.GetString(),
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a string."),
+        };
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.Number when valueEl.TryGetInt32(out var i) => i,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be an integer."),
+        };
     }
 }

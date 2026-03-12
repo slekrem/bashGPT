@@ -48,8 +48,26 @@ public sealed class GitAddTool : ITool
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var files = root.GetProperty("files").GetString() ?? throw new ArgumentException("files must not be null");
-        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
+
+        if (!root.TryGetProperty("files", out var filesEl))
+            throw new ArgumentException("missing_required_field: 'files' is required. Example: {\"files\":\".\",\"path\":\".\"}");
+        if (filesEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'files' must be a string.");
+        var files = filesEl.GetString();
+        if (string.IsNullOrWhiteSpace(files))
+            throw new ArgumentException("invalid_value: 'files' must not be empty.");
+
+        var path = root.TryGetProperty("path", out var p)
+            ? p.ValueKind switch
+            {
+                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
+                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
+            }
+            : Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
         return (path, files);
     }
 }

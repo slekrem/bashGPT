@@ -95,4 +95,27 @@ public class FilesystemWriteToolTests : IDisposable
         var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
         Assert.Equal(5, output.GetProperty("bytesWritten").GetInt32());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingPath_ReturnsStructuredValidationError()
+    {
+        var result = await CreateTool().ExecuteAsync(new ToolCall("filesystem_write", """{"content":"x"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'path'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidOverwriteType_ReturnsStructuredValidationError()
+    {
+        var file = Path.Combine(_tempDir, "new.txt");
+        var result = await CreateTool().ExecuteAsync(
+            new ToolCall("filesystem_write", $$"""{"path":"{{file}}","content":"x","overwrite":"yes"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'overwrite'", result.Content, StringComparison.Ordinal);
+    }
 }

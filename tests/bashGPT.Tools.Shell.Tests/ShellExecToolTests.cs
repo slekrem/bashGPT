@@ -120,7 +120,50 @@ public class ShellExecToolTests
         var result = await tool.ExecuteAsync(new ToolCall("shell.exec", "{not-valid-json}"), CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Contains("Invalid arguments", result.Content);
+        Assert.Contains("invalid_json", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingCommand_ReturnsStructuredError()
+    {
+        var tool = new ShellExecTool();
+        var result = await tool.ExecuteAsync(new ToolCall("shell_exec", "{}"), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CommandWrongType_ReturnsStructuredError()
+    {
+        var tool = new ShellExecTool();
+        var args = JsonSerializer.Serialize(new Dictionary<string, object?> { ["command"] = 123 });
+        var result = await tool.ExecuteAsync(new ToolCall("shell_exec", args), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TimeoutMsInvalidValue_ReturnsStructuredError()
+    {
+        var tool = new ShellExecTool();
+        var args = JsonSerializer.Serialize(new Dictionary<string, object?> { ["command"] = "echo hi", ["timeoutMs"] = 0 });
+        var result = await tool.ExecuteAsync(new ToolCall("shell_exec", args), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_value", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EnvWrongType_ReturnsStructuredError()
+    {
+        var tool = new ShellExecTool();
+        var args = JsonSerializer.Serialize(new Dictionary<string, object?> { ["command"] = "echo hi", ["env"] = "NOPE" });
+        var result = await tool.ExecuteAsync(new ToolCall("shell_exec", args), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
     }
 
     private sealed class AlwaysAllowPolicy : IShellExecPolicy

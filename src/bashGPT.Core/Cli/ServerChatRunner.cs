@@ -17,8 +17,6 @@ public class ServerChatRunner(
     ILlmProvider? providerOverride = null,
     ToolRegistry? toolRegistry = null) : IPromptHandler
 {
-    private const int MaxToolRounds = 5;
-
     // Shared across all requests so the rate limit is truly global per process.
     // Recreated automatically when the rate-limiting config values change.
     private LlmRateLimiter? _sharedLimiter;
@@ -116,13 +114,17 @@ public class ServerChatRunner(
         // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfügbar
         if (tools.Count > 0 && toolRegistry is not null)
         {
-            for (var round = 0; round < MaxToolRounds; round++)
+            var round = 0;
+            while (!ct.IsCancellationRequested)
             {
                 if (response.Response.ToolCalls.Count == 0) break;
                 usedToolCalls = true;
 
-                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
-                var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content);
+                round++;
+                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
+                var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(
+                    response.Response.ToolCalls,
+                    content: response.Response.Content);
                 messages.Add(assistantToolCallMessage);
                 conversationDelta.Add(assistantToolCallMessage);
 

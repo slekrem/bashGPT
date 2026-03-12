@@ -32,9 +32,13 @@ public sealed class FilesystemReadTool : ITool
         {
             (path, startLine, endLine) = ParseInput(call.ArgumentsJson);
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
         }
 
         var absolute = Path.GetFullPath(path);
@@ -79,11 +83,34 @@ public sealed class FilesystemReadTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var path = root.GetProperty("path").GetString()
-            ?? throw new ArgumentException("path must not be null");
-        int startLine = root.TryGetProperty("startLine", out var sl) ? sl.GetInt32() : 1;
-        int endLine = root.TryGetProperty("endLine", out var el) ? el.GetInt32() : 0;
+        if (!root.TryGetProperty("path", out var pathEl))
+            throw new ArgumentException("missing_required_field: 'path' is required. Example: {\"path\":\"src/Program.cs\",\"startLine\":1,\"endLine\":200}");
+        if (pathEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'path' must be a string.");
+        var path = pathEl.GetString();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("invalid_value: 'path' must not be empty.");
+
+        int startLine = ReadOptionalInt(root, "startLine") ?? 1;
+        int endLine = ReadOptionalInt(root, "endLine") ?? 0;
+        if (startLine < 1)
+            throw new ArgumentException("invalid_value: 'startLine' must be >= 1.");
+        if (endLine < 0)
+            throw new ArgumentException("invalid_value: 'endLine' must be >= 0.");
+        if (endLine > 0 && endLine < startLine)
+            throw new ArgumentException("invalid_value: 'endLine' must be >= 'startLine' when set.");
 
         return (path, startLine, endLine);
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.Number when valueEl.TryGetInt32(out var i) => i,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be an integer."),
+        };
     }
 }

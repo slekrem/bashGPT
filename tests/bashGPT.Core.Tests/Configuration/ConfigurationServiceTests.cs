@@ -35,6 +35,7 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(0.2, config.Ollama.Temperature);
         Assert.Equal(0.9, config.Ollama.TopP);
         Assert.Null(config.Ollama.Seed);
+        Assert.Equal(65536, config.Ollama.NumCtx);
         Assert.Equal("gpt-oss:120b-cloud", config.Cerebras.Model);
         Assert.Equal(0.2, config.Cerebras.Temperature);
         Assert.Equal(0.9, config.Cerebras.TopP);
@@ -123,6 +124,7 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("ollama.temperature", list);
         Assert.Contains("ollama.topP", list);
         Assert.Contains("ollama.seed", list);
+        Assert.Contains("ollama.numCtx", list);
         Assert.Contains("cerebras.apiKey", list);
         Assert.Contains("cerebras.model", list);
         Assert.Contains("cerebras.temperature", list);
@@ -221,11 +223,13 @@ public class ConfigurationServiceTests : IDisposable
         await svc.SetAsync("ollama.temperature", "0.4");
         await svc.SetAsync("ollama.topP", "0.9");
         await svc.SetAsync("ollama.seed", "77");
+        await svc.SetAsync("ollama.numCtx", "32768");
 
         var loaded = await svc.LoadAsync();
         Assert.Equal(0.4, loaded.Ollama.Temperature);
         Assert.Equal(0.9, loaded.Ollama.TopP);
         Assert.Equal(77, loaded.Ollama.Seed);
+        Assert.Equal(32768, loaded.Ollama.NumCtx);
     }
 
     [Fact]
@@ -241,6 +245,7 @@ public class ConfigurationServiceTests : IDisposable
                 Temperature = null,
                 TopP = null,
                 Seed = null,
+                NumCtx = null,
             },
             Cerebras = new CerebrasConfig
             {
@@ -260,6 +265,7 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(0.2, loaded.Ollama.Temperature);
         Assert.Equal(0.9, loaded.Ollama.TopP);
         Assert.Null(loaded.Ollama.Seed);
+        Assert.Equal(65536, loaded.Ollama.NumCtx);
 
         Assert.Equal(0.2, loaded.Cerebras.Temperature);
         Assert.Equal(0.9, loaded.Cerebras.TopP);

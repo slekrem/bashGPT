@@ -58,8 +58,28 @@ public sealed class GitBranchTool : ITool
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
-        bool remotes = root.TryGetProperty("remotes", out var r) && r.GetBoolean();
+
+        var path = root.TryGetProperty("path", out var p)
+            ? p.ValueKind switch
+            {
+                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
+                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
+            }
+            : Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
+        bool remotes = root.TryGetProperty("remotes", out var r)
+            ? r.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => false,
+                _ => throw new ArgumentException("invalid_type: 'remotes' must be a boolean."),
+            }
+            : false;
+
         return (path, remotes);
     }
 }
