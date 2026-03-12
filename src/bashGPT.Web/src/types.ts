@@ -14,9 +14,7 @@ export interface TokenUsage {
 
 export interface ChatResponse {
   response: string
-  usedToolCalls: boolean
   finalStatus?: 'completed' | 'user_cancelled' | 'timeout'
-  logs: string[]
   shellContext?: ShellContext
   commands: CommandResult[]
   usage?: TokenUsage | null

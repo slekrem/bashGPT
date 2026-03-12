@@ -88,13 +88,11 @@ export async function streamChat(
         if (parsed?.bashgpt?.event === 'done') {
           const bg = parsed.bashgpt
           chatResponse = {
-            response:      bg.response,
-            usedToolCalls: bg.usedToolCalls,
-            finalStatus:   bg.finalStatus,
-            logs:          bg.logs ?? [],
-            shellContext:  bg.shellContext,
-            commands:      bg.commands ?? [],
-            usage:         parsed.usage
+            response:     bg.response,
+            finalStatus:  bg.finalStatus,
+            shellContext: bg.shellContext,
+            commands:     bg.commands ?? [],
+            usage:        parsed.usage
               ? { inputTokens: parsed.usage.promptTokens, outputTokens: parsed.usage.completionTokens }
               : undefined,
           }

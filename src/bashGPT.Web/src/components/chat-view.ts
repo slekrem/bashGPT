@@ -13,7 +13,6 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   commands?: CommandResult[]
-  usedToolCalls?: boolean
   usage?: TokenUsage
 }
 
@@ -553,7 +552,6 @@ export class ChatView extends LitElement {
               content: finalResponseText,
               usage: result.usage ?? undefined,
               commands: finalCommands,
-              usedToolCalls: result.usedToolCalls || finalCommands.length > 0,
             }
           : m
       )

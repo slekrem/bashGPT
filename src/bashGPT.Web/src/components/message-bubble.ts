@@ -5,7 +5,6 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import hljsStyles from 'highlight.js/styles/github-dark.css?inline'
-import type { CommandResult } from '../types'
 
 marked.setOptions({
   async: false,
@@ -24,10 +23,6 @@ export class MessageBubble extends LitElement {
   @property() role: 'user' | 'assistant' = 'user'
   @property() content = ''
   @property({ type: Boolean }) reasoning = false
-  // Behalten für Rückwärtskompatibilität (v1), werden in v2 nicht mehr gerendert
-  @property({ type: Array }) commands: CommandResult[] = []
-  @property({ type: Boolean }) usedToolCalls = false
-  @property({ type: Array }) logs: string[] = []
 
   static styles = [
     unsafeCSS(hljsStyles),
