@@ -87,7 +87,31 @@ public class TestRunToolTests
         var result = await tool.ExecuteAsync(new ToolCall("test_run", "{bad}"), CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.Contains("Invalid arguments", result.Content);
+        Assert.Contains("invalid_json", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingRunner_ReturnsStructuredValidationError()
+    {
+        var tool = new TestRunTool();
+        var result = await tool.ExecuteAsync(new ToolCall("test_run", """{"project":"x"}"""), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'runner'", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidTimeoutType_ReturnsStructuredValidationError()
+    {
+        var tool = new TestRunTool();
+        var result = await tool.ExecuteAsync(
+            new ToolCall("test_run", """{"runner":"dotnet","timeoutMs":"fast"}"""),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("invalid_type", result.Content, StringComparison.Ordinal);
+        Assert.Contains("'timeoutMs'", result.Content, StringComparison.Ordinal);
     }
 
     [Fact]

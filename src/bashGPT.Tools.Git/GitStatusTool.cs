@@ -22,7 +22,19 @@ public sealed class GitStatusTool : ITool
 
     public async Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct)
     {
-        var repoPath = ParsePath(call.ArgumentsJson);
+        string repoPath;
+        try
+        {
+            repoPath = ParsePath(call.ArgumentsJson);
+        }
+        catch (ArgumentException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
+        }
 
         if (!_policy.AllowRead(repoPath))
             return new ToolResult(Success: false, Content: "Read blocked by policy.");
@@ -63,6 +75,15 @@ public sealed class GitStatusTool : ITool
     private static string ParsePath(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.TryGetProperty("path", out var p) ? p.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("path", out var p))
+            return Directory.GetCurrentDirectory();
+        if (p.ValueKind is JsonValueKind.Null)
+            return Directory.GetCurrentDirectory();
+        if (p.ValueKind is not JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'path' must be a string.");
+
+        var path = p.GetString();
+        return string.IsNullOrWhiteSpace(path) ? Directory.GetCurrentDirectory() : path;
     }
 }

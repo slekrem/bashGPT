@@ -8,6 +8,7 @@ public sealed class FilesystemSearchTool : ITool
 {
     private const int MaxMatches = 200;
     private const int SnippetContextLines = 1;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly IFilesystemPolicy _policy;
 
@@ -37,9 +38,13 @@ public sealed class FilesystemSearchTool : ITool
         {
             (pattern, searchPath, glob, ignoreCase, maxMatches) = ParseInput(call.ArgumentsJson);
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
         {
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
         }
 
         var absolutePath = Path.GetFullPath(searchPath);
@@ -61,7 +66,7 @@ public sealed class FilesystemSearchTool : ITool
                 truncated = matches.Count >= maxMatches,
                 matches,
             };
-            return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, JsonOptions));
         }
         catch (RegexParseException ex)
         {
@@ -126,13 +131,58 @@ public sealed class FilesystemSearchTool : ITool
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var pattern = root.GetProperty("pattern").GetString()
-            ?? throw new ArgumentException("pattern must not be null");
-        var path = root.TryGetProperty("path", out var pathEl) ? pathEl.GetString() ?? Directory.GetCurrentDirectory() : Directory.GetCurrentDirectory();
-        var glob = root.TryGetProperty("glob", out var globEl) ? globEl.GetString() ?? string.Empty : string.Empty;
-        bool ignoreCase = root.TryGetProperty("ignoreCase", out var icEl) && icEl.GetBoolean();
-        int maxMatches = root.TryGetProperty("maxMatches", out var mmEl) ? mmEl.GetInt32() : MaxMatches;
+        if (!root.TryGetProperty("pattern", out var patternEl))
+            throw new ArgumentException("missing_required_field: 'pattern' is required. Example: {\"pattern\":\"TODO\",\"path\":\".\",\"glob\":\"*.cs\"}");
+        if (patternEl.ValueKind != JsonValueKind.String)
+            throw new ArgumentException("invalid_type: 'pattern' must be a string.");
+        var pattern = patternEl.GetString();
+        if (string.IsNullOrWhiteSpace(pattern))
+            throw new ArgumentException("invalid_value: 'pattern' must not be empty.");
+
+        var path = ReadOptionalString(root, "path") ?? Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(path))
+            path = Directory.GetCurrentDirectory();
+
+        var glob = ReadOptionalString(root, "glob") ?? string.Empty;
+        bool ignoreCase = ReadOptionalBool(root, "ignoreCase") ?? false;
+        int maxMatches = ReadOptionalInt(root, "maxMatches") ?? MaxMatches;
+        if (maxMatches <= 0)
+            throw new ArgumentException("invalid_value: 'maxMatches' must be greater than 0.");
 
         return (pattern, path, glob, ignoreCase, maxMatches);
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.String => valueEl.GetString(),
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a string."),
+        };
+    }
+
+    private static bool? ReadOptionalBool(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be a boolean."),
+        };
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var valueEl)) return null;
+        return valueEl.ValueKind switch
+        {
+            JsonValueKind.Number when valueEl.TryGetInt32(out var i) => i,
+            JsonValueKind.Null => null,
+            _ => throw new ArgumentException($"invalid_type: '{name}' must be an integer."),
+        };
     }
 }

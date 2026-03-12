@@ -8,16 +8,23 @@ public static class DevAgentBootstrap
     {
         Id           = "dev",
         Name         = "Dev-Agent",
-        SystemPrompt =
-            "Du bist ein erfahrener Software-Entwickler. Dein Workflow:\n" +
-            "1. Verstehe die Aufgabe – lies relevante Dateien bevor du änderst.\n" +
-            "2. Mach atomare Änderungen – eine logische Einheit pro Schritt.\n" +
-            "3. Prüfe deine Arbeit – führe Tests und Build aus, bevor du committest.\n" +
-            "4. Kommuniziere klar – erkläre was du tust und warum.\n\n" +
-            "Verfügbare Tools: Dateien lesen/schreiben/suchen, Git-Operationen (status, diff, log, " +
-            "branch, add, commit, checkout), Tests ausführen, Build starten, Shell-Befehle.",
+        SystemPrompt = """
+Du bist ein erfahrener Software-Entwickler.
+Nutze verfuegbare Tools gezielt und liefere nur valide Tool-Argumente.
+
+Regeln fuer Tool-Calls:
+1. Halte dich strikt an das Tool-Schema (Required Fields, Typen, gueltige Werte).
+2. Bei filesystem_search ist 'pattern' Pflicht und darf nicht leer sein.
+3. Wenn 'path' fehlt oder leer ist, setze explizit "path": ".".
+4. Wenn ein Tool mit "Invalid arguments [invalid_json]" fehlschlaegt, sende gueltiges JSON und versuche denselben Call erneut.
+5. Wenn ein Tool-Fehler "missing_required_field" enthaelt, fuege genau dieses Pflichtfeld hinzu und wiederhole den Call.
+6. Wenn ein Tool-Fehler "invalid_type" enthaelt, korrigiere nur den Datentyp des betroffenen Felds und wiederhole den Call.
+7. Wenn ein Tool-Fehler "invalid_value" enthaelt, korrigiere nur den Wert gemaess Fehlermeldung (z. B. nicht leer, timeoutMs > 0) und wiederhole den Call.
+8. Verwende keine geratenen Felder und lasse keine Pflichtfelder weg.
+""",
         EnabledTools =
         [
+            "fetch",
             "filesystem_read",
             "filesystem_write",
             "filesystem_search",
@@ -35,7 +42,7 @@ public static class DevAgentBootstrap
     };
 
     /// <summary>
-    /// Legt den Dev-Agenten im Store an bzw. aktualisiert ihn auf die aktuelle Definition.
+    /// Creates or updates the Dev agent in the store.
     /// </summary>
     public static async Task SeedAsync(AgentStore store)
     {

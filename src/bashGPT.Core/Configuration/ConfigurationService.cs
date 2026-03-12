@@ -83,6 +83,10 @@ public class ConfigurationService
             case "ollama.seed":
                 config.Ollama.Seed = ParseInt(value, "ollama.seed");
                 break;
+            case "ollama.numctx":
+            case "ollama.num_ctx":
+                config.Ollama.NumCtx = ParsePositiveInt(value, "ollama.numCtx");
+                break;
             case "cerebras.apikey":
                 config.Cerebras.ApiKey = value;
                 break;
@@ -142,7 +146,7 @@ public class ConfigurationService
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
                     "Gültige Schlüssel: defaultProvider, commandTimeoutSeconds, execMode, forceTools, " +
                     "loopDetectionEnabled, maxToolCallRounds, " +
-                    "ollama.baseUrl, ollama.model, ollama.temperature, ollama.topP, ollama.seed, " +
+                    "ollama.baseUrl, ollama.model, ollama.temperature, ollama.topP, ollama.seed, ollama.numCtx, " +
                     "cerebras.apiKey, cerebras.model, cerebras.baseUrl, cerebras.temperature, " +
                     "cerebras.topP, cerebras.maxCompletionTokens, cerebras.seed, cerebras.reasoningEffort");
         }
@@ -167,6 +171,7 @@ public class ConfigurationService
             "ollama.temperature" => config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
             "ollama.topp" or "ollama.top_p" => config.Ollama.TopP?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)",
             "ollama.seed" => config.Ollama.Seed?.ToString() ?? "(nicht gesetzt)",
+            "ollama.numctx" or "ollama.num_ctx" => config.Ollama.NumCtx?.ToString() ?? "(nicht gesetzt)",
             "cerebras.apikey" => config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)",
             "cerebras.model" => config.Cerebras.Model,
             "cerebras.baseurl" => config.Cerebras.BaseUrl,
@@ -194,6 +199,7 @@ public class ConfigurationService
             ollama.temperature = {config.Ollama.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
             ollama.topP        = {config.Ollama.TopP?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(nicht gesetzt)"}
             ollama.seed        = {config.Ollama.Seed?.ToString() ?? "(nicht gesetzt)"}
+            ollama.numCtx      = {config.Ollama.NumCtx?.ToString() ?? "(nicht gesetzt)"}
             cerebras.apiKey  = {(config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)")}
             cerebras.model   = {config.Cerebras.Model}
             cerebras.baseUrl = {config.Cerebras.BaseUrl}
@@ -259,6 +265,10 @@ public class ConfigurationService
         if (!string.IsNullOrWhiteSpace(ollamaSeed))
             config.Ollama.Seed = ParseInt(ollamaSeed, "BASHGPT_OLLAMA_SEED");
 
+        var ollamaNumCtx = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_NUM_CTX");
+        if (!string.IsNullOrWhiteSpace(ollamaNumCtx))
+            config.Ollama.NumCtx = ParsePositiveInt(ollamaNumCtx, "BASHGPT_OLLAMA_NUM_CTX");
+
         if (int.TryParse(Environment.GetEnvironmentVariable("BASHGPT_COMMAND_TIMEOUT"), out var t) && t > 0)
             config.CommandTimeoutSeconds = t;
 
@@ -282,6 +292,7 @@ public class ConfigurationService
     {
         config.Ollama.Temperature ??= 0.2;
         config.Ollama.TopP ??= 0.9;
+        config.Ollama.NumCtx ??= 65536;
 
         config.Cerebras.Temperature ??= 0.2;
         config.Cerebras.TopP ??= 0.9;
@@ -301,6 +312,14 @@ public class ConfigurationService
     {
         if (!int.TryParse(value, out var parsed))
             throw new ArgumentException($"Ungültiger Wert für '{key}': '{value}'");
+        return parsed;
+    }
+
+    private static int ParsePositiveInt(string value, string key)
+    {
+        var parsed = ParseInt(value, key);
+        if (parsed <= 0)
+            throw new ArgumentException($"Ungültiger Wert für '{key}': '{value}'. Muss größer als 0 sein.");
         return parsed;
     }
 }

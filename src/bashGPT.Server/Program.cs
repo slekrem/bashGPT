@@ -2,6 +2,7 @@ using System.CommandLine;
 using BashGPT;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
+using BashGPT.Agents.Shell;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Server;
@@ -33,7 +34,7 @@ var toolRegistry = new ToolRegistry([
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var agentStore = AgentBootstrap.CreateAgentStore();
-await AgentBootstrap.SeedBuiltInAgentsAsync(agentStore);
+await ShellAgentBootstrap.SeedAsync(agentStore);
 await DevAgentBootstrap.SeedAsync(agentStore);
 var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentStore, toolRegistry);
 
