@@ -1,14 +1,26 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { CommandResult, TokenUsage } from '../types'
 
-// Private methods are accessed via `any` cast – a common pattern in TS unit tests.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let el: any
+type TestMessage = {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  commands?: CommandResult[]
+  usage?: TokenUsage
+}
+
+type ChatViewUnderTest = {
+  _chat: { messages: TestMessage[] }
+  _commandStats: { total: number; success: number; error: number; skipped: number }
+  _sumTokenUsage: (messages: TestMessage[]) => TokenUsage
+}
+
+let el: ChatViewUnderTest
 
 describe('ChatView – private logic', () => {
   beforeAll(async () => {
     const mod = await import('../components/chat-view')
-    el = new mod.ChatView()
+    el = new mod.ChatView() as unknown as ChatViewUnderTest
   })
 
   // ── _commandStats getter ─────────────────────────────────────────────────
@@ -33,7 +45,7 @@ describe('ChatView – private logic', () => {
   it('_sumTokenUsage sums inputTokens / outputTokens / cachedInputTokens across messages', () => {
     const usage1: TokenUsage = { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
     const usage2: TokenUsage = { inputTokens: 5,  outputTokens: 15, totalTokens: 20, cachedInputTokens: 3 }
-    const messages = [
+    const messages: TestMessage[] = [
       { id: 1, role: 'user',      content: 'a', usage: usage1 },
       { id: 2, role: 'assistant', content: 'b', usage: usage2 },
     ]

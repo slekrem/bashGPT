@@ -505,7 +505,7 @@ export class ChatView extends LitElement {
           this._streamingEntries = this._streamingEntries.map(e => {
             if (!updated && e.command === data.command && e.status === 'running') {
               updated = true
-              const explicitStatus = typeof (data as any).status === 'string' ? (data as any).status : ''
+              const explicitStatus = data.status ?? ''
               const status: ToolCallEntry['status'] =
                 explicitStatus === 'timeout' || explicitStatus === 'user_cancelled' || explicitStatus === 'success' || explicitStatus === 'error' || explicitStatus === 'skipped'
                   ? explicitStatus

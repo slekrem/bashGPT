@@ -7,10 +7,19 @@ import './agents-view'
 import './tools-view'
 import './chat-view'
 import { resetHistory } from '../api'
-import type { AppView, Session } from '../types'
+import type { AppView, Session, ShellContext } from '../types'
 import { LIVE_SESSION_ID, type SnapshotMessage } from '../session-history'
 import { SessionManager } from '../session-manager'
 import { chatAppStyles } from './chat-app.styles'
+
+interface ChatViewElement extends HTMLElement {
+  readOnly: boolean
+  beforeSend?: () => Promise<void>
+  loadSnapshot?: (messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) => void
+  scrollToBottom?: () => void
+  getSnapshot?: () => SnapshotMessage[]
+  reset: () => Promise<void>
+}
 
 @customElement('bashgpt-app')
 export class ChatApp extends LitElement {
@@ -40,7 +49,7 @@ export class ChatApp extends LitElement {
   private async _loadSessionIntoView(id: string) {
     const data = await this._sm.loadSession(id)
     if (!data) return
-    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as ChatViewElement | null
     if (!chatView) return
     chatView.readOnly = false
     if (data.isArchived) {
@@ -78,9 +87,9 @@ export class ChatApp extends LitElement {
   // ── Event handlers ────────────────────────────────────────────────────────
 
   private async _onNewChat() {
-    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as ChatViewElement | null
     if (chatView) chatView.beforeSend = undefined
-    const snapshot = (chatView?.getSnapshot?.() as SnapshotMessage[] | undefined) ?? []
+    const snapshot = chatView?.getSnapshot?.() ?? []
     const liveCtx = this._sm.localSessions.find(s => s.id === LIVE_SESSION_ID)?.shellContext
     const { sessions, activeId } = await this._sm.prepareNewChat(snapshot, this._activeSessionId, liveCtx)
     this._sessions = sessions
@@ -126,7 +135,7 @@ export class ChatApp extends LitElement {
   }
 
   private async _onClearHistory() {
-    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as any
+    const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as ChatViewElement | null
     if (chatView) { chatView.beforeSend = undefined; await chatView.reset() }
     await this._sm.clearAll()
     this._sessions = []
@@ -151,7 +160,7 @@ export class ChatApp extends LitElement {
     this._mobileMenuOpen = false
   }
 
-  private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: any }>) {
+  private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
     if (this._chatReadOnly) return
     const id = this._activeSessionId ?? LIVE_SESSION_ID
     if (!this._activeSessionId) this._activeSessionId = id
