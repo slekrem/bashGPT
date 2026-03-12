@@ -346,15 +346,6 @@ export class ChatView extends LitElement {
     }
   }
 
-  /** Öffentlich: History neu laden (nach Session-Wechsel) */
-  async reloadHistory() {
-    this._chat = { ...this._chat, messages: [] }
-    this._completedEntries = []
-    this._enabledTools = []
-    this._toolPickerOpen = false
-    await this._loadHistory(true)
-  }
-
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
   loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
@@ -386,34 +377,6 @@ export class ChatView extends LitElement {
       const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
       if (!chatEl) return
       chatEl.scrollTop = chatEl.scrollHeight
-    })
-  }
-
-  refreshFromAgent(messages: SnapshotMessage[], shellContext?: ShellContext | null) {
-    this._historyLoadSeq++
-    const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
-    const prevScrollTop = chatEl?.scrollTop ?? 0
-
-    const newMessages = messages.map((m, index) => ({
-      id: this._chat.messages[index]?.id ?? this._idCounter++,
-      role: m.role,
-      content: m.content,
-      commands: m.commands,
-      usage: m.usage,
-    }))
-    this._chat = {
-      ...this._chat,
-      messages: newMessages,
-      tokenUsage: this._sumTokenUsage(newMessages),
-      shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
-    }
-    this._completedEntries = this._entriesFromMessages(newMessages)
-
-    void this.updateComplete.then(() => {
-      const updatedChatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
-      if (!updatedChatEl) return
-      const maxScrollTop = Math.max(0, updatedChatEl.scrollHeight - updatedChatEl.clientHeight)
-      updatedChatEl.scrollTop = Math.min(prevScrollTop, maxScrollTop)
     })
   }
 

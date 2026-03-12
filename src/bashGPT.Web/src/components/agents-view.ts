@@ -143,7 +143,7 @@ export class AgentsView extends LitElement {
 
   private _startChat(agent: Agent) {
     this.dispatchEvent(new CustomEvent('agent-chat-start', {
-      detail: { agentId: agent.id, agentName: agent.name },
+      detail: { agentId: agent.id },
       bubbles: true,
       composed: true,
     }))

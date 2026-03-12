@@ -144,7 +144,7 @@ export class ChatApp extends LitElement {
     if (this._sm.useFallback) this._activeSessionId = LIVE_SESSION_ID
   }
 
-  private async _onAgentChatStart(e: CustomEvent<{ agentId: string; agentName: string }>) {
+  private async _onAgentChatStart(e: CustomEvent<{ agentId: string }>) {
     await this._onNewChat()
     this._activeAgentId = e.detail.agentId
     this._view = 'chat'
