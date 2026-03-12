@@ -13,7 +13,6 @@ import { SessionManager } from '../session-manager'
 import { chatAppStyles } from './chat-app.styles'
 
 interface ChatViewElement extends HTMLElement {
-  readOnly: boolean
   beforeSend?: () => Promise<void>
   loadSnapshot?: (messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) => void
   scrollToBottom?: () => void
@@ -28,7 +27,6 @@ export class ChatApp extends LitElement {
   @state() private _activeSessionId: string | null = null
   @state() private _pendingPrompt = ''
   @state() private _mobileMenuOpen = false
-  @state() private _chatReadOnly = false
   @state() private _activeAgentId = ''
 
   private readonly _sm = new SessionManager()
@@ -51,7 +49,6 @@ export class ChatApp extends LitElement {
     if (!data) return
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as ChatViewElement | null
     if (!chatView) return
-    chatView.readOnly = false
     if (data.isArchived) {
       const archivedId = id
       chatView.beforeSend = async () => {
@@ -76,7 +73,6 @@ export class ChatApp extends LitElement {
   }
 
   private _ensureLiveSessionActive() {
-    this._chatReadOnly = false
     if (this._sm.useFallback) {
       this._activeSessionId = LIVE_SESSION_ID
       const updated = this._sm.ensureLiveSession()
@@ -96,7 +92,6 @@ export class ChatApp extends LitElement {
     this._activeSessionId = activeId
     if (chatView) await chatView.reset()
     this._pendingPrompt = ''
-    this._chatReadOnly = false
     this._activeAgentId = ''
     this._view = 'chat'
     this._mobileMenuOpen = false
@@ -143,7 +138,6 @@ export class ChatApp extends LitElement {
   }
 
   private _onChatStarted() {
-    this._chatReadOnly = false
     const activeId = this._activeSessionId
     if (!activeId) return
     if (!this._sessions.some(s => s.id === activeId)) {
@@ -161,7 +155,6 @@ export class ChatApp extends LitElement {
   }
 
   private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
-    if (this._chatReadOnly) return
     const id = this._activeSessionId ?? LIVE_SESSION_ID
     if (!this._activeSessionId) this._activeSessionId = id
     this._sessions = await this._sm.persistMessages(id, e.detail.messages, e.detail.shellContext)
@@ -226,7 +219,6 @@ export class ChatApp extends LitElement {
             agentId=${this._activeAgentId}
             ?showTerminal=${true}
             ?active=${this._view === 'chat'}
-            ?readOnly=${this._chatReadOnly}
             @chat-started=${this._onChatStarted}
             @messages-changed=${this._onMessagesChanged}
           ></bashgpt-chat-view>

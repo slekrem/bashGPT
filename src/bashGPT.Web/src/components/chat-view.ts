@@ -24,8 +24,6 @@ export class ChatView extends LitElement {
   @property({ type: Boolean }) showTerminal = false
   /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
   @property({ type: Boolean }) active = false
-  /** Readonly-Modus für archivierte Sessions ohne Server-Kontext */
-  @property({ type: Boolean }) readOnly = false
   /** One-shot Hook: wird vor dem ersten sendChat() der Session aufgerufen */
   @property({ attribute: false }) beforeSend?: () => Promise<void>
   /** Session-ID für server-seitige Persistenz (optional) */
@@ -64,7 +62,6 @@ export class ChatView extends LitElement {
   @state() private _streamingId: number | null = null
   private _newRoundPending = false
   @state() private _streamingEntries: ToolCallEntry[] = []
-  @state() private _completedEntries: ToolCallEntry[] = []
   @state() private _panelSizes = { toolCalls: 360, info: 320 }
   @state() private _enabledTools: string[] = []
   @state() private _toolPickerOpen = false
@@ -362,10 +359,9 @@ export class ChatView extends LitElement {
       messages: newMessages,
       tokenUsage: this._sumTokenUsage(newMessages),
       shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
-      statusText: hint ?? (this.readOnly ? 'Archivierte Session (nur lesen)' : ''),
+      statusText: hint ?? '',
       statusError: false,
     }
-    this._completedEntries = this._entriesFromMessages(newMessages)
     this._enabledTools = enabledTools ?? []
     this._toolPickerOpen = false
   }
@@ -400,7 +396,6 @@ export class ChatView extends LitElement {
         statusText: 'Verlauf gelöscht',
         statusError: false,
       }
-      this._completedEntries = []
       this._enabledTools = []
       this._toolPickerOpen = false
       this._emitMessagesChanged()
@@ -433,7 +428,6 @@ export class ChatView extends LitElement {
         tokenUsage:  this._sumTokenUsage(newMessages),
         statusError: false,
       }
-      this._completedEntries = this._entriesFromMessages(newMessages)
     } catch (e) {
       this._chat = {
         ...this._chat,
@@ -568,16 +562,6 @@ export class ChatView extends LitElement {
         statusText:  finalStatusText,
         statusError: false,
       }
-      this._completedEntries = this._streamingEntries.length > 0
-        ? this._streamingEntries.map(e => ({ ...e }))
-        : finalCommands.map(cmd => ({
-            toolName: 'shell_exec',
-            command: cmd.command,
-            output: cmd.output,
-            exitCode: cmd.exitCode,
-            wasExecuted: cmd.wasExecuted,
-            status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
-          }))
       this._streamingContent = ''
       this._reasoningContent = ''
       this._streamingId = null
@@ -594,7 +578,6 @@ export class ChatView extends LitElement {
         statusText:  errText,
         statusError: true,
       }
-      this._completedEntries = this._entriesFromMessages(newMessages)
       this._streamingContent = ''
       this._reasoningContent = ''
       this._streamingId = null
@@ -639,7 +622,6 @@ export class ChatView extends LitElement {
   }
 
   private _onKeydown(e: KeyboardEvent) {
-    if (this.readOnly) return
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       this._send()
@@ -655,26 +637,7 @@ export class ChatView extends LitElement {
   }
 
   /** Aggregiert alle CommandResults aus allen Nachrichten als ToolCallEntries */
-  private get _toolCallEntries(): ToolCallEntry[] {
-    const entries: ToolCallEntry[] = []
-    for (const msg of this._chat.messages) {
-      if (msg.role !== 'assistant' || !msg.commands?.length) continue
-      for (const cmd of msg.commands) {
-        const status = this._commandStatus(cmd)
-        entries.push({
-          toolName: 'shell_exec',
-          command: cmd.command,
-          output: cmd.output,
-          exitCode: cmd.exitCode,
-          wasExecuted: cmd.wasExecuted,
-          status,
-        })
-      }
-    }
-    return entries
-  }
-
-  private _entriesFromMessages(messages: Message[]): ToolCallEntry[] {
+  private _toolCallEntries(messages: Message[]): ToolCallEntry[] {
     const entries: ToolCallEntry[] = []
     for (const msg of messages) {
       if (msg.role !== 'assistant' || !msg.commands?.length) continue
@@ -850,7 +813,7 @@ export class ChatView extends LitElement {
     const workingText = this._workingText()
     const showToolCalls = this.showTerminal && this._panels.toolCallsOpen
     const showInfo = this._panels.infoOpen
-    const stableEntries = this._toolCallEntries.length > 0 ? this._toolCallEntries : this._completedEntries
+    const stableEntries = this._toolCallEntries(this._chat.messages)
     const layoutColumns = [
       ...(showToolCalls ? [`${this._panelSizes.toolCalls}px`, `${this._handleWidth}px`] : []),
       'minmax(0, 1fr)',
@@ -952,23 +915,19 @@ export class ChatView extends LitElement {
 
         <div class="input-row">
           <textarea
-            placeholder=${this.readOnly
-              ? 'Archivierte Session (nur lesen)'
-              : 'Nachricht eingeben… (Cmd+Enter zum Senden)'}
+            placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
             aria-label="Nachricht eingeben"
             @keydown=${this._onKeydown}
-            ?disabled=${this._chat.loading || this.readOnly}
+            ?disabled=${this._chat.loading}
           ></textarea>
         </div>
         <div class="controls">
-          ${!this.readOnly ? html`
-            <button
-              class="terminal-toggle ${this._toolPickerOpen || this._enabledTools.length > 0 ? 'active' : ''}"
-              @click=${this._toggleToolPicker}
-              title="Tools für diese Session konfigurieren"
-              aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
-            >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
-          ` : ''}
+          <button
+            class="terminal-toggle ${this._toolPickerOpen || this._enabledTools.length > 0 ? 'active' : ''}"
+            @click=${this._toggleToolPicker}
+            title="Tools für diese Session konfigurieren"
+            aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
+          >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
 
           ${this.showTerminal ? html`
             <button
@@ -1009,7 +968,7 @@ export class ChatView extends LitElement {
           <button
             class="primary"
             @click=${this._send}
-            ?disabled=${this._chat.loading || this.readOnly}
+            ?disabled=${this._chat.loading}
             aria-label="Nachricht senden"
           >
             Senden
