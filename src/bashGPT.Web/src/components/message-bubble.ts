@@ -3,8 +3,35 @@ import { customElement, property } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/core'
+import bash from 'highlight.js/lib/languages/bash'
+import csharp from 'highlight.js/lib/languages/csharp'
+import diff from 'highlight.js/lib/languages/diff'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import plaintext from 'highlight.js/lib/languages/plaintext'
+import powershell from 'highlight.js/lib/languages/powershell'
+import typescript from 'highlight.js/lib/languages/typescript'
+import xml from 'highlight.js/lib/languages/xml'
 import hljsStyles from 'highlight.js/styles/github-dark.css?inline'
+
+hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('sh', bash)
+hljs.registerLanguage('shell', bash)
+hljs.registerLanguage('powershell', powershell)
+hljs.registerLanguage('ps1', powershell)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('js', javascript)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('ts', typescript)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('html', xml)
+hljs.registerLanguage('csharp', csharp)
+hljs.registerLanguage('cs', csharp)
+hljs.registerLanguage('diff', diff)
+hljs.registerLanguage('plaintext', plaintext)
+hljs.registerLanguage('text', plaintext)
 
 marked.setOptions({
   async: false,
