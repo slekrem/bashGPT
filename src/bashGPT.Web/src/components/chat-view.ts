@@ -4,7 +4,7 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './tool-calls-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools } from '../api'
+import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools, cancelChat } from '../api'
 import type { CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
@@ -70,6 +70,8 @@ export class ChatView extends LitElement {
   @state() private _enabledTools: string[] = []
   @state() private _toolPickerOpen = false
   @state() private _availableTools: ToolInfo[] = []
+  private _activeRequestId: string | null = null
+  @state() private _cancelRequested = false
   private _resizeState: {
     type: 'toolCalls' | 'info'
     startX: number
@@ -233,6 +235,13 @@ export class ChatView extends LitElement {
       padding: 7px 20px;
     }
     button.primary:hover:not(:disabled) { background: #166534; }
+    button.cancel {
+      background: #3f1d1d;
+      border-color: #7f1d1d;
+      color: #fecaca;
+      font-weight: 600;
+    }
+    button.cancel:hover:not(:disabled) { background: #5f1d1d; }
 
     button.terminal-toggle {
       padding: 7px 10px;
@@ -478,7 +487,8 @@ export class ChatView extends LitElement {
     // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
     // angelegten User-Input nachträglich überschreibt.
     this._historyLoadSeq++
-
+    this._activeRequestId = this._createRequestId()
+    this._cancelRequested = false
     // Platzhalter für die Assistant-Antwort, wird live befüllt
     const assistantId = this._idCounter++
     this._streamingId = assistantId
@@ -533,13 +543,18 @@ export class ChatView extends LitElement {
           this._streamingEntries = this._streamingEntries.map(e => {
             if (!updated && e.command === data.command && e.status === 'running') {
               updated = true
+              const explicitStatus = typeof (data as any).status === 'string' ? (data as any).status : ''
+              const status: ToolCallEntry['status'] =
+                explicitStatus === 'timeout' || explicitStatus === 'user_cancelled' || explicitStatus === 'success' || explicitStatus === 'error' || explicitStatus === 'skipped'
+                  ? explicitStatus
+                  : (!data.wasExecuted ? 'skipped' : data.exitCode === 0 ? 'success' : 'error')
               return {
                 toolName: e.toolName,
                 command: data.command,
                 output: data.output ?? '',
                 exitCode: data.exitCode,
                 wasExecuted: data.wasExecuted,
-                status: !data.wasExecuted ? 'skipped' : data.exitCode === 0 ? 'success' : 'error',
+                status,
               }
             }
             return e
@@ -550,7 +565,7 @@ export class ChatView extends LitElement {
           this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
           this._newRoundPending = true
         },
-      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined, this.agentId || undefined)
+      }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined, this.agentId || undefined, this._activeRequestId || undefined)
 
       // Finale Message mit vollständigen Daten übernehmen
       const streamedCommands: CommandResult[] = this._streamingEntries
@@ -564,34 +579,44 @@ export class ChatView extends LitElement {
       const finalCommands = (result.commands?.length ?? 0) > 0
         ? result.commands
         : streamedCommands
+      const finalResponseText = result.finalStatus === 'user_cancelled'
+        ? (this._streamingContent || result.response || 'Vom Nutzer abgebrochen.')
+        : result.response
 
       const newMessages = this._chat.messages.map(m =>
         m.id === assistantId
           ? {
               ...m,
-              content: result.response,
+              content: finalResponseText,
               usage: result.usage ?? undefined,
               commands: finalCommands,
               usedToolCalls: result.usedToolCalls || finalCommands.length > 0,
             }
           : m
       )
+      const finalStatusText = result.finalStatus === 'user_cancelled'
+        ? 'Vom Nutzer abgebrochen'
+        : result.finalStatus === 'timeout'
+          ? 'Timeout'
+          : (this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '')
       this._chat = {
         ...this._chat,
         messages:    newMessages,
         tokenUsage:  this._sumTokenUsage(newMessages),
         shellContext: result.shellContext ?? this._chat.shellContext,
-        statusText:  this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '',
+        statusText:  finalStatusText,
         statusError: false,
       }
-      this._completedEntries = finalCommands.map(cmd => ({
-        toolName: 'shell_exec',
-        command: cmd.command,
-        output: cmd.output,
-        exitCode: cmd.exitCode,
-        wasExecuted: cmd.wasExecuted,
-        status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
-      }))
+      this._completedEntries = this._streamingEntries.length > 0
+        ? this._streamingEntries.map(e => ({ ...e }))
+        : finalCommands.map(cmd => ({
+            toolName: 'shell_exec',
+            command: cmd.command,
+            output: cmd.output,
+            exitCode: cmd.exitCode,
+            wasExecuted: cmd.wasExecuted,
+            status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
+          }))
       this._streamingContent = ''
       this._reasoningContent = ''
       this._streamingId = null
@@ -615,6 +640,8 @@ export class ChatView extends LitElement {
       this._streamingEntries = []
       this._emitMessagesChanged()
     } finally {
+      this._activeRequestId = null
+      this._cancelRequested = false
       this._chat = { ...this._chat, loading: false }
     }
   }
@@ -625,6 +652,29 @@ export class ChatView extends LitElement {
     if (!prompt) return
     textarea.value = ''
     await this._sendPrompt(prompt)
+  }
+
+  private _createRequestId(): string {
+    const c = globalThis.crypto as Crypto | undefined
+    if (c && typeof c.randomUUID === 'function')
+      return c.randomUUID()
+    return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`
+  }
+
+  private async _cancelRun() {
+    if (!this._activeRequestId || this._cancelRequested) return
+    this._cancelRequested = true
+    this._chat = { ...this._chat, statusText: 'Abbruch angefordert…', statusError: false }
+
+    try {
+      await cancelChat(this._activeRequestId)
+    } catch (e) {
+      this._chat = {
+        ...this._chat,
+        statusText: `Fehler beim Abbrechen: ${e instanceof Error ? e.message : String(e)}`,
+        statusError: true,
+      }
+    }
   }
 
   private _onKeydown(e: KeyboardEvent) {
@@ -649,10 +699,7 @@ export class ChatView extends LitElement {
     for (const msg of this._chat.messages) {
       if (msg.role !== 'assistant' || !msg.commands?.length) continue
       for (const cmd of msg.commands) {
-        let status: ToolCallEntry['status']
-        if (!cmd.wasExecuted) status = 'skipped'
-        else if (cmd.exitCode === 0) status = 'success'
-        else status = 'error'
+        const status = this._commandStatus(cmd)
         entries.push({
           toolName: 'shell_exec',
           command: cmd.command,
@@ -677,11 +724,17 @@ export class ChatView extends LitElement {
           output: cmd.output,
           exitCode: cmd.exitCode,
           wasExecuted: cmd.wasExecuted,
-          status: !cmd.wasExecuted ? 'skipped' : cmd.exitCode === 0 ? 'success' : 'error',
+          status: this._commandStatus(cmd),
         })
       }
     }
     return entries
+  }
+
+  private _commandStatus(cmd: CommandResult): ToolCallEntry['status'] {
+    if (!cmd.wasExecuted) return 'skipped'
+    if ((cmd.output ?? '').toLowerCase().includes('timed out')) return 'timeout'
+    return cmd.exitCode === 0 ? 'success' : 'error'
   }
 
   private _loadPanelSizes() {
@@ -981,6 +1034,17 @@ export class ChatView extends LitElement {
             ${this._chat.statusText}
           </span>
 
+          ${this._chat.loading ? html`
+            <button
+              class="cancel"
+              @click=${this._cancelRun}
+              ?disabled=${this._cancelRequested}
+              aria-label="Laufenden Tool-Call abbrechen"
+            >
+              ${this._cancelRequested ? 'Abbrechen…' : 'Abbrechen'}
+            </button>
+          ` : ''}
+
           <button
             class="primary"
             @click=${this._send}
@@ -994,6 +1058,7 @@ export class ChatView extends LitElement {
     `
   }
 }
+
 
 
 

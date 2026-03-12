@@ -130,6 +130,8 @@ public sealed class BuildRunTool : ITool
         catch (OperationCanceledException)
         {
             timedOut = timeoutCts.IsCancellationRequested;
+            if (!timedOut && externalCt.IsCancellationRequested)
+                throw;
             exitCode = -1;
             try { process.Kill(entireProcessTree: true); } catch { /* already exited */ }
         }

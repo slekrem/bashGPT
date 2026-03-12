@@ -12,6 +12,7 @@ namespace BashGPT.Server;
 internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
     LegacyHistory legacyHistory,
+    RunningChatRegistry runningChats,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
     AgentStore? agentStore = null)
@@ -24,6 +25,13 @@ internal sealed class StreamingChatApiHandler(
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Prompt fehlt." }, statusCode: 400);
             return;
         }
+
+        var requestId = string.IsNullOrWhiteSpace(body.RequestId)
+            ? Guid.NewGuid().ToString("N")
+            : body.RequestId.Trim();
+
+        using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        runningChats.Register(requestId, requestCts);
 
         // SSE-Header setzen (kein ContentLength64 → Chunked Transfer)
         ctx.Response.StatusCode = 200;
@@ -112,7 +120,7 @@ internal sealed class StreamingChatApiHandler(
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
                 SystemPrompt: agent?.SystemPrompt);
 
-            var result = await handler.RunServerChatAsync(chatOpts, ct);
+            var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 
             var shellCtx = new SessionShellContext
             {
@@ -135,6 +143,8 @@ internal sealed class StreamingChatApiHandler(
                     @event       = "done",
                     response     = result.Response,
                     usedToolCalls = result.UsedToolCalls,
+                    finalStatus  = result.FinalStatus,
+                    requestId,
                     logs         = result.Logs,
                     commands     = result.Commands,
                     shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
@@ -191,6 +201,29 @@ internal sealed class StreamingChatApiHandler(
                     legacyHistory.Append(msg);
             }
         }
+        catch (OperationCanceledException) when (requestCts.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            try
+            {
+                var cancelledJson = JsonSerializer.Serialize(new
+                {
+                    choices = new[] { new { delta = new { content = "" } } },
+                    bashgpt = new
+                    {
+                        @event = "done",
+                        response = "Vom Nutzer abgebrochen.",
+                        usedToolCalls = false,
+                        finalStatus = "user_cancelled",
+                        requestId,
+                        logs = Array.Empty<string>(),
+                        commands = Array.Empty<object>(),
+                    },
+                }, JsonDefaults.Options);
+                ApiResponse.WriteSseEvent(stream, cancelledJson);
+                ApiResponse.WriteSseEvent(stream, "[DONE]");
+            }
+            catch { }
+        }
         catch (Exception ex)
         {
             try
@@ -205,6 +238,7 @@ internal sealed class StreamingChatApiHandler(
         }
         finally
         {
+            runningChats.Unregister(requestId);
             ctx.Response.Close();
         }
     }
@@ -256,5 +290,5 @@ internal sealed class StreamingChatApiHandler(
         return messages;
     }
 
-    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);
+    private sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null, string? RequestId = null);
 }

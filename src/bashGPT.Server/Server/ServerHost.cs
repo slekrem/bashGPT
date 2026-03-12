@@ -17,6 +17,7 @@ public class ServerHost
     private readonly SettingsApiHandler        _settingsHandler;
     private readonly ChatApiHandler            _chatHandler;
     private readonly StreamingChatApiHandler   _streamingChatHandler;
+    private readonly ChatCancelApiHandler      _chatCancelHandler;
     private readonly SessionApiHandler         _sessionHandler;
     private readonly AgentApiHandler           _agentHandler;
     private readonly ToolApiHandler            _toolHandler;
@@ -24,6 +25,7 @@ public class ServerHost
     private readonly AgentStore?               _agentStore;
     private readonly SessionStore?             _sessionStore;
     private readonly ToolRegistry?             _toolRegistry;
+    private readonly RunningChatRegistry       _runningChats;
 
     public ServerHost(
         IPromptHandler handler,
@@ -36,12 +38,14 @@ public class ServerHost
         _agentStore           = agentStore;
         _sessionStore         = sessionStore;
         _toolRegistry         = toolRegistry;
+        _runningChats         = new RunningChatRegistry();
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService, _state);
         _chatHandler          = new ChatApiHandler(handler, _legacyHistory, sessionStore, toolRegistry, agentStore);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, sessionStore, toolRegistry, agentStore);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, sessionStore, toolRegistry, agentStore);
+        _chatCancelHandler    = new ChatCancelApiHandler(_runningChats);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
         _agentHandler         = new AgentApiHandler(agentStore);
         _toolHandler          = new ToolApiHandler(toolRegistry);
@@ -154,6 +158,9 @@ public class ServerHost
 
             if (req.HttpMethod == "POST" && path == "/api/chat/stream")
             { await _streamingChatHandler.HandleAsync(ctx, options, ct); return; }
+
+            if (req.HttpMethod == "POST" && path == "/api/chat/cancel")
+            { await _chatCancelHandler.HandleAsync(ctx, ct); return; }
 
             if (req.HttpMethod == "POST" && path == "/api/chat")
             { await _chatHandler.HandleAsync(ctx, options, ct); return; }

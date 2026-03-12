@@ -15,6 +15,7 @@ export interface TokenUsage {
 export interface ChatResponse {
   response: string
   usedToolCalls: boolean
+  finalStatus?: 'completed' | 'user_cancelled' | 'timeout'
   logs: string[]
   shellContext?: ShellContext
   commands: CommandResult[]
@@ -127,5 +128,5 @@ export interface ToolCallEntry {
   output: string
   exitCode: number
   wasExecuted: boolean
-  status: 'running' | 'success' | 'error' | 'skipped'
+  status: 'running' | 'success' | 'error' | 'skipped' | 'timeout' | 'user_cancelled'
 }

@@ -206,6 +206,45 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.True(json.TryGetProperty("error", out _));
     }
 
+    [Fact]
+    public async Task Post_ChatCancel_UnknownRequest_ReturnsCancelledFalse()
+    {
+        var body = JsonSerializer.Serialize(new { requestId = "missing-request" });
+        var response = await _client.PostAsync("/api/chat/cancel", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(payload.GetProperty("ok").GetBoolean());
+        Assert.False(payload.GetProperty("cancelled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Post_ChatCancel_CancelsStreamingRequest_WithUserCancelledStatus()
+    {
+        _handler.WaitForCancellation = true;
+        var requestId = $"req-{Guid.NewGuid():N}";
+
+        var streamBody = JsonSerializer.Serialize(new { prompt = "Bitte warten", requestId });
+        var streamRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/stream")
+        {
+            Content = new StringContent(streamBody, Encoding.UTF8, "application/json"),
+        };
+
+        var streamResponseTask = _client.SendAsync(streamRequest, HttpCompletionOption.ResponseHeadersRead);
+        await Task.Delay(150);
+
+        var cancelBody = JsonSerializer.Serialize(new { requestId });
+        var cancelResponse = await _client.PostAsync("/api/chat/cancel", new StringContent(cancelBody, Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+        var cancelPayload = await cancelResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(cancelPayload.GetProperty("cancelled").GetBoolean());
+
+        var streamResponse = await streamResponseTask;
+        var ssePayload = await streamResponse.Content.ReadAsStringAsync();
+        Assert.Contains("\"finalStatus\":\"user_cancelled\"", ssePayload);
+        Assert.Contains("[DONE]", ssePayload);
+    }
+
     // ── 404 ──────────────────────────────────────────────────────────────────
 
     [Fact]

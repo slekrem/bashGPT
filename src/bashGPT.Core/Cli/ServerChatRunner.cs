@@ -8,9 +8,8 @@ using BashGPT.Tools.Execution;
 namespace BashGPT.Cli;
 
 /// <summary>
-/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstützt optionalen Tool-Call-Loop,
-/// wenn der Session Tools zugewiesen sind. Shell-Funktionalität wird über den
-/// Shell-Agenten oder über zugewiesene Session-Tools bereitgestellt.
+/// Processes chat requests in server mode. Supports an optional tool-call loop
+/// when session tools are assigned.
 /// </summary>
 public class ServerChatRunner(
     ConfigurationService configService,
@@ -30,8 +29,8 @@ public class ServerChatRunner(
         ServerChatOptions opts,
         CancellationToken ct = default)
     {
-        var logs              = new List<string>();
-        var totalInputTokens  = 0;
+        var logs = new List<string>();
+        var totalInputTokens = 0;
         var totalOutputTokens = 0;
 
         ILlmProvider provider;
@@ -50,7 +49,7 @@ public class ServerChatRunner(
             {
                 return new ServerChatResult(
                     Response: $"Konfigurationsfehler: {ex.Message}",
-                    Logs:     []);
+                    Logs: []);
             }
 
             ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
@@ -63,7 +62,7 @@ public class ServerChatRunner(
             {
                 return new ServerChatResult(
                     Response: $"Provider-Fehler: {ex.Message}",
-                    Logs:     []);
+                    Logs: []);
             }
         }
 
@@ -77,12 +76,13 @@ public class ServerChatRunner(
             messages.Add(msg);
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
-        var tools       = opts.Tools ?? [];
+        var tools = opts.Tools ?? [];
         var llmExchanges = new List<LlmExchangeRecord>();
-        var exchangeIdx  = 0;
+        var exchangeIdx = 0;
         var commandResults = new List<CommandResult>();
-        var usedToolCalls  = false;
+        var usedToolCalls = false;
         var conversationDelta = new List<ChatMessage>();
+        LlmChatResponse? lastResponse = null;
 
         async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
         {
@@ -106,104 +106,143 @@ public class ServerChatRunner(
             return result;
         }
 
-        var response = await CallOnce(opts.OnToken);
-        if (response.Error is not null)
-            return new ServerChatResult(response.Error, []);
-
-        totalInputTokens  += response.Response.Usage?.InputTokens  ?? 0;
-        totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
-
-        // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfügbar
-        if (tools.Count > 0 && toolRegistry is not null)
+        try
         {
-            for (var round = 0; round < MaxToolRounds; round++)
+            var response = await CallOnce(opts.OnToken);
+            if (response.Error is not null)
+                return new ServerChatResult(response.Error, []);
+
+            lastResponse = response.Response;
+            totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
+            totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
+
+            // Tool-call loop: only with tools and a registry.
+            if (tools.Count > 0 && toolRegistry is not null)
             {
-                if (response.Response.ToolCalls.Count == 0) break;
-                usedToolCalls = true;
-
-                opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
-                var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content);
-                messages.Add(assistantToolCallMessage);
-                conversationDelta.Add(assistantToolCallMessage);
-
-                foreach (var call in response.Response.ToolCalls)
+                for (var round = 0; round < MaxToolRounds; round++)
                 {
-                    var commandLabel = TryExtractCommand(call.ArgumentsJson, out var parsedCommand)
-                        ? parsedCommand
-                        : call.Name;
-                    opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
+                    ct.ThrowIfCancellationRequested();
+                    if (response.Response.ToolCalls.Count == 0) break;
+                    usedToolCalls = true;
 
-                    CommandResult commandResult;
-                    string toolResult;
-                    if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
+                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round = round + 1 }));
+                    var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(response.Response.ToolCalls, response.Response.Content);
+                    messages.Add(assistantToolCallMessage);
+                    conversationDelta.Add(assistantToolCallMessage);
+
+                    foreach (var call in response.Response.ToolCalls)
                     {
-                        try
+                        ct.ThrowIfCancellationRequested();
+
+                        var commandLabel = TryExtractCommand(call.ArgumentsJson, out var parsedCommand)
+                            ? parsedCommand
+                            : call.Name;
+                        opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
+
+                        CommandResult commandResult;
+                        string toolResult;
+                        if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
                         {
-                            var r = await iTool.ExecuteAsync(
-                                new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
-                            toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
-                            commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+                            try
+                            {
+                                var r = await iTool.ExecuteAsync(
+                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
+                                toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
+                                commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+                            }
+                            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                            {
+                                throw;
+                            }
+                            catch (Exception ex)
+                            {
+                                toolResult = $"Fehler: {ex.Message}";
+                                commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
+                            }
                         }
-                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        else
                         {
-                            toolResult = $"Fehler: {ex.Message}";
+                            toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
                             commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
                         }
-                    }
-                    else
-                    {
-                        toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
-                        commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
+
+                        commandResults.Add(commandResult);
+                        opts.OnEvent?.Invoke(new SseEvent("command_result", new
+                        {
+                            command = commandResult.Command,
+                            output = commandResult.Output,
+                            exitCode = commandResult.ExitCode,
+                            wasExecuted = commandResult.WasExecuted,
+                            status = ClassifyCommandStatus(commandResult),
+                        }));
+                        var toolMessage = ChatMessage.ToolResult(toolResult, call.Id, call.Name);
+                        messages.Add(toolMessage);
+                        conversationDelta.Add(toolMessage);
                     }
 
-                    commandResults.Add(commandResult);
-                    opts.OnEvent?.Invoke(new SseEvent("command_result", new
-                    {
-                        command     = commandResult.Command,
-                        output      = commandResult.Output,
-                        exitCode    = commandResult.ExitCode,
-                        wasExecuted = commandResult.WasExecuted,
-                    }));
-                    var toolMessage = ChatMessage.ToolResult(toolResult, call.Id, call.Name);
-                    messages.Add(toolMessage);
-                    conversationDelta.Add(toolMessage);
+                    response = await CallOnce();
+                    if (response.Error is not null) break;
+                    lastResponse = response.Response;
+                    totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
+                    totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
                 }
-
-                response = await CallOnce();
-                if (response.Error is not null) break;
-                totalInputTokens  += response.Response.Usage?.InputTokens  ?? 0;
-                totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
             }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            var cancelledText = "Vom Nutzer abgebrochen.";
+            var cancelledAssistant = new ChatMessage(ChatRole.Assistant, cancelledText);
+            conversationDelta.Add(cancelledAssistant);
+
+            TokenUsage? cancelledUsage = totalInputTokens > 0 || totalOutputTokens > 0
+                ? new TokenUsage(totalInputTokens, totalOutputTokens)
+                : null;
+
+            return new ServerChatResult(
+                Response: cancelledText,
+                Logs: logs,
+                Usage: cancelledUsage,
+                LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+                Commands: commandResults.Count > 0 ? commandResults : null,
+                UsedToolCalls: usedToolCalls,
+                ConversationDelta: conversationDelta,
+                FinalStatus: "user_cancelled");
         }
 
         TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
             ? new TokenUsage(totalInputTokens, totalOutputTokens)
             : null;
 
-        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, response.Response.Content);
+        var finalResponse = lastResponse?.Content ?? string.Empty;
+        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, finalResponse);
         conversationDelta.Add(finalAssistantMessage);
 
+        var finalStatus = commandResults.Any(r => string.Equals(ClassifyCommandStatus(r), "timeout", StringComparison.Ordinal))
+            ? "timeout"
+            : "completed";
+
         return new ServerChatResult(
-            Response:     response.Response.Content,
-            Logs:         logs,
-            Usage:        BuildUsage(),
+            Response: finalResponse,
+            Logs: logs,
+            Usage: BuildUsage(),
             LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
-            Commands:     commandResults.Count > 0 ? commandResults : null,
+            Commands: commandResults.Count > 0 ? commandResults : null,
             UsedToolCalls: usedToolCalls,
-            ConversationDelta: conversationDelta);
+            ConversationDelta: conversationDelta,
+            FinalStatus: finalStatus);
     }
 
     private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)
     {
         if (!config.RateLimiting.Enabled) return null;
-        var rpm   = config.RateLimiting.MaxRequestsPerMinute;
+        var rpm = config.RateLimiting.MaxRequestsPerMinute;
         var delay = config.RateLimiting.AgentRequestDelayMs;
         lock (_limiterLock)
         {
             if (_sharedLimiter is null || _limiterMaxRpm != rpm || _limiterMinIntervalMs != delay)
             {
-                _sharedLimiter        = new LlmRateLimiter(rpm, delay);
-                _limiterMaxRpm        = rpm;
+                _sharedLimiter = new LlmRateLimiter(rpm, delay);
+                _limiterMaxRpm = rpm;
                 _limiterMinIntervalMs = delay;
             }
             return _sharedLimiter;
@@ -264,5 +303,19 @@ public class ServerChatRunner(
         {
             return false;
         }
+    }
+
+    private static string ClassifyCommandStatus(CommandResult result)
+    {
+        if (!result.WasExecuted) return "skipped";
+
+        var output = result.Output ?? string.Empty;
+        if (output.Contains("\"timedOut\":true", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            return "timeout";
+        }
+
+        return result.ExitCode == 0 ? "success" : "error";
     }
 }

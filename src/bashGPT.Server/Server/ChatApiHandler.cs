@@ -143,6 +143,7 @@ internal sealed class ChatApiHandler(
         {
             response     = result.Response,
             usedToolCalls = result.UsedToolCalls,
+            finalStatus  = result.FinalStatus,
             logs         = result.Logs,
             commands     = result.Commands,
             shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
