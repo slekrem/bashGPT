@@ -92,6 +92,8 @@ export class ToolCallsPanel extends LitElement {
     .badge-success  { background: #14532d; color: #86efac; }
     .badge-error    { background: #7f1d1d; color: #fca5a5; }
     .badge-skipped  { background: #1e293b; color: #64748b; }
+    .badge-timeout  { background: #78350f; color: #fcd34d; }
+    .badge-user-cancelled { background: #4c1d95; color: #ddd6fe; }
 
     .entry-body {
       display: flex;
@@ -134,19 +136,28 @@ export class ToolCallsPanel extends LitElement {
   }
 
   private _badgeClass(s: ToolCallEntry['status']) {
-    return { running: 'badge-running', success: 'badge-success', error: 'badge-error', skipped: 'badge-skipped' }[s]
+    return {
+      running: 'badge-running',
+      success: 'badge-success',
+      error: 'badge-error',
+      skipped: 'badge-skipped',
+      timeout: 'badge-timeout',
+      user_cancelled: 'badge-user-cancelled',
+    }[s]
   }
 
   private _badgeLabel(e: ToolCallEntry) {
     if (e.status === 'running') return 'running'
     if (e.status === 'skipped') return 'skipped'
+    if (e.status === 'timeout') return 'timeout'
+    if (e.status === 'user_cancelled') return 'abgebrochen'
     if (e.status === 'success') return 'ok'
     return `exit ${e.exitCode}`
   }
 
   private _outputClass(e: ToolCallEntry) {
     if (e.status === 'skipped') return 'skipped'
-    if (e.status === 'error')   return 'error'
+    if (e.status === 'error' || e.status === 'timeout' || e.status === 'user_cancelled') return 'error'
     return ''
   }
 

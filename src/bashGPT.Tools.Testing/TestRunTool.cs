@@ -131,6 +131,8 @@ public sealed class TestRunTool : ITool
         catch (OperationCanceledException)
         {
             timedOut = timeoutCts.IsCancellationRequested;
+            if (!timedOut && externalCt.IsCancellationRequested)
+                throw;
             try { process.Kill(entireProcessTree: true); } catch { /* already exited */ }
         }
 

@@ -58,6 +58,10 @@ public sealed class ShellExecTool : ITool
         {
             output = await RunAsync(input, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             return new ToolResult(Success: false, Content: $"Execution failed: {ex.Message}");

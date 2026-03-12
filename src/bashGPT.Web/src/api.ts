@@ -30,7 +30,8 @@ export async function streamChat(
   handlers: StreamHandlers,
   sessionId?: string,
   enabledTools?: string[],
-  agentId?: string
+  agentId?: string,
+  requestId?: string
 ): Promise<ChatResponse> {
   const res = await fetch('/api/chat/stream', {
     method: 'POST',
@@ -40,6 +41,7 @@ export async function streamChat(
       ...(sessionId ? { sessionId } : {}),
       ...(enabledTools?.length ? { enabledTools } : {}),
       ...(agentId ? { agentId } : {}),
+      ...(requestId ? { requestId } : {}),
     }),
   })
 
@@ -88,6 +90,7 @@ export async function streamChat(
           chatResponse = {
             response:      bg.response,
             usedToolCalls: bg.usedToolCalls,
+            finalStatus:   bg.finalStatus,
             logs:          bg.logs ?? [],
             shellContext:  bg.shellContext,
             commands:      bg.commands ?? [],
@@ -106,6 +109,17 @@ export async function streamChat(
     throw new Error('Keine Antwort vom Server erhalten.')
 
   return chatResponse
+}
+
+export async function cancelChat(requestId: string): Promise<boolean> {
+  const res = await fetch('/api/chat/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId }),
+  })
+  await assertOk(res)
+  const data = await res.json()
+  return data?.cancelled === true
 }
 
 export async function loadHistory(): Promise<HistoryMessage[]> {

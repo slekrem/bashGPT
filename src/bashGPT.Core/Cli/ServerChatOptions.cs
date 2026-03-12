@@ -31,7 +31,8 @@ public record ServerChatResult(
     IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
     IReadOnlyList<CommandResult>? Commands = null,
     bool UsedToolCalls = false,
-    IReadOnlyList<ChatMessage>? ConversationDelta = null
+    IReadOnlyList<ChatMessage>? ConversationDelta = null,
+    string FinalStatus = "completed"
 );
 
 public record SseEvent(string Event, object? Data = null);

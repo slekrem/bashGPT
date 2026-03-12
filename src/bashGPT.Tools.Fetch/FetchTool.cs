@@ -63,6 +63,10 @@ public sealed class FetchTool : ITool
         {
             output = await RunAsync(input, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             return new ToolResult(Success: false, Content: $"Request failed: {ex.Message}");
@@ -165,6 +169,8 @@ public sealed class FetchTool : ITool
         catch (OperationCanceledException)
         {
             timedOut = timeoutCts.IsCancellationRequested;
+            if (!timedOut && externalCt.IsCancellationRequested)
+                throw;
             sw.Stop();
             return new FetchOutput(StatusCode: 0, Headers: [], Body: string.Empty, RawBody: null, BodyTruncated: false, DurationMs: sw.ElapsedMilliseconds, TimedOut: timedOut);
         }
