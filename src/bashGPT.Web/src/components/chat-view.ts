@@ -341,6 +341,10 @@ export class ChatView extends LitElement {
     if (changed.has('active') && this.active && this._chat.messages.length === 0) {
       this._loadHistory()
     }
+    // Agenten-Daten neu laden, wenn sich der Agent ändert und das Panel offen ist
+    if (changed.has('agentId') && this._panels.infoOpen) {
+      void this._ensureInfoData(true)
+    }
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
@@ -756,7 +760,7 @@ export class ChatView extends LitElement {
   private async _toggleInfo() {
     const newOpen = !this._panels.infoOpen
     this._panels = { ...this._panels, infoOpen: newOpen }
-    if (newOpen) await this._ensureInfoData()
+    if (newOpen) await this._ensureInfoData(true)
   }
 
   private async _toggleToolPicker() {

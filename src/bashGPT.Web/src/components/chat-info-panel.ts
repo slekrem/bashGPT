@@ -161,7 +161,7 @@ export class ChatInfoPanel extends LitElement {
                     item => html`
                       <div class="row">
                         <span class="label">${item.label}</span>
-                        <span class="value ${item.tone ?? 'default'} ${hasPathShape(item.value) ? 'path' : ''}">${item.value}</span>
+                        <span class="value ${item.tone ?? ''} ${hasPathShape(item.value) ? 'path' : ''}">${item.value}</span>
                       </div>
                     `,
                   )}
