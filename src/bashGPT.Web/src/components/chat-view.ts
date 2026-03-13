@@ -4,8 +4,9 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './tool-calls-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools, cancelChat } from '../api'
-import type { CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
+import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools, cancelChat, getAgents } from '../api'
+import { buildInfoPanelSections } from '../info-panel'
+import type { Agent, CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -48,6 +49,8 @@ export class ChatView extends LitElement {
   @state() private _ctx = {
     data:     null as FullShellContext | null,
     settings: null as Settings | null,
+    agents:   [] as Agent[],
+    tools:    [] as ToolInfo[],
     loaded:   false,
     loading:  false,
   }
@@ -753,21 +756,30 @@ export class ChatView extends LitElement {
   private async _toggleInfo() {
     const newOpen = !this._panels.infoOpen
     this._panels = { ...this._panels, infoOpen: newOpen }
-    if (newOpen && !this._ctx.loaded) {
-      this._ctx = { ...this._ctx, loaded: true, loading: true }
-      try {
-        const [data, settings] = await Promise.all([getContext(), getSettings()])
-        this._ctx = { ...this._ctx, data, settings }
-      } finally {
-        this._ctx = { ...this._ctx, loading: false }
-      }
-    }
+    if (newOpen) await this._ensureInfoData()
   }
 
   private async _toggleToolPicker() {
     this._toolPickerOpen = !this._toolPickerOpen
     if (this._toolPickerOpen && this._availableTools.length === 0)
       this._availableTools = await getTools()
+  }
+
+  private async _ensureInfoData(force = false) {
+    if (!force && this._ctx.loaded) return
+
+    this._ctx = { ...this._ctx, loaded: true, loading: true }
+    try {
+      const [data, settings, agents, tools] = await Promise.all([
+        getContext(),
+        getSettings(),
+        getAgents(),
+        getTools(),
+      ])
+      this._ctx = { ...this._ctx, data, settings, agents, tools }
+    } finally {
+      this._ctx = { ...this._ctx, loading: false }
+    }
   }
 
   private _toggleTool(name: string) {
@@ -799,6 +811,23 @@ export class ChatView extends LitElement {
         else error++
       }
     return { total, success, error, skipped }
+  }
+
+  private get _infoSections() {
+    const activeAgent = this.agentId
+      ? this._ctx.agents.find(agent => agent.id === this.agentId) ?? null
+      : null
+    const enabledTools = this._ctx.tools.filter(tool => this._enabledTools.includes(tool.name))
+
+    return buildInfoPanelSections({
+      context: this._ctx.data,
+      settings: this._ctx.settings,
+      messageCount: this._chat.messages.length,
+      commandStats: this._commandStats,
+      tokenUsage: this._chat.tokenUsage,
+      activeAgent,
+      enabledTools,
+    })
   }
 
   private _workingText() {
@@ -881,11 +910,7 @@ export class ChatView extends LitElement {
             @keydown=${(ev: KeyboardEvent) => this._resizeByKeyboard('info', ev)}
           ></div>
           <bashgpt-chat-info-panel
-            .context=${this._ctx.data}
-            .settings=${this._ctx.settings}
-            messageCount=${this._chat.messages.length}
-            .commandStats=${this._commandStats}
-            .tokenUsage=${this._chat.tokenUsage}
+            .sections=${this._infoSections}
             ?loading=${this._ctx.loading}
           ></bashgpt-chat-info-panel>
         ` : ''}

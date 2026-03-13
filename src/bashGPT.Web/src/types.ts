@@ -117,6 +117,20 @@ export interface ToolInfo {
   }>
 }
 
+export interface InfoPanelItem {
+  label: string
+  value: string
+  tone?: 'default' | 'muted' | 'accent' | 'success' | 'error'
+  source?: string
+}
+
+export interface InfoPanelSection {
+  id: string
+  title: string
+  source?: string
+  items: InfoPanelItem[]
+}
+
 export type AppView = 'dashboard' | 'chat' | 'settings' | 'agents' | 'tools'
 
 export interface ToolCallEntry {
