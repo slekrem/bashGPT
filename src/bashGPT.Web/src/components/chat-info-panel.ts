@@ -1,11 +1,11 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
-import { repeat } from 'lit/directives/repeat.js'
-import type { InfoPanelSection } from '../types'
+import { unsafeHTML } from 'lit/directives/unsafe-html.js'
+import { marked } from 'marked'
 
 @customElement('bashgpt-chat-info-panel')
 export class ChatInfoPanel extends LitElement {
-  @property({ type: Array }) sections: InfoPanelSection[] = []
+  @property({ type: String }) markdown = ''
   @property({ type: Boolean }) loading = false
 
   static styles = css`
@@ -44,12 +44,12 @@ export class ChatInfoPanel extends LitElement {
     .content {
       flex: 1;
       overflow-y: auto;
-      padding: 12px 0 16px;
+      padding: 16px;
     }
 
     .loading-state,
     .empty-state {
-      padding: 20px 16px;
+      padding: 20px 0;
       color: #334155;
       font-size: 12px;
       font-style: italic;
@@ -67,113 +67,100 @@ export class ChatInfoPanel extends LitElement {
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .section {
-      padding: 10px 14px;
-      border-bottom: 1px solid #0f172a;
+    /* Markdown-Rendering */
+    .md h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1e293b;
     }
-    .section:last-child { border-bottom: none; }
-
-    .section-title {
-      font-size: 10px;
+    .md h2 {
+      font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #334155;
-      margin-bottom: 8px;
-    }
-
-    .row {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 4px;
-      line-height: 1.5;
-    }
-    .row:last-child { margin-bottom: 0; }
-
-    .label {
       color: #475569;
-      flex-shrink: 0;
-      min-width: 76px;
+      margin: 16px 0 6px;
     }
-
-    .value {
+    .md p {
       color: #94a3b8;
-      word-break: break-word;
+      line-height: 1.6;
+      margin: 0 0 8px;
     }
-    .value.path {
-      color: #cbd5e1;
-      font-size: 11px;
-      word-break: break-all;
+    .md ul {
+      margin: 0 0 8px;
+      padding-left: 16px;
     }
-    .value.muted { color: #64748b; }
-    .value.accent { color: #7dd3fc; }
-    .value.success { color: #86efac; }
-    .value.error { color: #fca5a5; }
-
-    .source {
-      margin-top: 8px;
+    .md li {
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 2px;
+    }
+    .md code {
+      color: #7dd3fc;
+      background: #0f172a;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .md table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    .md th {
       font-size: 10px;
-      color: #334155;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      color: #334155;
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid #1e293b;
     }
+    .md td {
+      color: #94a3b8;
+      padding: 4px 6px;
+      border-bottom: 1px solid #0f172a;
+      vertical-align: top;
+    }
+    .md td code {
+      font-size: 11px;
+    }
+    .md tr:last-child td { border-bottom: none; }
   `
 
   render() {
-    if (this.loading) {
-      return html`
-        <div class="panel-header">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <div class="panel-title">Info</div>
-        </div>
-        <div class="content">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            Lade Informationen…
-          </div>
-        </div>
-      `
-    }
-
-    return html`
+    const header = html`
       <div class="panel-header">
         <div class="dot dot-red"></div>
         <div class="dot dot-yellow"></div>
         <div class="dot dot-green"></div>
         <div class="panel-title">Info</div>
       </div>
-
-      <div class="content">
-        ${this.sections.length === 0
-          ? html`<div class="empty-state">Keine Informationen verfügbar.</div>`
-          : repeat(
-              this.sections,
-              section => section.id,
-              section => html`
-                <div class="section">
-                  <div class="section-title">${section.title}</div>
-                  ${repeat(
-                    section.items,
-                    item => `${section.id}:${item.label}`,
-                    item => html`
-                      <div class="row">
-                        <span class="label">${item.label}</span>
-                        <span class="value ${item.tone ?? ''} ${hasPathShape(item.value) ? 'path' : ''}">${item.value}</span>
-                      </div>
-                    `,
-                  )}
-                  ${section.source ? html`<div class="source">${section.source}</div>` : ''}
-                </div>
-              `,
-            )}
-      </div>
     `
-  }
-}
 
-function hasPathShape(value: string): boolean {
-  return value.includes('\\') || value.includes('/')
+    if (this.loading) {
+      return html`${header}
+        <div class="content">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            Lade Informationen…
+          </div>
+        </div>`
+    }
+
+    if (!this.markdown) {
+      return html`${header}
+        <div class="content">
+          <div class="empty-state">Keine Informationen verfügbar.</div>
+        </div>`
+    }
+
+    return html`${header}
+      <div class="content">
+        <div class="md">${unsafeHTML(marked.parse(this.markdown) as string)}</div>
+      </div>`
+  }
 }

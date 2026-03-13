@@ -14,7 +14,7 @@ internal sealed class ChatApiHandler(
     LegacyHistory legacyHistory,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
-    AgentStore? agentStore = null)
+    AgentRegistry? agentRegistry = null)
 {
     public async Task HandleAsync(HttpListenerContext ctx, ServerOptions options, CancellationToken ct)
     {
@@ -26,9 +26,9 @@ internal sealed class ChatApiHandler(
         }
 
         // Agent laden (optional)
-        AgentRecord? agent = null;
-        if (agentStore is not null && !string.IsNullOrWhiteSpace(body.AgentId))
-            agent = await agentStore.LoadAsync(body.AgentId);
+        AgentBase? agent = null;
+        if (agentRegistry is not null && !string.IsNullOrWhiteSpace(body.AgentId))
+            agent = agentRegistry.Find(body.AgentId);
 
         // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
         SessionRecord? session = null;
@@ -54,8 +54,8 @@ internal sealed class ChatApiHandler(
         }
 
         // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
-        var effectiveToolNames = agent?.EnabledTools?.Count > 0
-            ? agent.EnabledTools
+        var effectiveToolNames = agent?.EnabledTools.Count > 0
+            ? agent.EnabledTools.ToList()
             : session?.EnabledTools?.Count > 0
                 ? session.EnabledTools
                 : body.EnabledTools?.ToList();

@@ -4,9 +4,8 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './tool-calls-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools, cancelChat, getAgents } from '../api'
-import { buildInfoPanelSections } from '../info-panel'
-import type { Agent, CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
+import { streamChat, loadHistory, resetHistory, getTools, cancelChat, getAgentInfoPanel } from '../api'
+import type { CommandResult, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -46,12 +45,8 @@ export class ChatView extends LitElement {
     infoOpen:      false,
   }
 
-  @state() private _ctx = {
-    data:     null as FullShellContext | null,
-    settings: null as Settings | null,
-    agents:   [] as Agent[],
-    tools:    [] as ToolInfo[],
-    loaded:   false,
+  @state() private _infoPanel = {
+    markdown: '',
     loading:  false,
   }
 
@@ -343,7 +338,7 @@ export class ChatView extends LitElement {
     }
     // Agenten-Daten neu laden, wenn sich der Agent ändert und das Panel offen ist
     if (changed.has('agentId') && this._panels.infoOpen) {
-      void this._ensureInfoData(true)
+      void this._loadInfoPanel()
     }
   }
 
@@ -760,7 +755,7 @@ export class ChatView extends LitElement {
   private async _toggleInfo() {
     const newOpen = !this._panels.infoOpen
     this._panels = { ...this._panels, infoOpen: newOpen }
-    if (newOpen) await this._ensureInfoData(true)
+    if (newOpen) await this._loadInfoPanel()
   }
 
   private async _toggleToolPicker() {
@@ -769,20 +764,18 @@ export class ChatView extends LitElement {
       this._availableTools = await getTools()
   }
 
-  private async _ensureInfoData(force = false) {
-    if (!force && this._ctx.loaded) return
+  private async _loadInfoPanel() {
+    if (!this.agentId) {
+      this._infoPanel = { markdown: '', loading: false }
+      return
+    }
 
-    this._ctx = { ...this._ctx, loaded: true, loading: true }
+    this._infoPanel = { markdown: '', loading: true }
     try {
-      const [data, settings, agents, tools] = await Promise.all([
-        getContext(),
-        getSettings(),
-        getAgents(),
-        getTools(),
-      ])
-      this._ctx = { ...this._ctx, data, settings, agents, tools }
-    } finally {
-      this._ctx = { ...this._ctx, loading: false }
+      const markdown = await getAgentInfoPanel(this.agentId)
+      this._infoPanel = { markdown, loading: false }
+    } catch {
+      this._infoPanel = { markdown: '', loading: false }
     }
   }
 
@@ -805,34 +798,6 @@ export class ChatView extends LitElement {
     return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens }
   }
 
-  private get _commandStats() {
-    let total = 0, success = 0, error = 0, skipped = 0
-    for (const m of this._chat.messages)
-      for (const c of m.commands ?? []) {
-        total++
-        if (!c.wasExecuted) skipped++
-        else if (c.exitCode === 0) success++
-        else error++
-      }
-    return { total, success, error, skipped }
-  }
-
-  private get _infoSections() {
-    const activeAgent = this.agentId
-      ? this._ctx.agents.find(agent => agent.id === this.agentId) ?? null
-      : null
-    const enabledTools = this._ctx.tools.filter(tool => this._enabledTools.includes(tool.name))
-
-    return buildInfoPanelSections({
-      context: this._ctx.data,
-      settings: this._ctx.settings,
-      messageCount: this._chat.messages.length,
-      commandStats: this._commandStats,
-      tokenUsage: this._chat.tokenUsage,
-      activeAgent,
-      enabledTools,
-    })
-  }
 
   private _workingText() {
     if (!this._chat.loading) return ''
@@ -914,8 +879,8 @@ export class ChatView extends LitElement {
             @keydown=${(ev: KeyboardEvent) => this._resizeByKeyboard('info', ev)}
           ></div>
           <bashgpt-chat-info-panel
-            .sections=${this._infoSections}
-            ?loading=${this._ctx.loading}
+            .markdown=${this._infoPanel.markdown}
+            ?loading=${this._infoPanel.loading}
           ></bashgpt-chat-info-panel>
         ` : ''}
       </div>
