@@ -8,7 +8,6 @@ export class Sidebar extends LitElement {
   @property() view: AppView = 'dashboard'
   @property({ type: Array }) sessions: Session[] = []
   @property() activeSessionId: string | null = null
-  @property({ type: Boolean }) loading = false
 
   static styles = css`
     :host {
@@ -146,7 +145,6 @@ export class Sidebar extends LitElement {
     return html`
       <button
         class="new-chat-btn"
-        ?disabled=${this.loading}
         @click=${() => this._dispatch('new-chat')}
       >
         + Neuer Chat

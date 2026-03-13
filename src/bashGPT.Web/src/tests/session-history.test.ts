@@ -6,22 +6,10 @@ import {
   writeLocalSessions,
   type LocalSession,
 } from '../session-history'
+import { makeLocalStorageMock, type LocalStorageMock } from './local-storage-mock'
 
-// happy-dom v20 does not expose a full Storage API for localStorage;
-// we provide a minimal mock so that getItem / setItem / removeItem work.
 const STORAGE_KEY = 'bashgpt_sessions_v2'
-
-function makeLocalStorageMock() {
-  const store: Record<string, string> = {}
-  return {
-    getItem:    vi.fn((key: string) => store[key] ?? null),
-    setItem:    vi.fn((key: string, value: string) => { store[key] = value }),
-    removeItem: vi.fn((key: string) => { delete store[key] }),
-    _store: store,
-  }
-}
-
-let lsMock: ReturnType<typeof makeLocalStorageMock>
+let lsMock: LocalStorageMock
 
 beforeEach(() => {
   lsMock = makeLocalStorageMock()

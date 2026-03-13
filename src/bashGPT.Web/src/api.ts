@@ -1,4 +1,5 @@
-import type { Agent, ChatResponse, CommandResult, FullShellContext, HistoryMessage, Session, Settings, ToolInfo } from './types'
+import type { Agent, ChatResponse, CommandResult, FullShellContext, HistoryMessage, Session, Settings, ShellContext, ToolInfo } from './types'
+import type { SnapshotMessage } from './session-history'
 
 async function readErrorMessage(res: Response): Promise<string> {
   try {
@@ -17,12 +18,49 @@ async function assertOk(res: Response): Promise<void> {
   throw new Error(await readErrorMessage(res))
 }
 
-export type StreamHandlers = {
+type StreamHandlers = {
   onToken?: (token: string) => void
   onReasoningToken?: (token: string) => void
   onToolCall?: (data: { name: string; command: string }) => void
-  onCommandResult?: (data: CommandResult) => void
+  onCommandResult?: (data: CommandResult & { status?: 'success' | 'error' | 'skipped' | 'timeout' | 'user_cancelled' }) => void
   onRoundStart?: (data: { round: number }) => void
+}
+
+interface SessionPayload {
+  messages: SnapshotMessage[]
+  shellContext?: ShellContext | null
+  enabledTools?: string[]
+}
+
+interface PutSessionPayload {
+  title?: string
+  messages: SnapshotMessage[]
+  shellContext?: ShellContext | null
+  createdAt?: string
+}
+
+interface StreamPayload {
+  choices?: Array<{
+    delta?: {
+      content?: string
+      reasoning?: string
+      bashgpt?: {
+        event?: string
+        data?: unknown
+      }
+    }
+  }>
+  usage?: {
+    promptTokens?: number
+    completionTokens?: number
+  }
+  bashgpt?: {
+    event?: string
+    response: string
+    finalStatus?: ChatResponse['finalStatus']
+    shellContext?: ShellContext
+    commands?: CommandResult[]
+  }
 }
 
 export async function streamChat(
@@ -67,7 +105,7 @@ export async function streamChat(
         const payload = line.slice(6).trim()
         if (payload === '[DONE]') continue
 
-        let parsed: any
+        let parsed: StreamPayload
         try { parsed = JSON.parse(payload) } catch { continue }
 
         const delta = parsed?.choices?.[0]?.delta
@@ -75,10 +113,15 @@ export async function streamChat(
 
         if (delta.bashgpt) {
           const { event, data } = delta.bashgpt
-          if (event === 'tool_call') handlers.onToolCall?.(data)
-          else if (event === 'command_result') handlers.onCommandResult?.(data)
-          else if (event === 'round_start') handlers.onRoundStart?.(data)
-          else if (event === 'error') throw new Error(data?.message ?? 'Serverfehler')
+          if (event === 'tool_call') handlers.onToolCall?.(data as { name: string; command: string })
+          else if (event === 'command_result') handlers.onCommandResult?.(data as CommandResult & { status?: 'success' | 'error' | 'skipped' | 'timeout' | 'user_cancelled' })
+          else if (event === 'round_start') handlers.onRoundStart?.(data as { round: number })
+          else if (event === 'error') {
+            const message = typeof data === 'object' && data !== null && 'message' in data && typeof data.message === 'string'
+              ? data.message
+              : 'Serverfehler'
+            throw new Error(message)
+          }
         } else if (delta.reasoning) {
           handlers.onReasoningToken?.(delta.reasoning)
         } else if (delta.content) {
@@ -87,16 +130,15 @@ export async function streamChat(
 
         if (parsed?.bashgpt?.event === 'done') {
           const bg = parsed.bashgpt
+          const usage = typeof parsed.usage?.promptTokens === 'number' && typeof parsed.usage?.completionTokens === 'number'
+            ? { inputTokens: parsed.usage.promptTokens, outputTokens: parsed.usage.completionTokens }
+            : undefined
           chatResponse = {
-            response:      bg.response,
-            usedToolCalls: bg.usedToolCalls,
-            finalStatus:   bg.finalStatus,
-            logs:          bg.logs ?? [],
-            shellContext:  bg.shellContext,
-            commands:      bg.commands ?? [],
-            usage:         parsed.usage
-              ? { inputTokens: parsed.usage.promptTokens, outputTokens: parsed.usage.completionTokens }
-              : undefined,
+            response:     bg.response,
+            finalStatus:  bg.finalStatus,
+            shellContext: bg.shellContext,
+            commands:     bg.commands ?? [],
+            usage,
           }
         }
       }
@@ -155,11 +197,11 @@ export async function createSession(): Promise<Session | null> {
   } catch { return null }
 }
 
-export async function getSession(id: string): Promise<{ messages: any[]; shellContext?: any; enabledTools?: string[] } | null> {
+export async function getSession(id: string): Promise<SessionPayload | null> {
   try {
     const res = await fetch(`/api/sessions/${id}`)
     if (!res.ok) return null
-    return res.json()
+    return res.json() as Promise<SessionPayload>
   } catch {
     return null
   }
@@ -167,7 +209,7 @@ export async function getSession(id: string): Promise<{ messages: any[]; shellCo
 
 export async function putSession(
   id: string,
-  data: { title?: string; messages: any[]; shellContext?: any; createdAt?: string }
+  data: PutSessionPayload
 ): Promise<void> {
   try {
     await fetch(`/api/sessions/${id}`, {

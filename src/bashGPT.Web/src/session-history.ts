@@ -14,7 +14,6 @@ export interface SnapshotMessage {
 export interface LocalSession extends Session {
   messages: SnapshotMessage[]
   shellContext?: ShellContext
-  isLive?: boolean
 }
 
 export function historyToSnapshot(history: HistoryMessage[]): SnapshotMessage[] {
@@ -35,7 +34,6 @@ export function createLiveSession(messages: SnapshotMessage[]): LocalSession {
     createdAt: now,
     updatedAt: now,
     messages,
-    isLive: true,
   }
 }
 
@@ -80,7 +78,6 @@ export function upsertSession(
       title: titleFromMessages(messages),
       updatedAt: now,
       messages,
-      isLive: id === LIVE_SESSION_ID,
       // undefined = nicht übergeben → vorhandenen Wert behalten
       // null/ShellContext → aktualisieren
       ...(shellContext !== undefined ? { shellContext: shellContext ?? undefined } : {}),
@@ -92,7 +89,6 @@ export function upsertSession(
       createdAt: now,
       updatedAt: now,
       messages,
-      isLive: id === LIVE_SESSION_ID,
       ...(shellContext ? { shellContext } : {}),
     })
   }

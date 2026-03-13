@@ -1,18 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionManager } from '../session-manager'
 import { LIVE_SESSION_ID } from '../session-history'
-
-// ── localStorage mock ─────────────────────────────────────────────────────────
-
-function makeLocalStorageMock() {
-  const store: Record<string, string> = {}
-  return {
-    getItem:    vi.fn((key: string) => store[key] ?? null),
-    setItem:    vi.fn((key: string, value: string) => { store[key] = value }),
-    removeItem: vi.fn((key: string) => { delete store[key] }),
-    _store: store,
-  }
-}
+import { makeLocalStorageMock } from './local-storage-mock'
 
 // fetch mock that returns 503 → triggers localStorage fallback
 const offlineFetch = vi.fn().mockResolvedValue({ ok: false, status: 503 })

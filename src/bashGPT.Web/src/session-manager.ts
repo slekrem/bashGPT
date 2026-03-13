@@ -120,11 +120,11 @@ export class SessionManager {
     const existingLive = this._localSessions.find(s => s.id === LIVE_SESSION_ID)
     let sessions = this._localSessions.filter(s => s.id !== LIVE_SESSION_ID)
     if (existingLive && existingLive.messages.length > 0)
-      sessions = [...sessions, { ...existingLive, id: `${SESSION_ID_PREFIX}${Date.now()}`, isLive: false }]
+      sessions = [...sessions, { ...existingLive, id: `${SESSION_ID_PREFIX}${Date.now()}` }]
     const now = new Date().toISOString()
     this._localSessions = sessions
       .map(s => s.id === archivedId
-        ? { ...s, id: LIVE_SESSION_ID, isLive: true, updatedAt: now }
+        ? { ...s, id: LIVE_SESSION_ID, updatedAt: now }
         : s)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     writeLocalSessions(this._localSessions)
