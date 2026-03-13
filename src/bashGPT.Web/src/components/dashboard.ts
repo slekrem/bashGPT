@@ -5,7 +5,7 @@ interface UseCase {
   category: string
   title: string
   hint: string
-  risk: 'safe' | 'medium' | 'critical'
+  risk: 'safe' | 'medium'
   prompt: string
 }
 
@@ -167,7 +167,6 @@ export class Dashboard extends LitElement {
     }
     .risk-safe     { background: #14532d; color: #86efac; }
     .risk-medium   { background: #78350f; color: #fcd34d; }
-    .risk-critical { background: #7f1d1d; color: #fca5a5; }
 
     .card-actions {
       display: flex;
@@ -238,7 +237,7 @@ export class Dashboard extends LitElement {
   }
 
   private _riskLabel(risk: UseCase['risk']) {
-    return risk === 'safe' ? '✓ Sicher' : risk === 'medium' ? '⚠ Mittel' : '🔴 Kritisch'
+    return risk === 'safe' ? '✓ Sicher' : '⚠ Mittel'
   }
 
   render() {

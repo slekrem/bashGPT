@@ -408,14 +408,14 @@ export class ChatView extends LitElement {
     }
   }
 
-  private async _loadHistory(force = false) {
+  private async _loadHistory() {
     const loadSeq = ++this._historyLoadSeq
     try {
       const history = await loadHistory()
       if (loadSeq !== this._historyLoadSeq) return
       // Wenn zwischen Start und Ende bereits neue Messages entstanden sind
       // (z. B. Dashboard-Prompt wurde gesendet), darf History diese nicht überschreiben.
-      if (!force && this._chat.messages.length > 0) return
+      if (this._chat.messages.length > 0) return
 
       const newMessages = history.map(m => ({
         id: this._idCounter++,
