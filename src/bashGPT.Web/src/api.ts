@@ -18,7 +18,7 @@ async function assertOk(res: Response): Promise<void> {
   throw new Error(await readErrorMessage(res))
 }
 
-export type StreamHandlers = {
+type StreamHandlers = {
   onToken?: (token: string) => void
   onReasoningToken?: (token: string) => void
   onToolCall?: (data: { name: string; command: string }) => void
@@ -26,13 +26,13 @@ export type StreamHandlers = {
   onRoundStart?: (data: { round: number }) => void
 }
 
-export interface SessionPayload {
+interface SessionPayload {
   messages: SnapshotMessage[]
   shellContext?: ShellContext | null
   enabledTools?: string[]
 }
 
-export interface PutSessionPayload {
+interface PutSessionPayload {
   title?: string
   messages: SnapshotMessage[]
   shellContext?: ShellContext | null
@@ -201,7 +201,7 @@ export async function getSession(id: string): Promise<SessionPayload | null> {
   try {
     const res = await fetch(`/api/sessions/${id}`)
     if (!res.ok) return null
-    return await res.json() as SessionPayload
+    return res.json() as Promise<SessionPayload>
   } catch {
     return null
   }
