@@ -20,8 +20,6 @@ interface Message {
 export class ChatView extends LitElement {
   /** Wird von außen gesetzt (Dashboard-Prompt) – löst sofortigen Send aus */
   @property() pendingPrompt = ''
-  /** v2-Modus: zeigt Terminal-Panel links neben dem Chat */
-  @property({ type: Boolean }) showTerminal = false
   /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
   @property({ type: Boolean }) active = false
   /** One-shot Hook: wird vor dem ersten sendChat() der Session aufgerufen */
@@ -713,7 +711,7 @@ export class ChatView extends LitElement {
     const state = this._resizeState
     if (!state) return
 
-    const showToolCalls = this.showTerminal && this._panels.toolCallsOpen
+    const showToolCalls = this._panels.toolCallsOpen
     const showInfo = this._panels.infoOpen
     const handles = (showToolCalls ? 1 : 0) + (showInfo ? 1 : 0)
     const availableWidth = state.containerWidth - handles * this._handleWidth
@@ -811,7 +809,7 @@ export class ChatView extends LitElement {
   render() {
     const isEmpty = this._chat.messages.length === 0
     const workingText = this._workingText()
-    const showToolCalls = this.showTerminal && this._panels.toolCallsOpen
+    const showToolCalls = this._panels.toolCallsOpen
     const showInfo = this._panels.infoOpen
     const stableEntries = this._toolCallEntries(this._chat.messages)
     const layoutColumns = [
@@ -929,15 +927,13 @@ export class ChatView extends LitElement {
             aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
           >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
 
-          ${this.showTerminal ? html`
-            <button
-              class="terminal-toggle ${this._panels.toolCallsOpen ? 'active' : ''}"
-              @click=${() => { this._panels = { ...this._panels, toolCallsOpen: !this._panels.toolCallsOpen } }}
-              title="Tool-Calls ein-/ausblenden"
-              aria-pressed=${this._panels.toolCallsOpen ? 'true' : 'false'}
-              aria-label="Tool-Calls ein-/ausblenden"
-            >Tool Calls</button>
-          ` : ''}
+          <button
+            class="terminal-toggle ${this._panels.toolCallsOpen ? 'active' : ''}"
+            @click=${() => { this._panels = { ...this._panels, toolCallsOpen: !this._panels.toolCallsOpen } }}
+            title="Tool-Calls ein-/ausblenden"
+            aria-pressed=${this._panels.toolCallsOpen ? 'true' : 'false'}
+            aria-label="Tool-Calls ein-/ausblenden"
+          >Tool Calls</button>
 
           <button
             class="terminal-toggle ${this._panels.infoOpen ? 'active' : ''}"

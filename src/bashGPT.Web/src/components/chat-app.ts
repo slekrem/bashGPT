@@ -217,7 +217,6 @@ export class ChatApp extends LitElement {
             pendingPrompt=${this._pendingPrompt}
             sessionId=${this._activeSessionId ?? ''}
             agentId=${this._activeAgentId}
-            ?showTerminal=${true}
             ?active=${this._view === 'chat'}
             @chat-started=${this._onChatStarted}
             @messages-changed=${this._onMessagesChanged}
