@@ -118,7 +118,7 @@ public class GitToolTests : IDisposable
     {
         var tool = new GitDiffTool();
         var result = await tool.ExecuteAsync(
-            new ToolCall("git_diff", $$"""{"path":"{{_repoDir}}","staged":"yes"}"""),
+            new ToolCall("git_diff", $$"""{"path":{{JsonSerializer.Serialize(_repoDir)}},"staged":"yes"}"""),
             CancellationToken.None);
 
         Assert.False(result.Success);
@@ -187,7 +187,7 @@ public class GitToolTests : IDisposable
     {
         var tool = new GitBranchTool();
         var result = await tool.ExecuteAsync(
-            new ToolCall("git_branch", $$"""{"path":"{{_repoDir}}","remotes":"all"}"""),
+            new ToolCall("git_branch", $$"""{"path":{{JsonSerializer.Serialize(_repoDir)}},"remotes":"all"}"""),
             CancellationToken.None);
 
         Assert.False(result.Success);
@@ -211,7 +211,7 @@ public class GitToolTests : IDisposable
     public async Task GitAdd_MissingFiles_ReturnsStructuredValidationError()
     {
         var tool = new GitAddTool(new PermissiveGitPolicy());
-        var result = await tool.ExecuteAsync(new ToolCall("git_add", $$"""{"path":"{{_repoDir}}"}"""), CancellationToken.None);
+        var result = await tool.ExecuteAsync(new ToolCall("git_add", $$"""{"path":{{JsonSerializer.Serialize(_repoDir)}}}"""), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
@@ -232,7 +232,7 @@ public class GitToolTests : IDisposable
     public async Task GitCommit_MissingMessage_ReturnsStructuredValidationError()
     {
         var tool = new GitCommitTool(new PermissiveGitPolicy());
-        var result = await tool.ExecuteAsync(new ToolCall("git_commit", $$"""{"path":"{{_repoDir}}"}"""), CancellationToken.None);
+        var result = await tool.ExecuteAsync(new ToolCall("git_commit", $$"""{"path":{{JsonSerializer.Serialize(_repoDir)}}}"""), CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Contains("missing_required_field", result.Content, StringComparison.Ordinal);
@@ -254,7 +254,7 @@ public class GitToolTests : IDisposable
     {
         var tool = new GitCheckoutTool(new PermissiveGitPolicy());
         var result = await tool.ExecuteAsync(
-            new ToolCall("git_checkout", $$"""{"branch":"main","create":"yes","path":"{{_repoDir}}"}"""),
+            new ToolCall("git_checkout", $$"""{"branch":"main","create":"yes","path":{{JsonSerializer.Serialize(_repoDir)}}}"""),
             CancellationToken.None);
 
         Assert.False(result.Success);
