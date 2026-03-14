@@ -5,10 +5,13 @@ namespace BashGPT.Agents;
 /// zukünftig direkt an den Provider übergeben werden.
 /// </summary>
 public record AgentLlmConfig(
-    string?  Model       = null,
-    double?  Temperature = null,
-    double?  TopP        = null,
-    int?     NumCtx      = null,
-    int?     MaxTokens   = null,
-    bool     Stream      = true
+    string?  Model              = null,
+    double?  Temperature        = null,
+    double?  TopP               = null,
+    int?     NumCtx             = null,
+    int?     MaxTokens          = null,
+    int?     Seed               = null,
+    string?  ReasoningEffort    = null,
+    bool?    ParallelToolCalls  = null,
+    bool     Stream             = true
 );

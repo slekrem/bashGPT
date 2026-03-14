@@ -30,10 +30,13 @@ public sealed class DevAgent : AgentBase
     ];
 
     public override AgentLlmConfig LlmConfig => new(
-        Temperature: 0.2,
-        TopP:        0.9,
-        MaxTokens:   4096,
-        Stream:      true
+        Temperature:       0.2,
+        TopP:              0.9,
+        NumCtx:            8192,
+        MaxTokens:         4096,
+        ReasoningEffort:   "medium",
+        ParallelToolCalls: false,
+        Stream:            true
     );
 
     public override string SystemPrompt => """

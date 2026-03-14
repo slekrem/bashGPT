@@ -47,7 +47,7 @@ public class ServerHost
         _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, sessionStore, toolRegistry, agentRegistry);
         _chatCancelHandler    = new ChatCancelApiHandler(_runningChats);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
-        _agentHandler         = new AgentApiHandler(agentRegistry);
+        _agentHandler         = new AgentApiHandler(agentRegistry, configService);
         _toolHandler          = new ToolApiHandler(toolRegistry);
     }
 

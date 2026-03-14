@@ -36,14 +36,15 @@ public abstract class AgentBase
 
     /// <summary>
     /// Gibt das vollständige Info-Panel-Markdown zurück.
-    /// Besteht aus dem agentenspezifischen Inhalt gefolgt von der LLM-Konfiguration,
-    /// sofern <see cref="LlmConfig"/> definiert ist.
+    /// Wenn <paramref name="effectiveConfig"/> angegeben ist, werden diese Werte angezeigt
+    /// (z. B. bereits mit Provider-Defaults gemergt). Andernfalls wird <see cref="LlmConfig"/> verwendet.
     /// </summary>
-    public string GetInfoPanelMarkdown()
+    public string GetInfoPanelMarkdown(AgentLlmConfig? effectiveConfig = null)
     {
         var sb = new StringBuilder(GetAgentMarkdown().TrimEnd());
 
-        if (LlmConfig is { } cfg)
+        var cfg = effectiveConfig ?? LlmConfig;
+        if (cfg is not null)
         {
             sb.AppendLine();
             sb.AppendLine();
@@ -54,15 +55,18 @@ public abstract class AgentBase
 
             if (cfg.Model is not null)
                 sb.AppendLine($"| `model` | `{cfg.Model}` |");
-            if (cfg.Temperature is not null)
-                sb.AppendLine($"| `temperature` | `{cfg.Temperature}` |");
-            if (cfg.TopP is not null)
-                sb.AppendLine($"| `top_p` | `{cfg.TopP}` |");
+            sb.AppendLine($"| `temperature` | `{cfg.Temperature?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}` |");
+            sb.AppendLine($"| `top_p` | `{cfg.TopP?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}` |");
             if (cfg.NumCtx is not null)
                 sb.AppendLine($"| `num_ctx` | `{cfg.NumCtx}` |");
             if (cfg.MaxTokens is not null)
                 sb.AppendLine($"| `max_tokens` | `{cfg.MaxTokens}` |");
-
+            if (cfg.Seed is not null)
+                sb.AppendLine($"| `seed` | `{cfg.Seed}` |");
+            if (cfg.ReasoningEffort is not null)
+                sb.AppendLine($"| `reasoning_effort` | `{cfg.ReasoningEffort}` |");
+            if (cfg.ParallelToolCalls is not null)
+                sb.AppendLine($"| `parallel_tool_calls` | `{(cfg.ParallelToolCalls.Value ? "true" : "false")}` |");
             sb.AppendLine($"| `stream` | `{(cfg.Stream ? "true" : "false")}` |");
             sb.AppendLine($"| `stream_options` | `{{\"include_usage\": true}}` |");
         }
