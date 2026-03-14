@@ -8,7 +8,7 @@ file sealed class ConcreteAgent : AgentBase
     public override string Name => "Test-Agent";
     public override IReadOnlyList<string> EnabledTools => ["tool_a", "tool_b"];
     public override string SystemPrompt => "Du bist ein Test.";
-    public override string GetInfoPanelMarkdown() => "# Test-Agent\n\nInfo.";
+    protected override string GetAgentMarkdown() => "# Test-Agent\n\nInfo.";
 }
 
 public class AgentBaseTests

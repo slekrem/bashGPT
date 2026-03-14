@@ -8,7 +8,7 @@ file sealed class FakeAgent(string id, string name) : AgentBase
     public override string Name => name;
     public override IReadOnlyList<string> EnabledTools => [];
     public override string SystemPrompt => "test";
-    public override string GetInfoPanelMarkdown() => $"# {name}";
+    protected override string GetAgentMarkdown() => $"# {name}";
 }
 
 public class AgentRegistryTests

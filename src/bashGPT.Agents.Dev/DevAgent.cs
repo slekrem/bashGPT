@@ -29,6 +29,13 @@ public sealed class DevAgent : AgentBase
         "shell_exec",
     ];
 
+    public override AgentLlmConfig LlmConfig => new(
+        Temperature: 0.2,
+        TopP:        0.9,
+        MaxTokens:   4096,
+        Stream:      true
+    );
+
     public override string SystemPrompt => """
         Du bist ein erfahrener Software-Entwickler.
         Nutze verfuegbare Tools gezielt und liefere nur valide Tool-Argumente.
@@ -44,7 +51,7 @@ public sealed class DevAgent : AgentBase
         8. Verwende keine geratenen Felder und lasse keine Pflichtfelder weg.
         """;
 
-    public override string GetInfoPanelMarkdown() => """
+    protected override string GetAgentMarkdown() => """
         # Dev-Agent
 
         Spezialisierter Software-Entwicklungsagent mit vollständigem Zugriff auf Dateisystem, Git, Build- und Test-Tools.

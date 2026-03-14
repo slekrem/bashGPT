@@ -34,4 +34,25 @@ public class ShellAgentTests
         Assert.Contains("# Shell-Agent", md, StringComparison.Ordinal);
         Assert.Contains("| `shell_exec`", md, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ShellAgent_GetInfoPanelMarkdown_ContainsLlmConfigSection()
+    {
+        var md = _agent.GetInfoPanelMarkdown();
+
+        Assert.Contains("## LLM-Konfiguration", md, StringComparison.Ordinal);
+        Assert.Contains("`temperature`", md, StringComparison.Ordinal);
+        Assert.Contains("`stream`", md, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellAgent_LlmConfig_HasExpectedValues()
+    {
+        var cfg = _agent.LlmConfig;
+
+        Assert.NotNull(cfg);
+        Assert.Equal(0.1, cfg.Temperature);
+        Assert.Equal(0.9, cfg.TopP);
+        Assert.True(cfg.Stream);
+    }
 }

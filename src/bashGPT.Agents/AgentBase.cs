@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace BashGPT.Agents;
 
 /// <summary>
@@ -21,8 +23,50 @@ public abstract class AgentBase
     public abstract string SystemPrompt { get; }
 
     /// <summary>
-    /// Markdown-Dokument, das im Info-Panel der Web-UI angezeigt wird.
-    /// Beschreibt den Agenten, seine Fähigkeiten und aktiven Tools.
+    /// Optionale LLM-Konfiguration des Agenten (Modell, Temperatur, Top-P, etc.).
+    /// Wird automatisch als Abschnitt im Info-Panel angezeigt.
     /// </summary>
-    public abstract string GetInfoPanelMarkdown();
+    public virtual AgentLlmConfig? LlmConfig => null;
+
+    /// <summary>
+    /// Agentenspezifischer Markdown-Inhalt für das Info-Panel
+    /// (ohne LLM-Konfiguration — dieser Abschnitt wird automatisch ergänzt).
+    /// </summary>
+    protected abstract string GetAgentMarkdown();
+
+    /// <summary>
+    /// Gibt das vollständige Info-Panel-Markdown zurück.
+    /// Besteht aus dem agentenspezifischen Inhalt gefolgt von der LLM-Konfiguration,
+    /// sofern <see cref="LlmConfig"/> definiert ist.
+    /// </summary>
+    public string GetInfoPanelMarkdown()
+    {
+        var sb = new StringBuilder(GetAgentMarkdown().TrimEnd());
+
+        if (LlmConfig is { } cfg)
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("## LLM-Konfiguration");
+            sb.AppendLine();
+            sb.AppendLine("| Parameter | Wert |");
+            sb.AppendLine("|---|---|");
+
+            if (cfg.Model is not null)
+                sb.AppendLine($"| `model` | `{cfg.Model}` |");
+            if (cfg.Temperature is not null)
+                sb.AppendLine($"| `temperature` | `{cfg.Temperature}` |");
+            if (cfg.TopP is not null)
+                sb.AppendLine($"| `top_p` | `{cfg.TopP}` |");
+            if (cfg.NumCtx is not null)
+                sb.AppendLine($"| `num_ctx` | `{cfg.NumCtx}` |");
+            if (cfg.MaxTokens is not null)
+                sb.AppendLine($"| `max_tokens` | `{cfg.MaxTokens}` |");
+
+            sb.AppendLine($"| `stream` | `{(cfg.Stream ? "true" : "false")}` |");
+            sb.AppendLine($"| `stream_options` | `{{\"include_usage\": true}}` |");
+        }
+
+        return sb.ToString();
+    }
 }

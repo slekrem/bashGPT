@@ -44,4 +44,28 @@ public class DevAgentTests
         Assert.Contains("| `fetch`", md, StringComparison.Ordinal);
         Assert.Contains("| `shell_exec`", md, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void DevAgent_GetInfoPanelMarkdown_ContainsLlmConfigSection()
+    {
+        var md = _agent.GetInfoPanelMarkdown();
+
+        Assert.Contains("## LLM-Konfiguration", md, StringComparison.Ordinal);
+        Assert.Contains("`temperature`", md, StringComparison.Ordinal);
+        Assert.Contains("`top_p`", md, StringComparison.Ordinal);
+        Assert.Contains("`stream`", md, StringComparison.Ordinal);
+        Assert.Contains("`stream_options`", md, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevAgent_LlmConfig_HasExpectedValues()
+    {
+        var cfg = _agent.LlmConfig;
+
+        Assert.NotNull(cfg);
+        Assert.Equal(0.2, cfg.Temperature);
+        Assert.Equal(0.9, cfg.TopP);
+        Assert.Equal(4096, cfg.MaxTokens);
+        Assert.True(cfg.Stream);
+    }
 }

@@ -13,10 +13,16 @@ public sealed class ShellAgent : AgentBase
 
     public override IReadOnlyList<string> EnabledTools => ["shell_exec"];
 
+    public override AgentLlmConfig LlmConfig => new(
+        Temperature: 0.1,
+        TopP:        0.9,
+        Stream:      true
+    );
+
     public override string SystemPrompt =>
         "Du bist ein erfahrener Shell-Assistent. Nutze das shell_exec-Tool, um Befehle auszufuehren und dem Benutzer bei Terminal-Aufgaben zu helfen. Erklaere, was du tust, und zeige Ergebnisse uebersichtlich.";
 
-    public override string GetInfoPanelMarkdown() => """
+    protected override string GetAgentMarkdown() => """
         # Shell-Agent
 
         Spezialisierter Shell-Assistent für Terminal-Aufgaben.
