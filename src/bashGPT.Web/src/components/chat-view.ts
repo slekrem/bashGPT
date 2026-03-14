@@ -877,6 +877,9 @@ export class ChatView extends LitElement {
           <bashgpt-chat-info-panel
             .markdown=${this._infoPanel.markdown}
             ?loading=${this._infoPanel.loading}
+            .tokenUsage=${this._chat.tokenUsage.inputTokens > 0 || this._chat.tokenUsage.outputTokens > 0
+              ? this._chat.tokenUsage
+              : null}
           ></bashgpt-chat-info-panel>
         ` : ''}
       </div>
