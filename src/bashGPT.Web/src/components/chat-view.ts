@@ -347,13 +347,15 @@ export class ChatView extends LitElement {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
-    const newMessages = messages.map(m => ({
-      id: this._idCounter++,
-      role: m.role,
-      content: m.content,
-      commands: m.commands,
-      usage: m.usage,
-    }))
+    const newMessages = messages
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content.trim() !== '')
+      .map(m => ({
+        id: this._idCounter++,
+        role: m.role,
+        content: m.content,
+        commands: m.commands,
+        usage: m.usage,
+      }))
     this._chat = {
       ...this._chat,
       messages: newMessages,
