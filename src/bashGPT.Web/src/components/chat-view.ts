@@ -4,8 +4,8 @@ import { repeat } from 'lit/directives/repeat.js'
 import './message-bubble'
 import './tool-calls-panel'
 import './chat-info-panel'
-import { streamChat, loadHistory, resetHistory, getContext, getSettings, getTools, cancelChat } from '../api'
-import type { CommandResult, FullShellContext, Settings, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
+import { streamChat, loadHistory, resetHistory, getTools, cancelChat, getAgentInfoPanel } from '../api'
+import type { CommandResult, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -45,10 +45,8 @@ export class ChatView extends LitElement {
     infoOpen:      false,
   }
 
-  @state() private _ctx = {
-    data:     null as FullShellContext | null,
-    settings: null as Settings | null,
-    loaded:   false,
+  @state() private _infoPanel = {
+    markdown: '',
     loading:  false,
   }
 
@@ -338,6 +336,10 @@ export class ChatView extends LitElement {
     if (changed.has('active') && this.active && this._chat.messages.length === 0) {
       this._loadHistory()
     }
+    // Agenten-Daten neu laden, wenn sich der Agent ändert und das Panel offen ist
+    if (changed.has('agentId') && this._panels.infoOpen) {
+      void this._loadInfoPanel()
+    }
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
@@ -345,13 +347,15 @@ export class ChatView extends LitElement {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
-    const newMessages = messages.map(m => ({
-      id: this._idCounter++,
-      role: m.role,
-      content: m.content,
-      commands: m.commands,
-      usage: m.usage,
-    }))
+    const newMessages = messages
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content.trim() !== '')
+      .map(m => ({
+        id: this._idCounter++,
+        role: m.role,
+        content: m.content,
+        commands: m.commands,
+        usage: m.usage,
+      }))
     this._chat = {
       ...this._chat,
       messages: newMessages,
@@ -753,21 +757,24 @@ export class ChatView extends LitElement {
   private async _toggleInfo() {
     const newOpen = !this._panels.infoOpen
     this._panels = { ...this._panels, infoOpen: newOpen }
-    if (newOpen && !this._ctx.loaded) {
-      this._ctx = { ...this._ctx, loaded: true, loading: true }
-      try {
-        const [data, settings] = await Promise.all([getContext(), getSettings()])
-        this._ctx = { ...this._ctx, data, settings }
-      } finally {
-        this._ctx = { ...this._ctx, loading: false }
-      }
-    }
+    if (newOpen) await this._loadInfoPanel()
   }
 
   private async _toggleToolPicker() {
     this._toolPickerOpen = !this._toolPickerOpen
     if (this._toolPickerOpen && this._availableTools.length === 0)
       this._availableTools = await getTools()
+  }
+
+  private async _loadInfoPanel() {
+    const id = this.agentId || 'generic'
+    this._infoPanel = { markdown: '', loading: true }
+    try {
+      const markdown = await getAgentInfoPanel(id)
+      this._infoPanel = { markdown, loading: false }
+    } catch {
+      this._infoPanel = { markdown: '', loading: false }
+    }
   }
 
   private _toggleTool(name: string) {
@@ -789,17 +796,6 @@ export class ChatView extends LitElement {
     return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens }
   }
 
-  private get _commandStats() {
-    let total = 0, success = 0, error = 0, skipped = 0
-    for (const m of this._chat.messages)
-      for (const c of m.commands ?? []) {
-        total++
-        if (!c.wasExecuted) skipped++
-        else if (c.exitCode === 0) success++
-        else error++
-      }
-    return { total, success, error, skipped }
-  }
 
   private _workingText() {
     if (!this._chat.loading) return ''
@@ -881,12 +877,11 @@ export class ChatView extends LitElement {
             @keydown=${(ev: KeyboardEvent) => this._resizeByKeyboard('info', ev)}
           ></div>
           <bashgpt-chat-info-panel
-            .context=${this._ctx.data}
-            .settings=${this._ctx.settings}
-            messageCount=${this._chat.messages.length}
-            .commandStats=${this._commandStats}
-            .tokenUsage=${this._chat.tokenUsage}
-            ?loading=${this._ctx.loading}
+            .markdown=${this._infoPanel.markdown}
+            ?loading=${this._infoPanel.loading}
+            .tokenUsage=${this._chat.tokenUsage.inputTokens > 0 || this._chat.tokenUsage.outputTokens > 0
+              ? this._chat.tokenUsage
+              : null}
           ></bashgpt-chat-info-panel>
         ` : ''}
       </div>

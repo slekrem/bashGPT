@@ -22,7 +22,7 @@ public class ServerHost
     private readonly AgentApiHandler           _agentHandler;
     private readonly ToolApiHandler            _toolHandler;
     private readonly ConfigurationService?     _configService;
-    private readonly AgentStore?               _agentStore;
+    private readonly AgentRegistry?            _agentRegistry;
     private readonly SessionStore?             _sessionStore;
     private readonly ToolRegistry?             _toolRegistry;
     private readonly RunningChatRegistry       _runningChats;
@@ -31,11 +31,11 @@ public class ServerHost
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null,
-        AgentStore? agentStore = null,
+        AgentRegistry? agentRegistry = null,
         ToolRegistry? toolRegistry = null)
     {
         _configService        = configService;
-        _agentStore           = agentStore;
+        _agentRegistry        = agentRegistry;
         _sessionStore         = sessionStore;
         _toolRegistry         = toolRegistry;
         _runningChats         = new RunningChatRegistry();
@@ -43,11 +43,11 @@ public class ServerHost
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService, _state);
-        _chatHandler          = new ChatApiHandler(handler, _legacyHistory, sessionStore, toolRegistry, agentStore);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, sessionStore, toolRegistry, agentStore);
+        _chatHandler          = new ChatApiHandler(handler, _legacyHistory, sessionStore, toolRegistry, agentRegistry);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, sessionStore, toolRegistry, agentRegistry);
         _chatCancelHandler    = new ChatCancelApiHandler(_runningChats);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
-        _agentHandler         = new AgentApiHandler(agentStore);
+        _agentHandler         = new AgentApiHandler(agentRegistry, configService);
         _toolHandler          = new ToolApiHandler(toolRegistry);
     }
 

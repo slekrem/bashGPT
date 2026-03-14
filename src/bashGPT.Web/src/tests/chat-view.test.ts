@@ -11,7 +11,6 @@ type TestMessage = {
 
 type ChatViewUnderTest = {
   _chat: { messages: TestMessage[] }
-  _commandStats: { total: number; success: number; error: number; skipped: number }
   _sumTokenUsage: (messages: TestMessage[]) => TokenUsage
 }
 
@@ -21,23 +20,6 @@ describe('ChatView – private logic', () => {
   beforeAll(async () => {
     const mod = await import('../components/chat-view')
     el = new mod.ChatView() as unknown as ChatViewUnderTest
-  })
-
-  // ── _commandStats getter ─────────────────────────────────────────────────
-
-  it('_commandStats aggregates success / error / skipped correctly', () => {
-    const commands: CommandResult[] = [
-      { command: 'ls',   exitCode: 0, output: '', wasExecuted: true  }, // success
-      { command: 'rm',   exitCode: 1, output: '', wasExecuted: true  }, // error
-      { command: 'cat',  exitCode: 0, output: '', wasExecuted: false }, // skipped
-    ]
-    el._chat = { ...el._chat, messages: [{ id: 1, role: 'user', content: 'test', commands }] }
-    expect(el._commandStats).toEqual({ total: 3, success: 1, error: 1, skipped: 1 })
-  })
-
-  it('_commandStats returns all-zeros when messages have no commands', () => {
-    el._chat = { ...el._chat, messages: [{ id: 1, role: 'user', content: 'hello' }] }
-    expect(el._commandStats).toEqual({ total: 0, success: 0, error: 0, skipped: 0 })
   })
 
   // ── _sumTokenUsage method ────────────────────────────────────────────────

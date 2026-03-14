@@ -1,32 +1,33 @@
-using System.Reflection;
 using BashGPT.Agents;
+using BashGPT.Agents.Dev;
+using BashGPT.Agents.Shell;
 
 namespace BashGPT.Agents.Tests;
 
 public class AgentArchitectureGuardTests
 {
     [Fact]
-    public void AgentBootstrap_RemainsInfrastructureOnly()
+    public void AllAgents_InheritFromAgentBase()
     {
-        var type = typeof(AgentBootstrap);
+        Assert.True(typeof(AgentBase).IsAssignableFrom(typeof(DevAgent)));
+        Assert.True(typeof(AgentBase).IsAssignableFrom(typeof(ShellAgent)));
+    }
 
-        var forbiddenFields = type
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Where(f => typeof(AgentRecord).IsAssignableFrom(f.FieldType)
-                     || typeof(IEnumerable<AgentRecord>).IsAssignableFrom(f.FieldType))
-            .Select(f => f.Name)
-            .ToList();
+    [Fact]
+    public void AllAgents_HaveUniqueIds()
+    {
+        var agents = new AgentBase[] { new DevAgent(), new ShellAgent() };
+        var ids = agents.Select(a => a.Id).ToList();
 
-        var forbiddenMethods = type
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name.Contains("Seed", StringComparison.OrdinalIgnoreCase)
-                     || typeof(AgentRecord).IsAssignableFrom(m.ReturnType)
-                     || typeof(IEnumerable<AgentRecord>).IsAssignableFrom(m.ReturnType))
-            .Select(m => m.Name)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
 
-        Assert.Empty(forbiddenFields);
-        Assert.Empty(forbiddenMethods);
+    [Fact]
+    public void AgentRegistry_ContainsAllAgents()
+    {
+        var registry = new AgentRegistry([new DevAgent(), new ShellAgent()]);
+
+        Assert.NotNull(registry.Find("dev"));
+        Assert.NotNull(registry.Find("shell"));
     }
 }

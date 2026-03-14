@@ -102,8 +102,6 @@ export interface FullShellContext {
 export interface Agent {
   id: string
   name: string
-  systemPrompt?: string
-  enabledTools: string[]
 }
 
 export interface ToolInfo {

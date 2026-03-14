@@ -23,7 +23,9 @@ public class ShellExecToolTests
 
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Equal($"hello{Environment.NewLine}", output.Stdout);
+        // bash (via SHELL env) outputs \n, cmd.exe outputs \r\n
+        var expectedNl = Environment.GetEnvironmentVariable("SHELL") is not null ? "\n" : Environment.NewLine;
+        Assert.Equal($"hello{expectedNl}", output.Stdout);
         Assert.Equal(0, output.ExitCode);
         Assert.False(output.TimedOut);
     }
@@ -31,14 +33,27 @@ public class ShellExecToolTests
     [Fact]
     public async Task ExecuteAsync_PwdWithCwd_ReturnsCorrectPath()
     {
-        var tool = new ShellExecTool();
-        var cwd = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var pwdCommand = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cd" : "pwd";
-        var result = await tool.ExecuteAsync(Call(pwdCommand, cwd: cwd), CancellationToken.None);
+        // Use a unique subdirectory so the folder name appears in both Windows and Unix-style paths
+        var uniqueName = "bashgpt-test-" + Path.GetRandomFileName().Replace(".", "");
+        var cwd = Path.Combine(Path.GetTempPath(), uniqueName);
+        Directory.CreateDirectory(cwd);
+        try
+        {
+            var tool = new ShellExecTool();
+            // Use pwd when bash is the shell (even on Windows via SHELL env), otherwise use cd
+            var pwdCommand = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Environment.GetEnvironmentVariable("SHELL") is null
+                ? "cd"
+                : "pwd";
+            var result = await tool.ExecuteAsync(Call(pwdCommand, cwd: cwd), CancellationToken.None);
 
-        Assert.True(result.Success);
-        var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        Assert.Contains(cwd, output.Stdout, StringComparison.OrdinalIgnoreCase);
+            Assert.True(result.Success);
+            var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            Assert.Contains(uniqueName, output.Stdout, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(cwd);
+        }
     }
 
     [Fact]

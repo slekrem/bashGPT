@@ -69,7 +69,20 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
                 await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Session nicht gefunden." }, statusCode: 404);
                 return;
             }
-            await ApiResponse.WriteJsonAsync(ctx.Response, session);
+            var visibleMessages = session.Messages
+                .Where(m => (m.Role == "user" || m.Role == "assistant") && !string.IsNullOrEmpty(m.Content))
+                .ToList();
+            await ApiResponse.WriteJsonAsync(ctx.Response, new
+            {
+                id           = session.Id,
+                title        = session.Title,
+                createdAt    = session.CreatedAt,
+                updatedAt    = session.UpdatedAt,
+                messages     = visibleMessages,
+                shellContext = session.ShellContext,
+                enabledTools = session.EnabledTools,
+                agentId      = session.AgentId,
+            });
             return;
         }
 

@@ -290,6 +290,15 @@ export async function getAgents(): Promise<Agent[]> {
   } catch { return [] }
 }
 
+export async function getAgentInfoPanel(id: string): Promise<string> {
+  try {
+    const res = await fetch(`/api/agents/${encodeURIComponent(id)}/info-panel`)
+    if (!res.ok) return ''
+    const data = await res.json()
+    return typeof data.markdown === 'string' ? data.markdown : ''
+  } catch { return '' }
+}
+
 // ── Tools API ─────────────────────────────────────────────────────────────────
 
 export async function getTools(): Promise<ToolInfo[]> {

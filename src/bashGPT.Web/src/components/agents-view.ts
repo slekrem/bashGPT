@@ -169,21 +169,12 @@ export class AgentsView extends LitElement {
   }
 
   private _renderAgent(a: Agent) {
-    const promptPreview = a.systemPrompt
-      ? a.systemPrompt.slice(0, 80) + (a.systemPrompt.length > 80 ? '…' : '')
-      : 'Standard-Prompt'
-
     return html`
       <div class="agent-card">
         <div class="agent-icon">🤖</div>
         <div class="agent-body">
           <div class="agent-name">${a.name}</div>
-          <div class="agent-meta">${promptPreview}</div>
-          ${a.enabledTools?.length ? html`
-            <div class="agent-tools">
-              ${a.enabledTools.map(t => html`<span class="tool-badge">${t}</span>`)}
-            </div>
-          ` : ''}
+          <div class="agent-meta">${a.id}</div>
         </div>
         <div class="agent-actions">
           <button class="btn-chat" @click=${() => this._startChat(a)}>Chat starten</button>

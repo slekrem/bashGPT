@@ -137,9 +137,13 @@ public class FilesystemSearchToolTests : IDisposable
         try
         {
             Directory.SetCurrentDirectory(_tempDir);
+            // Tool nach SetCurrentDirectory erstellen, damit die Policy den vom OS aufgelösten
+            // Pfad erhält (auf macOS: /tmp → /private/tmp).
+            var resolvedDir = Directory.GetCurrentDirectory();
+            var tool = new FilesystemSearchTool(new DefaultFilesystemPolicy([resolvedDir]));
             var call = new ToolCall("filesystem_search", """{"pattern":"needle","path":""}""");
 
-            var result = await CreateTool().ExecuteAsync(call, CancellationToken.None);
+            var result = await tool.ExecuteAsync(call, CancellationToken.None);
 
             Assert.True(result.Success);
             var output = JsonSerializer.Deserialize<JsonElement>(result.Content);

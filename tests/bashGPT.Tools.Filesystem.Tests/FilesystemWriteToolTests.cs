@@ -111,7 +111,7 @@ public class FilesystemWriteToolTests : IDisposable
     {
         var file = Path.Combine(_tempDir, "new.txt");
         var result = await CreateTool().ExecuteAsync(
-            new ToolCall("filesystem_write", $$"""{"path":"{{file}}","content":"x","overwrite":"yes"}"""),
+            new ToolCall("filesystem_write", $$"""{"path":{{JsonSerializer.Serialize(file)}},"content":"x","overwrite":"yes"}"""),
             CancellationToken.None);
 
         Assert.False(result.Success);
