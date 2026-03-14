@@ -765,14 +765,10 @@ export class ChatView extends LitElement {
   }
 
   private async _loadInfoPanel() {
-    if (!this.agentId) {
-      this._infoPanel = { markdown: '', loading: false }
-      return
-    }
-
+    const id = this.agentId || 'generic'
     this._infoPanel = { markdown: '', loading: true }
     try {
-      const markdown = await getAgentInfoPanel(this.agentId)
+      const markdown = await getAgentInfoPanel(id)
       this._infoPanel = { markdown, loading: false }
     } catch {
       this._infoPanel = { markdown: '', loading: false }

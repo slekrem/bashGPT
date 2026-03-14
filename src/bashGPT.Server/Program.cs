@@ -33,7 +33,7 @@ var toolRegistry = new ToolRegistry([
 ]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
-var agentRegistry = new AgentRegistry([new DevAgent(), new ShellAgent()]);
+var agentRegistry = new AgentRegistry([new GenericAgent(), new DevAgent(), new ShellAgent()]);
 var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentRegistry, toolRegistry);
 
 var providerOpt = new Option<string?>("--provider", "-p")
