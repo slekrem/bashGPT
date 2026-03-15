@@ -59,10 +59,7 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
 
     private static AgentLlmConfig BuildEffectiveConfig(AgentLlmConfig? agentConfig, AppConfig appConfig)
     {
-        var defaultModel = appConfig.DefaultProvider == ProviderType.Ollama
-            ? appConfig.Ollama.Model
-            : appConfig.Cerebras.Model;
-
+        var defaultModel = appConfig.Ollama.Model;
         var effectiveModel = agentConfig?.Model ?? defaultModel;
 
         return agentConfig is not null

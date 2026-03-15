@@ -32,7 +32,7 @@ export interface HistoryMessage {
 }
 
 export type ExecMode = 'ask' | 'dry-run' | 'auto-exec' | 'no-exec'
-export type ProviderName = 'cerebras' | 'ollama'
+export type ProviderName = 'ollama'
 
 export interface Session {
   id: string
@@ -41,24 +41,9 @@ export interface Session {
   updatedAt: string
 }
 
-export interface CerebrasSettings {
-  model: string
-  apiKey?: string
-  hasApiKey?: boolean
-  baseUrl?: string
-  temperature?: number
-  topP?: number
-  maxCompletionTokens?: number
-  seed?: number
-  reasoningEffort?: string
-}
-
 export interface OllamaSettings {
   model: string
   host: string
-  temperature?: number
-  topP?: number
-  seed?: number
 }
 
 export interface RateLimitingSettings {
@@ -71,8 +56,6 @@ export interface Settings {
   provider: ProviderName
   model: string
   contextWindowTokens?: number
-  hasApiKey?: boolean
-  apiKey?: string
   ollamaHost?: string
   execMode: ExecMode
   forceTools: boolean
@@ -80,7 +63,6 @@ export interface Settings {
   loopDetectionEnabled: boolean
   maxToolCallRounds: number
   rateLimiting: RateLimitingSettings
-  cerebras: CerebrasSettings
   ollama: OllamaSettings
 }
 

@@ -19,7 +19,7 @@ public static class AppDefaults
     /// <summary>Maximale Anzahl beibehaltener Nachrichten im In-Memory-Verlauf (LegacyHistory).</summary>
     public const int MaxHistoryMessages = 40;
 
-    /// <summary>Maximale Anzahl HTTP-Wiederholungen bei 429-Fehlern (CerebrasProvider).</summary>
+    /// <summary>Maximale Anzahl HTTP-Wiederholungen bei 429-Fehlern des LLM-Providers.</summary>
     public const int MaxProviderRetries = 3;
 
     /// <summary>Präfix für automatisch generierte Session-IDs.</summary>

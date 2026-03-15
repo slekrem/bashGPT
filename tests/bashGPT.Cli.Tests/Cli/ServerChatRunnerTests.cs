@@ -128,7 +128,7 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithoutProviderOverride_UsesConfigProvider()
+    public async Task RunServerChatAsync_LegacyCerebrasConfig_IsNormalizedToOllama()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
@@ -141,7 +141,8 @@ public sealed class ServerChatRunnerTests
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("wird nicht mehr unterstützt", result.Response);
+            Assert.DoesNotContain("wird nicht mehr unterstützt", result.Response);
+            Assert.DoesNotContain("Provider-Fehler:", result.Response);
         }
         finally
         {

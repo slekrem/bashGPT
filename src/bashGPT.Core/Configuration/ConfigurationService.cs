@@ -41,6 +41,7 @@ public class ConfigurationService
             }
         }
 
+        NormalizeConfig(config);
         ApplyEnvironmentOverrides(config);
         return config;
     }
@@ -61,24 +62,15 @@ public class ConfigurationService
         {
             case "defaultprovider":
             case "provider":
-                if (!Enum.TryParse<ProviderType>(value, ignoreCase: true, out var provider))
-                    throw new ArgumentException($"Ungültiger Provider '{value}'. Erlaubt: ollama, cerebras");
-                config.DefaultProvider = provider;
+                if (!string.Equals(value, "ollama", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException($"Ungültiger Provider '{value}'. Erlaubt: ollama");
+                config.DefaultProvider = ProviderType.Ollama;
                 break;
             case "ollama.baseurl":
                 config.Ollama.BaseUrl = value;
                 break;
             case "ollama.model":
                 config.Ollama.Model = value;
-                break;
-            case "cerebras.apikey":
-                config.Cerebras.ApiKey = value;
-                break;
-            case "cerebras.model":
-                config.Cerebras.Model = value;
-                break;
-            case "cerebras.baseurl":
-                config.Cerebras.BaseUrl = value;
                 break;
             case "commandtimeoutseconds":
             {
@@ -112,8 +104,7 @@ public class ConfigurationService
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
                     "Gültige Schlüssel: defaultProvider, commandTimeoutSeconds, execMode, forceTools, " +
                     "loopDetectionEnabled, maxToolCallRounds, " +
-                    "ollama.baseUrl, ollama.model, " +
-                    "cerebras.apiKey, cerebras.model, cerebras.baseUrl");
+                    "ollama.baseUrl, ollama.model");
         }
 
         await SaveAsync(config);
@@ -133,9 +124,6 @@ public class ConfigurationService
             "maxtoolcallrounds" => config.MaxToolCallRounds.ToString(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
-            "cerebras.apikey" => config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)",
-            "cerebras.model" => config.Cerebras.Model,
-            "cerebras.baseurl" => config.Cerebras.BaseUrl,
             _ => throw new ArgumentException($"Unbekannter Konfigurationsschlüssel '{key}'.")
         };
     }
@@ -152,25 +140,22 @@ public class ConfigurationService
             maxToolCallRounds = {config.MaxToolCallRounds}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
-            cerebras.apiKey  = {(config.Cerebras.ApiKey is not null ? "***" : "(nicht gesetzt)")}
-            cerebras.model   = {config.Cerebras.Model}
-            cerebras.baseUrl = {config.Cerebras.BaseUrl}
             """;
+    }
+
+    private static void NormalizeConfig(AppConfig config)
+    {
+        if (config.DefaultProvider == ProviderType.Cerebras)
+            config.DefaultProvider = ProviderType.Ollama;
     }
 
     private static void ApplyEnvironmentOverrides(AppConfig config)
     {
         var provider = Environment.GetEnvironmentVariable("BASHGPT_PROVIDER");
-        if (provider is not null && Enum.TryParse<ProviderType>(provider, ignoreCase: true, out var p))
+        if (provider is not null
+            && Enum.TryParse<ProviderType>(provider, ignoreCase: true, out var p)
+            && p == ProviderType.Ollama)
             config.DefaultProvider = p;
-
-        var cerebrasKey = Environment.GetEnvironmentVariable("BASHGPT_CEREBRAS_KEY");
-        if (cerebrasKey is not null)
-            config.Cerebras.ApiKey = cerebrasKey;
-
-        var cerebrasModel = Environment.GetEnvironmentVariable("BASHGPT_CEREBRAS_MODEL");
-        if (cerebrasModel is not null)
-            config.Cerebras.Model = cerebrasModel;
 
         var ollamaUrl = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_URL");
         if (ollamaUrl is not null)
