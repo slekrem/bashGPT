@@ -61,6 +61,9 @@
 - Environment overrides include `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`, `BASHGPT_OLLAMA_URL`, and `BASHGPT_OLLAMA_MODEL`.
 - Prefer updating config via the CLI: `dotnet run --project src/bashGPT.Cli -- config set <key> <value>`.
 - A legacy `~/.config/bashgpt/agents.json` file may exist from older versions — it is no longer read or written by the current code-first agent system and can be safely ignored or deleted.
+- **Tool resolution priority** when a chat request arrives: `agent.EnabledTools` → `session.EnabledTools` → `body.enabledTools` (first non-empty list wins). Resolved via `ToolHelper.Resolve()`.
+- The server backend does **not** evaluate `execMode` from chat requests — tool behaviour is fixed per tool implementation (no interactive terminal in browser context).
+- Loop detection (`loopDetectionEnabled`, default `true`) aborts the tool-call loop if the LLM issues identical tool calls twice in a row. Max rounds: `maxToolCallRounds` (default `8`).
 
 ## Implementing a New Agent
 

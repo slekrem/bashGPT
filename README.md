@@ -95,8 +95,8 @@ dotnet run --project src/bashGPT.Server -- --provider cerebras --model gpt-oss:1
 Verfügbare Server-Flags: `--provider`, `--model`, `--port`, `--no-browser`, `--verbose`.
 
 Hinweise:
-- Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
-- Im Server-Modus wird `ask` intern als `dry-run` behandelt (kein interaktives Terminal-Prompt im Browser-Flow).
+- Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode-Auswahl (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
+- Im Server-Modus wird der Exec-Mode vom Backend nicht ausgewertet — das Verhalten der Tools ist fest definiert (kein interaktives Terminal-Prompt möglich).
 - Sessions werden unter `~/.config/bashgpt/sessions/` gespeichert (max. 20 Sessions).
 
 ## Agenten (Browser UI)
