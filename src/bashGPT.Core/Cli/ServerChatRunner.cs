@@ -152,8 +152,19 @@ public class ServerChatRunner(
                             {
                                 var r = await iTool.ExecuteAsync(
                                     new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
-                                toolResult = r.Content;
-                                commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+
+                                if (r.InjectAsSystem && r.Success)
+                                {
+                                    // Dateiinhalte als persistente System-Nachricht injizieren,
+                                    // sodass der Kontext beim LLM denselben Status hat wie der System-Prompt.
+                                    messages.Insert(0, new ChatMessage(ChatRole.System, r.Content));
+                                    toolResult  = $"Dateien erfolgreich in den System-Kontext geladen.";
+                                }
+                                else
+                                {
+                                    toolResult = r.Content;
+                                }
+                                commandResult = BuildCommandResult(call.Name, commandLabel, r.Content, r.Success);
                             }
                             catch (OperationCanceledException) when (ct.IsCancellationRequested)
                             {

@@ -30,6 +30,7 @@ public sealed class DevAgent : AgentBase
         "test_run",
         "build_run",
         "shell_exec",
+        "context_load_files",
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -47,6 +48,7 @@ public sealed class DevAgent : AgentBase
     [
         """
         Du bist ein erfahrener Software-Entwickler. Loese Aufgaben durch gezielten Tool-Einsatz.
+        Bevor du eine Aufgabe bearbeitest, lade relevante Quelldateien mit 'context_load_files' in den Kontext.
         """,
         """
         Tool-Call-Regeln:
