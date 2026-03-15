@@ -155,11 +155,13 @@ public class ServerChatRunner(
 
                                 if (r.InjectAsSystem && r.Success)
                                 {
-                                    // System-Message für den aktuellen Request an den Anfang setzen.
-                                    // Außerdem in conversationDelta speichern, damit sie in der Session
-                                    // persistiert wird und bei Folge-Requests wiederhergestellt werden kann.
+                                    // System-Message nach den bestehenden System-Prompts einfügen
+                                    // (konsistent mit BuildLoadedFilesContext, das ebenfalls als letzter
+                                    // System-Prompt-Eintrag landet). Außerdem in conversationDelta speichern,
+                                    // damit sie in der Session persistiert wird.
                                     var injected = new ChatMessage(ChatRole.System, r.Content);
-                                    messages.Insert(0, injected);
+                                    var lastSystemIdx = messages.FindLastIndex(m => m.Role == ChatRole.System);
+                                    messages.Insert(lastSystemIdx >= 0 ? lastSystemIdx + 1 : 0, injected);
                                     conversationDelta.Add(injected);
                                     toolResult = "Dateien erfolgreich in den System-Kontext geladen.";
                                 }
