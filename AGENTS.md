@@ -128,5 +128,8 @@ public interface ITool
 
 - `ToolDefinition` declares the tool name, description, and JSON-Schema parameters shown to the LLM.
 - `ToolResult` carries the string output returned to the LLM as a tool-result message.
-- Register the tool in the `ToolRegistry` during server startup.
+- `ToolCall.SessionPath` is the path to the current session directory (set automatically by the server); tools that need session-scoped persistence (like context_* tools) use it.
+- Valid `ToolParameter.Type` values: `"string"`, `"integer"`, `"object"`, `"array"` — passed directly to the LLM as JSON Schema.
+- Note: `ToolCall` in `BashGPT.Tools.Abstractions` (`Name`, `ArgumentsJson`, `SessionPath`) differs from `BashGPT.Providers.ToolCall` (`Id`, `Name`, `ArgumentsJson`, `Index`) — the server converts between them.
+- Register the tool in the `ToolRegistry` during server startup (`src/bashGPT.Server/Program.cs`).
 - Add the tool's name to `EnabledTools` in any agent that should be able to use it.

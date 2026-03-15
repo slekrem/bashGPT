@@ -108,6 +108,7 @@ Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steue
 | `ToolRegistry` | `Tools/Execution/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen (Namespace `BashGPT.Tools.Execution`) |
 | `ContextFileCache` | `Agents.Dev/ContextFileCache.cs` | Persistiert geladene Dateipfade pro Session (AsyncLocal für Thread-Isolation); genutzt vom Dev-Agent |
 | `RunningChatRegistry` | `Server/Server/RunningChatRegistry.cs` | ConcurrentDictionary von RequestId → CancellationTokenSource; ermöglicht `POST /api/chat/cancel` |
+| `LegacyHistory` | `Server/Server/LegacyHistory.cs` | In-Memory-Fallback-History wenn kein SessionStore; max. `AppDefaults.MaxHistoryMessages` (40) |
 
 ### Provider
 
@@ -159,6 +160,8 @@ POST /api/reset               → (veraltet) Legacy-History löschen
 **Tool-Auflösung bei `POST /api/chat`:** `agent.EnabledTools` > `session.EnabledTools` > `body.enabledTools` (erste nicht-leere Liste gewinnt). `ToolHelper.Resolve()` übersetzt Tool-Namen in `ToolDefinition`-Objekte für das LLM.
 
 **`AgentBase.SystemPrompt`** ist `IReadOnlyList<string>` — mehrere System-Prompts möglich, jeder wird als separate System-Nachricht gesendet. Beim Dev-Agent werden die letzten zwei Einträge dynamisch generiert (Projektkontext + geladene Dateien).
+
+**SSE-Events** (`OnEvent`-Callback, `SseEvent(string Event, object? Data)`): `round_start` (neue Tool-Call-Runde, `{ round }`), `tool_call` (vor Ausführung, `{ name, command }`), `command_result` (nach Ausführung, `{ command, output, exitCode, wasExecuted, status }`).
 
 ### Session-Persistenz
 
