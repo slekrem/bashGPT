@@ -32,11 +32,11 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             Model    = config.Model,
             Messages = request.Messages.Select(MapMessage).ToList(),
             Stream   = request.Stream,
-            Temperature = config.Temperature,
-            TopP = config.TopP,
-            MaxCompletionTokens = config.MaxCompletionTokens,
-            Seed = config.Seed,
-            ReasoningEffort = string.IsNullOrWhiteSpace(config.ReasoningEffort) ? null : config.ReasoningEffort
+            Temperature = request.Temperature,
+            TopP = request.TopP,
+            MaxCompletionTokens = request.MaxTokens,
+            Seed = request.Seed,
+            ReasoningEffort = string.IsNullOrWhiteSpace(request.ReasoningEffort) ? null : request.ReasoningEffort
         };
 
         if (request.Tools is { Count: > 0 })
@@ -274,11 +274,6 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
             Model    = config.Model,
             Messages = messages.Select(m => new OpenAiMessage { Role = m.RoleString, Content = m.Content }).ToList(),
             Stream   = true,
-            Temperature = config.Temperature,
-            TopP = config.TopP,
-            MaxCompletionTokens = config.MaxCompletionTokens,
-            Seed = config.Seed,
-            ReasoningEffort = string.IsNullOrWhiteSpace(config.ReasoningEffort) ? null : config.ReasoningEffort
         };
 
         using var httpRequest = new HttpRequestMessage(

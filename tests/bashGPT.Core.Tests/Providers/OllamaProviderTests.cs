@@ -273,18 +273,16 @@ public class OllamaProviderTests
         var json = """{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}""";
         var handler = new TestHttpMessageHandler(json, contentType: "application/json");
         var provider = new OllamaProvider(
-            new OllamaConfig
-            {
-                BaseUrl = "http://localhost:11434",
-                Model = "test",
-                Temperature = 0.2,
-                TopP = 0.95,
-                Seed = 42,
-            },
+            new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
             new HttpClient(handler));
 
         _ = await provider.ChatAsync(
-            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: false));
+            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")],
+                Stream: false,
+                Temperature: 0.2,
+                TopP: 0.95,
+                Seed: 42,
+                NumCtx: 65536));
 
         Assert.NotNull(handler.LastRequestBody);
         using var doc = JsonDocument.Parse(handler.LastRequestBody!);

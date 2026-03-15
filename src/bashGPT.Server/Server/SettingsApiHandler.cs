@@ -73,20 +73,11 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
                 apiKey = config.Cerebras.ApiKey,
                 hasApiKey = config.Cerebras.ApiKey is not null,
                 baseUrl = config.Cerebras.BaseUrl,
-                temperature = config.Cerebras.Temperature,
-                topP = config.Cerebras.TopP,
-                maxCompletionTokens = config.Cerebras.MaxCompletionTokens,
-                seed = config.Cerebras.Seed,
-                reasoningEffort = config.Cerebras.ReasoningEffort,
             },
             ollama            = new
             {
                 model = config.Ollama.Model,
                 host = config.Ollama.BaseUrl,
-                temperature = config.Ollama.Temperature,
-                topP = config.Ollama.TopP,
-                seed = config.Ollama.Seed,
-                numCtx = config.Ollama.NumCtx,
             },
         });
     }
@@ -115,21 +106,12 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             if (body.Cerebras.Model is not null) config.Cerebras.Model = body.Cerebras.Model;
             if (!string.IsNullOrWhiteSpace(body.Cerebras.ApiKey)) config.Cerebras.ApiKey = body.Cerebras.ApiKey;
             if (body.Cerebras.BaseUrl is not null) config.Cerebras.BaseUrl = body.Cerebras.BaseUrl;
-            if (body.Cerebras.Temperature is not null) config.Cerebras.Temperature = body.Cerebras.Temperature;
-            if (body.Cerebras.TopP is not null) config.Cerebras.TopP = body.Cerebras.TopP;
-            if (body.Cerebras.MaxCompletionTokens is not null) config.Cerebras.MaxCompletionTokens = body.Cerebras.MaxCompletionTokens;
-            if (body.Cerebras.Seed is not null) config.Cerebras.Seed = body.Cerebras.Seed;
-            if (body.Cerebras.ReasoningEffort is not null) config.Cerebras.ReasoningEffort = body.Cerebras.ReasoningEffort;
         }
 
         if (body.Ollama is not null)
         {
             if (body.Ollama.Model is not null) config.Ollama.Model = body.Ollama.Model;
             if (body.Ollama.Host is not null) config.Ollama.BaseUrl = body.Ollama.Host;
-            if (body.Ollama.Temperature is not null) config.Ollama.Temperature = body.Ollama.Temperature;
-            if (body.Ollama.TopP is not null) config.Ollama.TopP = body.Ollama.TopP;
-            if (body.Ollama.Seed is not null) config.Ollama.Seed = body.Ollama.Seed;
-            if (body.Ollama.NumCtx is not null && body.Ollama.NumCtx > 0) config.Ollama.NumCtx = body.Ollama.NumCtx;
         }
 
         if (body.Model is not null)
@@ -258,13 +240,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         string? Model,
         string? ApiKey,
         string? BaseUrl,
-        string? Host,
-        double? Temperature,
-        double? TopP,
-        int? MaxCompletionTokens,
-        int? Seed,
-        int? NumCtx,
-        string? ReasoningEffort);
+        string? Host);
 
     private sealed class CerebrasModelMetadata
     {

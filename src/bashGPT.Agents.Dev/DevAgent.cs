@@ -1,4 +1,5 @@
 using BashGPT.Agents;
+using BashGPT.Providers;
 
 namespace BashGPT.Agents.Dev;
 

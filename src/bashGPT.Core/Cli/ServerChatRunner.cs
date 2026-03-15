@@ -100,7 +100,8 @@ public class ServerChatRunner(
                 {
                     resJson = json;
                     if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
-                });
+                },
+                llmConfig: opts.LlmConfig);
             llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
             return result;
         }

@@ -40,7 +40,8 @@ internal static class ChatOrchestrator
         Action<string>? onToken = null,
         Action<string>? onReasoningToken = null,
         Func<string, Task>? onRequestJson = null,
-        Func<string, Task>? onResponseJson = null)
+        Func<string, Task>? onResponseJson = null,
+        AgentLlmConfig? llmConfig = null)
     {
         try
         {
@@ -50,12 +51,18 @@ internal static class ChatOrchestrator
                     Messages: messages,
                     Tools: tools,
                     ToolChoiceName: toolChoiceName,
-                    ParallelToolCalls: false,
-                    Stream: true,
+                    ParallelToolCalls: llmConfig?.ParallelToolCalls ?? false,
+                    Stream: llmConfig?.Stream ?? true,
                     OnToken: token => { tokenBuffer.Append(token); onToken?.Invoke(token); },
                     OnReasoningToken: onReasoningToken,
                     OnRequestJson: onRequestJson,
-                    OnResponseJson: onResponseJson),
+                    OnResponseJson: onResponseJson,
+                    Temperature: llmConfig?.Temperature,
+                    TopP: llmConfig?.TopP,
+                    NumCtx: llmConfig?.NumCtx,
+                    MaxTokens: llmConfig?.MaxTokens,
+                    Seed: llmConfig?.Seed,
+                    ReasoningEffort: llmConfig?.ReasoningEffort),
                 ct);
 
             if (string.IsNullOrWhiteSpace(response.Content) && tokenBuffer.Length > 0)

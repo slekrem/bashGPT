@@ -118,7 +118,8 @@ internal sealed class StreamingChatApiHandler(
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
-                SystemPrompt: agent?.SystemPrompt);
+                SystemPrompt: agent?.SystemPrompt,
+                LlmConfig:    agent?.LlmConfig);
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 
