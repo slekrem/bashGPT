@@ -34,7 +34,7 @@ cd src/bashGPT.Web && npm run dev   # Dev-Server mit HMR (nur Frontend)
 ./scripts/coverage-report.sh        # Output: coverage/report/index.html
 ```
 
-Das Frontend-Bundle (`dist/index.html` + `dist/bundle.js`) wird als Embedded Resource in die .NET-Assembly eingebettet. `dotnet build` ruft automatisch `npm run build` via MSBuild-Target auf.
+Das Frontend-Bundle (`dist/index.html` + `dist/bundle.js`) wird als Embedded Resource in `bashGPT.Server.csproj` eingebettet. `dotnet build` ruft automatisch `npm install` + `npm run build` via MSBuild-Target (`BeforeTargets="BeforeBuild"`) auf. Voraussetzung: **Node.js ≥ 20.19.0 oder ≥ 22.12.0** (Vite 7). CI/CD: `.github/workflows/ci.yml` — baut auf `ubuntu-latest` bei Push/PR auf `main` (dotnet 9 + node 20, Release-Build, TRX-Test-Results als Artifact).
 
 ## Architektur
 
@@ -49,15 +49,14 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 | `bashGPT.Server` | Server-Executable: eingebetteter HTTP-Listener, alle API-Handler |
 | `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent` – Basis-Infrastruktur |
 | `bashGPT.Agents.Shell` | Shell-Agent (`shell`): nur `shell_exec`, Temperature=0.1 |
-| `bashGPT.Agents.Dev` | Dev-Agent (`dev`): alle 16 Tools aktiv (fetch, filesystem_*, git_*, test_run, build_run, shell_exec, context_*), Temperature=0.1, NumCtx=64K |
-| `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult` |
+| `bashGPT.Agents.Dev` | Dev-Agent (`dev`): 17 Tools aktiv (fetch, filesystem_*, git_*, test_run, build_run, shell_exec, context_*), Temperature=0.1, NumCtx=64K; enthält auch `context_load_files`/`context_unload_files`/`context_clear_files`-Tools und `ContextFileCache` |
+| `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolDefinition`, `ToolCall`, `ToolResult`; `ToolRegistry` in `Execution/`-Unterordner (Namespace `BashGPT.Tools.Execution`) |
 | `bashGPT.Tools.Shell` | `shell_exec`-Tool |
 | `bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
 | `bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
 | `bashGPT.Tools.Build` | `build_run`-Tool |
 | `bashGPT.Tools.Testing` | `test_run`-Tool |
 | `bashGPT.Tools.Fetch` | `fetch`-Tool (HTTP GET mit HTML-Extraktion) |
-| `bashGPT.Tools.Execution` | `context_load_files`, `context_unload_files`, `context_clear_files` (Datei-Kontext für Dev-Agent) |
 
 ### Datenfluss
 
@@ -155,6 +154,10 @@ GET  /api/tools               → [{ name, description, parameters[] }] — alle
 GET  /api/history             → (veraltet) Legacy-History
 POST /api/reset               → (veraltet) Legacy-History löschen
 ```
+
+**Tool-Auflösung bei `POST /api/chat`:** `agent.EnabledTools` > `session.EnabledTools` > `body.enabledTools` (erste nicht-leere Liste gewinnt). `ToolHelper.Resolve()` übersetzt Tool-Namen in `ToolDefinition`-Objekte für das LLM.
+
+**`AgentBase.SystemPrompt`** ist `IReadOnlyList<string>` — mehrere System-Prompts möglich, jeder wird als separate System-Nachricht gesendet. Beim Dev-Agent werden die letzten zwei Einträge dynamisch generiert (Projektkontext + geladene Dateien).
 
 ### Session-Persistenz
 

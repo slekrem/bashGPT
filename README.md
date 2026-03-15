@@ -13,9 +13,10 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 - **Tools-Ökosystem**: modulare LLM-Tools für Filesystem, Git, Build, Tests, Web-Fetch und Shell
 
 ## Installation
+Voraussetzungen: **.NET 9 SDK** und **Node.js ≥ 20.19.0** (oder ≥ 22.12.0) — benötigt von Vite 7 beim Frontend-Build.
+
 ```bash
-# Repo klonen
-# (lokal) dann bauen
+# Repo klonen, dann bauen (npm install + npm run build laufen automatisch)
 dotnet build
 ```
 
