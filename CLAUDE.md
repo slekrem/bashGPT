@@ -46,7 +46,7 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 | `bashGPT.Server` | Server-Executable: eingebetteter HTTP-Listener, alle API-Handler |
 | `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent` – Basis-Infrastruktur |
 | `bashGPT.Agents.Shell` | Shell-Agent (`shell`) mit `shell_exec`-Tool |
-| `bashGPT.Agents.Dev` | Dev-Agent (`dev`) mit Filesystem-, Git-, Build- und Test-Tools |
+| `bashGPT.Agents.Dev` | Dev-Agent (`dev`): alle 16 Tools aktiv (fetch, filesystem_*, git_*, test_run, build_run, shell_exec, context_*), Temperature=0.1, NumCtx=64K |
 | `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult` |
 | `bashGPT.Tools.Shell` | `shell_exec`-Tool |
 | `bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
@@ -153,11 +153,24 @@ Gespeichert in `~/.config/bashgpt/config.json`. Relevante `config set`-Schlüsse
 | `ollama.model` | string | `gpt-oss:20b` | Ollama-Modell |
 | `cerebras.apiKey` | string | — | Cerebras API-Key |
 | `cerebras.model` | string | `gpt-oss:120b-cloud` | Cerebras-Modell |
-| `rateLimiting.enabled` | bool | `true` | Rate-Limiting aktiv |
-| `rateLimiting.maxRequestsPerMinute` | int | `30` | Max. Anfragen/Minute |
-| `rateLimiting.agentRequestDelayMs` | int | `500` | Verzögerung zwischen Agent-Anfragen (ms) |
+| `cerebras.baseUrl` | string | `https://api.cerebras.ai/v1` | Cerebras API-URL |
 
-Env-Variablen überschreiben die Datei: `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`, `BASHGPT_OLLAMA_URL`, `BASHGPT_OLLAMA_MODEL`.
+`rateLimiting.*`-Felder (`enabled`, `maxRequestsPerMinute` (30), `agentRequestDelayMs` (500)) werden von `config set` nicht unterstützt — direkt in `~/.config/bashgpt/config.json` editieren.
+
+Env-Variablen überschreiben die Datei:
+
+| Variable | Entspricht |
+|---|---|
+| `BASHGPT_PROVIDER` | `defaultProvider` |
+| `BASHGPT_CEREBRAS_KEY` | `cerebras.apiKey` |
+| `BASHGPT_CEREBRAS_MODEL` | `cerebras.model` |
+| `BASHGPT_OLLAMA_URL` | `ollama.baseUrl` |
+| `BASHGPT_OLLAMA_MODEL` | `ollama.model` |
+| `BASHGPT_EXEC_MODE` | `defaultExecMode` |
+| `BASHGPT_FORCE_TOOLS` | `defaultForceTools` |
+| `BASHGPT_COMMAND_TIMEOUT` | `commandTimeoutSeconds` |
+| `BASHGPT_LOOP_DETECTION` | `loopDetectionEnabled` |
+| `BASHGPT_MAX_TOOL_CALL_ROUNDS` | `maxToolCallRounds` |
 
 ### Frontend
 
