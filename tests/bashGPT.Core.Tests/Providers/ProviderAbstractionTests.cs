@@ -32,13 +32,13 @@ public class ProviderAbstractionTests
     }
 
     [Fact]
-    public void ProviderFactory_Create_WithCerebrasOverride_ThrowsHelpfulError()
+    public void ProviderFactory_Create_WithUnsupportedProvider_ThrowsHelpfulError()
     {
-        var config = new AppConfig { DefaultProvider = ProviderType.Ollama };
+        var config = new AppConfig { DefaultProvider = (ProviderType)999 };
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            ProviderFactory.Create(config, overrideType: ProviderType.Cerebras));
+            ProviderFactory.Create(config));
 
-        Assert.Contains("wird nicht mehr unterstützt", ex.Message);
+        Assert.Contains("Nicht unterstützter Provider", ex.Message);
     }
 
     [Fact]

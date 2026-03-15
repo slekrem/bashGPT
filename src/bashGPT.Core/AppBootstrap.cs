@@ -13,8 +13,6 @@ public static class AppBootstrap
     public static ProviderType? ParseProviderOrThrow(string? providerStr) => providerStr?.ToLowerInvariant() switch
     {
         "ollama" => ProviderType.Ollama,
-        "cerebras" => throw new ArgumentException(
-            "Der Provider 'cerebras' wird nicht mehr unterstützt. Bitte nutze 'ollama'."),
         null => null,
         var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama")
     };

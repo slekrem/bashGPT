@@ -133,11 +133,13 @@ public sealed class ServerChatRunnerTests
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
         {
-            var configService = new TestConfigurationService(configPath);
-            var config = await configService.LoadAsync();
-            config.DefaultProvider = ProviderType.Cerebras;
-            await configService.SaveAsync(config);
+            await File.WriteAllTextAsync(configPath, """
+            {
+              "defaultProvider": "cerebras"
+            }
+            """);
 
+            var configService = new TestConfigurationService(configPath);
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using BashGPT.Shell;
 
@@ -32,6 +33,7 @@ public class ConfigurationService
             try
             {
                 var json = await File.ReadAllTextAsync(ConfigFile);
+                json = NormalizeLegacyConfigJson(json);
                 config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
             }
             catch (JsonException ex)
@@ -40,8 +42,6 @@ public class ConfigurationService
                     $"Konfigurationsdatei '{ConfigFile}' ist ungültig: {ex.Message}", ex);
             }
         }
-
-        NormalizeConfig(config);
         ApplyEnvironmentOverrides(config);
         return config;
     }
@@ -143,10 +143,41 @@ public class ConfigurationService
             """;
     }
 
-    private static void NormalizeConfig(AppConfig config)
+    private static string NormalizeLegacyConfigJson(string json)
     {
-        if (config.DefaultProvider == ProviderType.Cerebras)
-            config.DefaultProvider = ProviderType.Ollama;
+        if (string.IsNullOrWhiteSpace(json))
+            return json;
+
+        JsonNode? node;
+        try
+        {
+            node = JsonNode.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return json;
+        }
+
+        if (node is not JsonObject obj || !obj.TryGetPropertyValue("defaultProvider", out var providerNode))
+            return json;
+
+        if (providerNode is not JsonValue providerValue)
+            return json;
+
+        if (providerValue.TryGetValue<string>(out var providerName)
+            && string.Equals(providerName, "cerebras", StringComparison.OrdinalIgnoreCase))
+        {
+            obj["defaultProvider"] = "ollama";
+            return obj.ToJsonString(JsonOptions);
+        }
+
+        if (providerValue.TryGetValue<int>(out var providerIndex) && providerIndex == 1)
+        {
+            obj["defaultProvider"] = "ollama";
+            return obj.ToJsonString(JsonOptions);
+        }
+
+        return json;
     }
 
     private static void ApplyEnvironmentOverrides(AppConfig config)

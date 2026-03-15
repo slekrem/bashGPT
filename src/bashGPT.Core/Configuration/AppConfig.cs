@@ -4,8 +4,7 @@ namespace BashGPT.Configuration;
 
 public enum ProviderType
 {
-    Ollama,
-    Cerebras
+    Ollama
 }
 
 public class AppConfig

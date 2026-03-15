@@ -17,7 +17,7 @@ public static class ProviderFactory
         var type = overrideType ?? config.DefaultProvider;
         if (type != ProviderType.Ollama)
             throw new InvalidOperationException(
-                "Der Provider 'cerebras' wird nicht mehr unterstützt. Bitte nutze 'ollama'.");
+                $"Nicht unterstützter Provider '{type}'. Erlaubt: ollama.");
 
         ILlmProvider provider = new OllamaProvider(config.Ollama);
 
