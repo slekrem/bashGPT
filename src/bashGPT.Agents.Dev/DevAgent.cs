@@ -31,6 +31,7 @@ public sealed class DevAgent : AgentBase
         "build_run",
         "shell_exec",
         "context_load_files",
+        "context_unload_files",
     ];
 
     public override AgentLlmConfig LlmConfig => new(

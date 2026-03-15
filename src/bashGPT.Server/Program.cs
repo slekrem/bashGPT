@@ -31,6 +31,7 @@ var toolRegistry = new ToolRegistry([
     new TestRunTool(),
     new BuildRunTool(),
     new ContextLoadFilesTool(),
+    new ContextUnloadFilesTool(),
 ]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();

@@ -51,6 +51,20 @@ public static class ContextFileCache
             .ToList();
     }
 
+    /// <summary>Entfernt bestimmte Pfade aus dem Cache.</summary>
+    public static void RemoveFiles(IEnumerable<string> paths, string? sessionPath = null)
+    {
+        var toRemove = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var remaining = ReadFiles(sessionPath).Where(p => !toRemove.Contains(p)).ToList();
+        var cachePath = GetCachePath(sessionPath);
+        if (remaining.Count == 0)
+        {
+            if (File.Exists(cachePath)) File.Delete(cachePath);
+            return;
+        }
+        File.WriteAllLines(cachePath, remaining);
+    }
+
     /// <summary>Löscht den Cache.</summary>
     public static void Clear(string? sessionPath = null)
     {
