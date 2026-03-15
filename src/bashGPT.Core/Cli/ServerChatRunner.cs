@@ -69,9 +69,19 @@ public class ServerChatRunner(
             logs.Add($"Provider: {provider.Name}, Modell: {provider.Model}");
 
         var messages = new List<ChatMessage>();
-        if (opts.SystemPrompt is not null)
-            foreach (var prompt in opts.SystemPrompt.Where(p => !string.IsNullOrWhiteSpace(p)))
-                messages.Add(new ChatMessage(ChatRole.System, prompt));
+        void RefreshSystemMessages()
+        {
+            if (opts.SystemPrompt is null) return;
+            // System-Messages sind immer am Anfang; beim Refresh alte entfernen und neu einfügen.
+            var firstNonSystem = messages.FindIndex(m => m.Role != ChatRole.System);
+            var removeCount    = firstNonSystem >= 0 ? firstNonSystem : messages.Count;
+            if (removeCount > 0) messages.RemoveRange(0, removeCount);
+            var freshPrompts = opts.SystemPrompt().Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            for (var i = freshPrompts.Count - 1; i >= 0; i--)
+                messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
+        }
+
+        RefreshSystemMessages();
         foreach (var msg in opts.History)
             messages.Add(msg);
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
@@ -153,22 +163,7 @@ public class ServerChatRunner(
                                 var r = await iTool.ExecuteAsync(
                                     new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
 
-                                if (r.InjectAsSystem && r.Success)
-                                {
-                                    // System-Message nach den bestehenden System-Prompts einfügen
-                                    // (konsistent mit BuildLoadedFilesContext, das ebenfalls als letzter
-                                    // System-Prompt-Eintrag landet). Außerdem in conversationDelta speichern,
-                                    // damit sie in der Session persistiert wird.
-                                    var injected = new ChatMessage(ChatRole.System, r.Content);
-                                    var lastSystemIdx = messages.FindLastIndex(m => m.Role == ChatRole.System);
-                                    messages.Insert(lastSystemIdx >= 0 ? lastSystemIdx + 1 : 0, injected);
-                                    conversationDelta.Add(injected);
-                                    toolResult = "Dateien erfolgreich in den System-Kontext geladen.";
-                                }
-                                else
-                                {
-                                    toolResult = r.Content;
-                                }
+                                toolResult = r.Content;
                                 commandResult = BuildCommandResult(call.Name, commandLabel, r.Content, r.Success);
                             }
                             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -201,6 +196,7 @@ public class ServerChatRunner(
                         conversationDelta.Add(toolMessage);
                     }
 
+                    RefreshSystemMessages();
                     response = await CallOnce();
                     if (response.Error is not null) break;
                     lastResponse = response.Response;

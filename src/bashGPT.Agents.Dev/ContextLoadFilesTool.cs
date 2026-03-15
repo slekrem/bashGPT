@@ -75,13 +75,12 @@ public sealed class ContextLoadFilesTool : ITool
         if (loadedPaths.Count == 0)
             return Task.FromResult(new ToolResult(Success: false, Content: "Keine Dateien für die angegebenen Muster gefunden."));
 
-        // Pfade im Session-Cache speichern → DevAgent.SystemPrompt lädt sie bei jedem Folge-Request frisch.
+        // Pfade im Session-Cache speichern → DevAgent.SystemPrompt lädt sie bei jedem Request frisch.
         ContextFileCache.AddFiles(loadedPaths, call.SessionPath);
 
         return Task.FromResult(new ToolResult(
-            Success:        true,
-            Content:        sb.ToString().TrimEnd(),
-            InjectAsSystem: true));
+            Success: true,
+            Content: $"{loadedPaths.Count} Datei(en) in den Kontext geladen: {string.Join(", ", loadedPaths)}"));
     }
 
     private static string[] ParsePatterns(string json)

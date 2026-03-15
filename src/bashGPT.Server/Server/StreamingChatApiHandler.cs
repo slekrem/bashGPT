@@ -125,7 +125,7 @@ internal sealed class StreamingChatApiHandler(
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
-                SystemPrompt: agent?.SystemPrompt,
+                SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
                 LlmConfig:    agent?.LlmConfig,
                 SessionPath:  sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
                     ? sessionStore.GetSessionDir(sessionId)
