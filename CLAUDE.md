@@ -65,7 +65,7 @@ User-Prompt
   → LLM antwortet mit Text und/oder Tool-Calls
   → ToolRegistry / CommandExecutor   (je nach ExecMode und aktivem Agenten)
   → Ergebnisse als Tool-Result-Messages zurück ans LLM
-  → Follow-up-Loop
+  → Follow-up-Loop (max. 8 Runden, Loop-Guard bei identischen Tool-Calls)
   → Ausgabe
 ```
 
@@ -111,8 +111,9 @@ Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Ser
 GET  /                        → index.html (embedded)
 GET  /bundle.js               → JS-Bundle (embedded)
 GET  /api/context             → Shell-Kontext (OS, Git, Verzeichnis)
-GET  /api/settings            → Aktuelle Server-Einstellungen
-POST /api/settings            → Einstellungen ändern
+GET    /api/settings          → Aktuelle Server-Einstellungen
+PUT    /api/settings          → Einstellungen ändern
+POST   /api/settings/test     → Provider-Verbindung testen
 POST /api/chat                → { prompt, execMode } → { response, commands, usedToolCalls, logs }
 POST /api/chat/stream         → Server-Sent Events (SSE), Token-Streaming
 POST /api/chat/cancel         → Laufenden Chat-Request abbrechen
@@ -138,9 +139,25 @@ Sessions werden in einem Zwei-Schichten-Layout gespeichert:
 
 ### Konfiguration
 
-Gespeichert in `~/.config/bashgpt/config.json`. Env-Variablen überschreiben die Datei:
-- `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`
-- `BASHGPT_OLLAMA_URL`, `BASHGPT_OLLAMA_MODEL`
+Gespeichert in `~/.config/bashgpt/config.json`. Relevante `config set`-Schlüssel:
+
+| Schlüssel | Typ | Default | Beschreibung |
+|---|---|---|---|
+| `defaultProvider` | string | `ollama` | Aktiver Provider |
+| `defaultExecMode` | string | `ask` | Standard-ExecutionMode |
+| `defaultForceTools` | bool | `false` | Tool-Calls immer erzwingen |
+| `commandTimeoutSeconds` | int | `300` | Shell-Befehl-Timeout |
+| `maxToolCallRounds` | int | `8` | Max. Tool-Call-Runden pro Anfrage |
+| `loopDetectionEnabled` | bool | `true` | Schleifenerkennung bei identischen Tool-Calls |
+| `ollama.baseUrl` | string | `http://localhost:11434` | Ollama-URL |
+| `ollama.model` | string | `gpt-oss:20b` | Ollama-Modell |
+| `cerebras.apiKey` | string | — | Cerebras API-Key |
+| `cerebras.model` | string | `gpt-oss:120b-cloud` | Cerebras-Modell |
+| `rateLimiting.enabled` | bool | `true` | Rate-Limiting aktiv |
+| `rateLimiting.maxRequestsPerMinute` | int | `30` | Max. Anfragen/Minute |
+| `rateLimiting.agentRequestDelayMs` | int | `500` | Verzögerung zwischen Agent-Anfragen (ms) |
+
+Env-Variablen überschreiben die Datei: `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`, `BASHGPT_OLLAMA_URL`, `BASHGPT_OLLAMA_MODEL`.
 
 ### Frontend
 

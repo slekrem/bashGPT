@@ -81,7 +81,11 @@ public sealed class MyAgent : AgentBase
         "Du bist ein spezialisierter Assistent für ...",
     ];
 
-    // Optional: override LLM parameters (temperature, context window, etc.)
+    // Optional: LLM-Parameter überschreiben (alle Felder optional)
+    // Vollständige AgentLlmConfig-Felder:
+    //   Model, Temperature, TopP, NumCtx, MaxTokens, Seed,
+    //   ReasoningEffort, ParallelToolCalls, Stream,
+    //   FrequencyPenalty, PresencePenalty, Stop, ResponseFormat
     public override AgentLlmConfig LlmConfig => new(
         Temperature: 0.2,
         NumCtx:      32768,

@@ -101,7 +101,7 @@ Hinweise:
 ## Agenten (Browser UI)
 Agenten sind spezialisierte Chat-Modi mit eigenem System-Prompt und Tool-Set. Sie werden in der Browser-UI ausgewählt.
 
-**Generic-Agent** (`generic`): Standard-Chat-Agent ohne spezielle Tool-Einschränkungen. Geeignet für allgemeine Anfragen.
+**Generic-Agent** (`generic`): Standard-Chat-Agent ohne agentenspezifischen System-Prompt. Keine Tools standardmäßig aktiv — Tools können manuell über den Tool-Picker in der UI ausgewählt werden.
 
 **Shell-Agent** (`shell`): Interaktiver Shell-Assistent mit `shell_exec`-Tool. Führt Befehle direkt aus.
 
