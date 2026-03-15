@@ -16,6 +16,9 @@ internal sealed class OpenAiChatRequest
     [JsonPropertyName("top_p")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? TopP { get; set; }
+    [JsonPropertyName("max_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxTokens { get; set; }
     [JsonPropertyName("max_completion_tokens")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MaxCompletionTokens { get; set; }
@@ -25,6 +28,18 @@ internal sealed class OpenAiChatRequest
     [JsonPropertyName("reasoning_effort")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReasoningEffort { get; set; }
+    [JsonPropertyName("frequency_penalty")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? FrequencyPenalty { get; set; }
+    [JsonPropertyName("presence_penalty")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PresencePenalty { get; set; }
+    [JsonPropertyName("stop")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Stop { get; set; }
+    [JsonPropertyName("response_format")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OpenAiResponseFormat? ResponseFormat { get; set; }
     [JsonPropertyName("stream_options")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OpenAiStreamOptions? StreamOptions { get; set; }
@@ -40,6 +55,14 @@ internal sealed class OpenAiChatRequest
     [JsonPropertyName("options")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OpenAiOllamaOptions? Options { get; set; }
+}
+
+internal sealed class OpenAiResponseFormat
+{
+    [JsonPropertyName("type")] public string Type { get; set; } = "text";
+
+    public static OpenAiResponseFormat? FromString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : new OpenAiResponseFormat { Type = value };
 }
 
 internal sealed class OpenAiOllamaOptions

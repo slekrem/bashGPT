@@ -29,14 +29,18 @@ public class CerebrasProvider(CerebrasConfig config, HttpClient? httpClient = nu
 
         var openAiRequest = new OpenAiChatRequest
         {
-            Model    = config.Model,
-            Messages = request.Messages.Select(MapMessage).ToList(),
-            Stream   = request.Stream,
-            Temperature = request.Temperature,
-            TopP = request.TopP,
+            Model               = config.Model,
+            Messages            = request.Messages.Select(MapMessage).ToList(),
+            Stream              = request.Stream,
+            Temperature         = request.Temperature,
+            TopP                = request.TopP,
             MaxCompletionTokens = request.MaxTokens,
-            Seed = request.Seed,
-            ReasoningEffort = string.IsNullOrWhiteSpace(request.ReasoningEffort) ? null : request.ReasoningEffort
+            Seed                = request.Seed,
+            ReasoningEffort     = string.IsNullOrWhiteSpace(request.ReasoningEffort) ? null : request.ReasoningEffort,
+            FrequencyPenalty    = request.FrequencyPenalty,
+            PresencePenalty     = request.PresencePenalty,
+            Stop                = request.Stop?.Count > 0 ? [.. request.Stop] : null,
+            ResponseFormat      = OpenAiResponseFormat.FromString(request.ResponseFormat),
         };
 
         if (request.Tools is { Count: > 0 })

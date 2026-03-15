@@ -57,12 +57,16 @@ internal static class ChatOrchestrator
                     OnReasoningToken: onReasoningToken,
                     OnRequestJson: onRequestJson,
                     OnResponseJson: onResponseJson,
-                    Temperature: llmConfig?.Temperature,
-                    TopP: llmConfig?.TopP,
-                    NumCtx: llmConfig?.NumCtx,
-                    MaxTokens: llmConfig?.MaxTokens,
-                    Seed: llmConfig?.Seed,
-                    ReasoningEffort: llmConfig?.ReasoningEffort),
+                    Temperature:      llmConfig?.Temperature,
+                    TopP:             llmConfig?.TopP,
+                    NumCtx:           llmConfig?.NumCtx,
+                    MaxTokens:        llmConfig?.MaxTokens,
+                    Seed:             llmConfig?.Seed,
+                    ReasoningEffort:  llmConfig?.ReasoningEffort,
+                    FrequencyPenalty: llmConfig?.FrequencyPenalty,
+                    PresencePenalty:  llmConfig?.PresencePenalty,
+                    Stop:             llmConfig?.Stop,
+                    ResponseFormat:   llmConfig?.ResponseFormat),
                 ct);
 
             if (string.IsNullOrWhiteSpace(response.Content) && tokenBuffer.Length > 0)
