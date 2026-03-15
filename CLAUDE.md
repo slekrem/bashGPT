@@ -45,7 +45,7 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 | `bashGPT.Cli` | CLI-Executable (`System.CommandLine`), nur Prompt-Anfragen und Config |
 | `bashGPT.Server` | Server-Executable: eingebetteter HTTP-Listener, alle API-Handler |
 | `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent` – Basis-Infrastruktur |
-| `bashGPT.Agents.Shell` | Shell-Agent (`shell`) mit `shell_exec`-Tool |
+| `bashGPT.Agents.Shell` | Shell-Agent (`shell`): nur `shell_exec`, Temperature=0.1 |
 | `bashGPT.Agents.Dev` | Dev-Agent (`dev`): alle 16 Tools aktiv (fetch, filesystem_*, git_*, test_run, build_run, shell_exec, context_*), Temperature=0.1, NumCtx=64K |
 | `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult` |
 | `bashGPT.Tools.Shell` | `shell_exec`-Tool |
@@ -56,20 +56,34 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 | `bashGPT.Tools.Fetch` | `fetch`-Tool (HTTP GET mit HTML-Extraktion) |
 | `bashGPT.Tools.Execution` | `context_load_files`, `context_unload_files`, `context_clear_files` (Datei-Kontext für Dev-Agent) |
 
-### Datenfluss (Kernlogik)
+### Datenfluss
 
+**CLI-Modus (`CliChatRunner`):**
 ```
 User-Prompt
-  → ShellContextCollector   (Git, OS, Shell, Env-Variablen)
+  → ShellContextCollector   (Git, OS, Shell, gefilterte Env-Variablen)
   → System-Prompt + History → ILlmProvider.ChatAsync()
-  → LLM antwortet mit Text und/oder Tool-Calls
-  → ToolRegistry / CommandExecutor   (je nach ExecMode und aktivem Agenten)
+  → LLM antwortet mit Text und/oder Tool-Calls (bash-Tool)
+  → CommandExecutor   (ExecMode: Ask / AutoExec / DryRun / NoExec)
   → Ergebnisse als Tool-Result-Messages zurück ans LLM
   → Follow-up-Loop (max. 8 Runden, Loop-Guard bei identischen Tool-Calls)
-  → Ausgabe
+  → Ausgabe auf Console
 ```
-
 Fallback: Falls keine Tool-Calls, extrahiert `BashCommandExtractor` Befehle aus ` ```bash ` Code-Blöcken.
+
+**Server-Modus (`ServerChatRunner`):**
+```
+POST /api/chat   (prompt, sessionId?, agentId?, enabledTools?)
+  → Agent-Lookup via AgentRegistry → SystemPrompt + LlmConfig
+  → Session laden via SessionStore
+  → ILlmProvider.ChatAsync()  (mit LlmRateLimiter)
+  → LLM antwortet mit Tool-Calls
+  → ToolRegistry.TryGet(name) → ITool.ExecuteAsync()
+  → Ergebnisse als Tool-Result-Messages zurück ans LLM
+  → Follow-up-Loop (max. 8 Runden)
+  → Session persistieren, ServerChatResult zurückgeben
+```
+Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steuern die Tools selbst.
 
 ### Wichtige Klassen
 
@@ -82,8 +96,9 @@ Fallback: Falls keine Tool-Calls, extrahiert `BashCommandExtractor` Befehle aus 
 | `CerebrasProvider` | `Core/Providers/CerebrasProvider.cs` | OpenAI-kompatible Cloud-API, inkl. 429-Retry-Logik |
 | `OllamaProvider` | `Core/Providers/OllamaProvider.cs` | Lokales LLM via ndjson-Stream |
 | `ShellContextCollector` | `Core/Shell/ShellContextCollector.cs` | Sammelt Kontext + erstellt System-Prompt |
-| `CommandExecutor` | `Core/Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (30s Timeout, interaktive Befehle geblockt) |
-| `BashCommandExtractor` | `Core/Shell/BashCommandExtractor.cs` | Extrahiert Befehle, prüft Danger-Patterns |
+| `CommandExecutor` | `Core/Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (300s Timeout); blockiert interaktive Befehle: `htop`, `btop`, `watch`, `less`, `more`, `man`, `vim`, `vi`, `nano`, `emacs`, `top` (ohne `-l`/`-n`), `tail -f`, `ping` (ohne `-c`/`-n`) |
+| `BashCommandExtractor` | `Core/Shell/BashCommandExtractor.cs` | Fallback-Extraktion aus ` ```bash ` Blöcken; prüft 13 Danger-Patterns (u.a. `rm -rf`, `sudo`, `dd`, `mkfs`, `curl \| sh`, Fork-Bomb) |
+| `LlmRateLimiter` | `Core/Providers/LlmRateLimiter.cs` | Sliding-Window Rate-Limiter (nur Server); Mindestabstand + Max-Anfragen/Minute |
 | `SessionStore` | `Core/Storage/SessionStore.cs` | Thread-sicherer Persistenz-Store für `~/.config/bashgpt/sessions/` |
 | `ServerHost` | `Server/Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET), Routing zu API-Handlern |
 | `AgentBase` | `Agents/AgentBase.cs` | Abstrakte Basisklasse für alle Chat-Agenten (code-first) |
@@ -114,7 +129,7 @@ GET  /api/context             → Shell-Kontext (OS, Git, Verzeichnis)
 GET    /api/settings          → Aktuelle Server-Einstellungen
 PUT    /api/settings          → Einstellungen ändern
 POST   /api/settings/test     → Provider-Verbindung testen
-POST /api/chat                → { prompt, execMode } → { response, commands, usedToolCalls, logs }
+POST /api/chat                → { prompt, sessionId?, agentId?, enabledTools?, verbose? } → { response, commands, usedToolCalls, finalStatus, logs, shellContext, usage }
 POST /api/chat/stream         → Server-Sent Events (SSE), Token-Streaming
 POST /api/chat/cancel         → Laufenden Chat-Request abbrechen
 GET  /api/sessions            → Alle Sessions (Metadaten)
