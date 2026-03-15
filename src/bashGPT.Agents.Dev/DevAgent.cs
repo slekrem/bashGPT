@@ -60,8 +60,8 @@ public sealed class DevAgent : AgentBase
     ];
 
     /// <summary>
-    /// Generiert zur Laufzeit einen Projektkontext: Git-Status, Verzeichnisstruktur und CLAUDE.md.
-    /// Wird bei jedem Chat-Request frisch aufgebaut.
+    /// Generiert zur Laufzeit einen Projektkontext: Git-Infos und alle getrackten Dateien.
+    /// Ignorierte Dateien (.gitignore) werden ausgelassen. Wird bei jedem Chat-Request frisch aufgebaut.
     /// </summary>
     private static string BuildProjectContext()
     {
@@ -81,13 +81,23 @@ public sealed class DevAgent : AgentBase
             sb.AppendLine();
         }
 
-        // src/-Struktur
-        var srcDir = Path.Combine(cwd, "src");
-        if (Directory.Exists(srcDir))
+        // Alle getrackten Dateien via git ls-files (respektiert .gitignore),
+        // gruppiert nach Top-Level-Verzeichnis
+        var files = Git("ls-files");
+        if (files is not null)
         {
-            sb.AppendLine("**Projekte (src/):**");
-            foreach (var dir in Directory.GetDirectories(srcDir).Order())
-                sb.AppendLine($"- `{Path.GetFileName(dir)}/`");
+            var grouped = files
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .GroupBy(f => f.Contains('/') ? f[..f.IndexOf('/')] : ".")
+                .OrderBy(g => g.Key);
+
+            sb.AppendLine("**Dateien (gittracked):**");
+            foreach (var group in grouped)
+            {
+                sb.AppendLine($"\n`{group.Key}/`");
+                foreach (var file in group.Order())
+                    sb.AppendLine($"  - `{file}`");
+            }
             sb.AppendLine();
         }
 
