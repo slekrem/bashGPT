@@ -60,6 +60,7 @@
 - Sessions are stored under `~/.config/bashgpt/sessions/` (max. 20 sessions, two-layer layout: `index.json` + per-session `<id>/content.json`).
 - Environment overrides include `BASHGPT_PROVIDER`, `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`, `BASHGPT_OLLAMA_URL`, and `BASHGPT_OLLAMA_MODEL`.
 - Prefer updating config via the CLI: `dotnet run --project src/bashGPT.Cli -- config set <key> <value>`.
+- A legacy `~/.config/bashgpt/agents.json` file may exist from older versions — it is no longer read or written by the current code-first agent system and can be safely ignored or deleted.
 
 ## Implementing a New Agent
 

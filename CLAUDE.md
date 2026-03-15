@@ -29,6 +29,9 @@ dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 # Nur Frontend bauen
 cd src/bashGPT.Web && npm run build
 cd src/bashGPT.Web && npm run dev   # Dev-Server mit HMR (nur Frontend)
+
+# Coverage-Report (HTML) generieren
+./scripts/coverage-report.sh        # Output: coverage/report/index.html
 ```
 
 Das Frontend-Bundle (`dist/index.html` + `dist/bundle.js`) wird als Embedded Resource in die .NET-Assembly eingebettet. `dotnet build` ruft automatisch `npm run build` via MSBuild-Target auf.
@@ -104,6 +107,8 @@ Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steue
 | `AgentBase` | `Agents/AgentBase.cs` | Abstrakte Basisklasse für alle Chat-Agenten (code-first) |
 | `AgentRegistry` | `Agents/AgentRegistry.cs` | In-Memory-Registry registrierter Agenten |
 | `ToolRegistry` | `Tools/Builtins/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen |
+| `ContextFileCache` | `Agents.Dev/ContextFileCache.cs` | Persistiert geladene Dateipfade pro Session (AsyncLocal für Thread-Isolation); genutzt vom Dev-Agent |
+| `RunningChatRegistry` | `Server/Server/RunningChatRegistry.cs` | ConcurrentDictionary von RequestId → CancellationTokenSource; ermöglicht `POST /api/chat/cancel` |
 
 ### Provider
 
@@ -112,6 +117,8 @@ Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Ser
 `StreamAsync` / `CompleteAsync` sind einfachere Legacy-Methoden ohne Tool-Support.
 
 **Besonderheiten:**
+- `ILlmProvider` hat `Name` und `Model` Properties sowie drei Methoden: `ChatAsync` (Tool-Support), `CompleteAsync` (Legacy, kein Tool-Support), `StreamAsync` (Legacy, kein Tool-Support).
+- `RateLimitedLlmProvider` ist ein Dekorator, der einen echten Provider umhüllt und `LlmRateLimiter.WaitAsync()` vor jedem `ChatAsync`-Aufruf einfügt. Wird vom `ServerChatRunner` bei aktivem Rate-Limiting automatisch verwendet.
 - `OllamaProvider`: Retry bei unvollständigem Stream (max. 3 Versuche). Bei HTTP 500 von Reasoning-Modellen (Denktext vor Tool-Call-JSON) versucht `TryRecoverToolCall()` den Tool-Call aus der Fehlermeldung zu rekonstruieren.
 - `CerebrasProvider`: 429-Retry mit `Retry-After`-Header (exponentiell: 2s, 4s, 8s, max 10s). Bei HTTP 422 mit "wrong_api_format" wird einmalig ohne `tool_choice` wiederholt.
 
