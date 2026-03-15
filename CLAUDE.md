@@ -107,9 +107,13 @@ Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steue
 
 ### Provider
 
-Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Server-Modus ist `ChatAsync(LlmChatRequest)` — sie unterstützt Tool-Definitions, `OnToken`-Callback für Streaming und gibt `LlmChatResponse` mit `Content` + `ToolCalls` zurück.
+Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Server-Modus ist `ChatAsync(LlmChatRequest)` — sie unterstützt Tool-Definitions, `OnToken`/`OnReasoningToken`-Callbacks für Streaming und gibt `LlmChatResponse` mit `Content` + `ToolCalls` + `Usage` zurück.
 
 `StreamAsync` / `CompleteAsync` sind einfachere Legacy-Methoden ohne Tool-Support.
+
+**Besonderheiten:**
+- `OllamaProvider`: Retry bei unvollständigem Stream (max. 3 Versuche). Bei HTTP 500 von Reasoning-Modellen (Denktext vor Tool-Call-JSON) versucht `TryRecoverToolCall()` den Tool-Call aus der Fehlermeldung zu rekonstruieren.
+- `CerebrasProvider`: 429-Retry mit `Retry-After`-Header (exponentiell: 2s, 4s, 8s, max 10s). Bei HTTP 422 mit "wrong_api_format" wird einmalig ohne `tool_choice` wiederholt.
 
 ### ExecutionMode
 
@@ -137,8 +141,10 @@ GET  /api/sessions/<id>       → Einzelne Session mit Messages
 POST /api/sessions            → Neue Session anlegen
 DELETE /api/sessions/<id>     → Session löschen
 POST /api/sessions/clear      → Alle Sessions löschen
-GET  /api/agents              → Alle registrierten Agenten
-GET  /api/tools               → Alle verfügbaren Tools
+GET  /api/agents              → [{ id, name }] — alle registrierten Agenten
+GET  /api/agents/<id>/info-panel → { markdown } — Agent-Beschreibung für UI-Panel
+PUT  /api/sessions/<id>       → Session aktualisieren (Title, Messages, etc.)
+GET  /api/tools               → [{ name, description, parameters[] }] — alle verfügbaren Tools
 GET  /api/history             → (veraltet) Legacy-History
 POST /api/reset               → (veraltet) Legacy-History löschen
 ```
@@ -150,7 +156,7 @@ Sessions werden in einem Zwei-Schichten-Layout gespeichert:
 - `~/.config/bashgpt/sessions/<id>/content.json` – Nachrichten einer Session
 - `~/.config/bashgpt/sessions/<id>/requests/` – Rohe LLM-Requests/Responses (Debug)
 
-`SessionStore` ist thread-safe via `SemaphoreSlim` und schreibt atomar via Temp-Datei. Maximum: 20 Sessions.
+`SessionStore` ist thread-safe via `SemaphoreSlim` und schreibt atomar via Temp-Datei. Maximum: 20 Sessions. Session-Titel wird automatisch aus der ersten User-Message gesetzt (max. 40 Zeichen). Migration alter `history.json` / `sessions.json` erfolgt einmalig beim ersten Start.
 
 ### Konfiguration
 
@@ -170,7 +176,7 @@ Gespeichert in `~/.config/bashgpt/config.json`. Relevante `config set`-Schlüsse
 | `cerebras.model` | string | `gpt-oss:120b-cloud` | Cerebras-Modell |
 | `cerebras.baseUrl` | string | `https://api.cerebras.ai/v1` | Cerebras API-URL |
 
-`rateLimiting.*`-Felder (`enabled`, `maxRequestsPerMinute` (30), `agentRequestDelayMs` (500)) werden von `config set` nicht unterstützt — direkt in `~/.config/bashgpt/config.json` editieren.
+`rateLimiting.*`-Felder (`enabled`, `maxRequestsPerMinute` (30), `agentRequestDelayMs` (500)) werden von `config set` **nicht** unterstützt — erreichbar über `PUT /api/settings` im Browser oder direkt in `~/.config/bashgpt/config.json`.
 
 Env-Variablen überschreiben die Datei:
 
