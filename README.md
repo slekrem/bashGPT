@@ -8,7 +8,9 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 - Optionaler Shell-Kontext (Verzeichnis, OS, Shell, Git)
 - Sicherheitsabfrage für gefährliche Befehle
 - Streaming-Antworten
-- **Agent-Modus**: persistente Hintergrund-Checks (Git-Status, HTTP-Health), meldet nur bei Zustandsänderungen
+- **Browser-UI**: eingebetteter HTTP-Server mit Chat-Verlauf, Session-Verwaltung und Agent-Auswahl
+- **Agenten**: spezialisierte Chat-Modi (Shell-Agent, Dev-Agent) mit dedizierten Tool-Sets
+- **Tools-Ökosystem**: modulare LLM-Tools für Filesystem, Git, Build, Tests, Web-Fetch und Shell
 
 ## Installation
 ```bash
@@ -20,16 +22,16 @@ dotnet build
 ## Schnellstart
 ```bash
 # einfache Anfrage
- dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
+dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
 
 # Provider wählen
- dotnet run --project src/bashGPT.Cli -- --provider ollama "liste alle Tests"
+dotnet run --project src/bashGPT.Cli -- --provider ollama "liste alle Tests"
 
 # Modell überschreiben
- dotnet run --project src/bashGPT.Cli -- --model llama3.2 "zeige geänderte Dateien"
+dotnet run --project src/bashGPT.Cli -- --model llama3.2 "zeige geänderte Dateien"
 
 # Tool-Calls explizit erzwingen (optional)
- dotnet run --project src/bashGPT.Cli -- --force-tools "analysiere dieses Verzeichnis"
+dotnet run --project src/bashGPT.Cli -- --force-tools "analysiere dieses Verzeichnis"
 ```
 
 ## Konfiguration
@@ -37,18 +39,18 @@ Standardmäßig liegt die Konfiguration unter `~/.config/bashgpt/config.json`.
 
 ```bash
 # Konfiguration anzeigen
- dotnet run --project src/bashGPT.Cli -- config list
+dotnet run --project src/bashGPT.Cli -- config list
 
 # Provider setzen
- dotnet run --project src/bashGPT.Cli -- config set defaultProvider ollama
+dotnet run --project src/bashGPT.Cli -- config set defaultProvider ollama
 
 # Ollama-URL und Modell
- dotnet run --project src/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
- dotnet run --project src/bashGPT.Cli -- config set ollama.model llama3.2
+dotnet run --project src/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
+dotnet run --project src/bashGPT.Cli -- config set ollama.model llama3.2
 
 # Cerebras-Key und Modell
- dotnet run --project src/bashGPT.Cli -- config set cerebras.apiKey <key>
- dotnet run --project src/bashGPT.Cli -- config set cerebras.model gpt-oss:120b-cloud
+dotnet run --project src/bashGPT.Cli -- config set cerebras.apiKey <key>
+dotnet run --project src/bashGPT.Cli -- config set cerebras.model gpt-oss:120b-cloud
 ```
 
 Alternativ per Environment:
@@ -59,78 +61,59 @@ Alternativ per Environment:
 ## Ausführungsmodi
 ```bash
 # nur anzeigen, nicht ausführen
- dotnet run --project src/bashGPT.Cli -- --dry-run "lösche alle tmp Dateien"
+dotnet run --project src/bashGPT.Cli -- --dry-run "lösche alle tmp Dateien"
 
 # keine Ausführung (reiner Chat)
- dotnet run --project src/bashGPT.Cli -- --no-exec "wie finde ich große Dateien?"
+dotnet run --project src/bashGPT.Cli -- --no-exec "wie finde ich große Dateien?"
 
 # ohne Bestätigung ausführen
- dotnet run --project src/bashGPT.Cli -- --auto-exec "git status"
+dotnet run --project src/bashGPT.Cli -- --auto-exec "git status"
 ```
 
 ## Kontext-Steuerung
 ```bash
 # keinen Kontext mitschicken
- dotnet run --project src/bashGPT.Cli -- --no-context "wie erstelle ich einen neuen branch?"
+dotnet run --project src/bashGPT.Cli -- --no-context "wie erstelle ich einen neuen branch?"
 
 # Verzeichnisinhalt mitsenden
- dotnet run --project src/bashGPT.Cli -- --include-dir "zeige wichtige Dateien"
+dotnet run --project src/bashGPT.Cli -- --include-dir "zeige wichtige Dateien"
 ```
 
 ## Server-Modus (Browser UI)
 ```bash
 # startet lokalen Server auf http://127.0.0.1:5050 und öffnet den Browser
- dotnet run --project src/bashGPT.Server
+dotnet run --project src/bashGPT.Server
 
 # eigener Port, ohne automatisches Browser-Öffnen
- dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
+dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
 # Server mit Provider/Exec-Vorgaben
- dotnet run --project src/bashGPT.Server -- --provider cerebras --auto-exec --verbose
+dotnet run --project src/bashGPT.Server -- --provider cerebras --auto-exec --verbose
 
 # Tool-Calls im Server explizit erzwingen (optional)
- dotnet run --project src/bashGPT.Server -- --provider cerebras --force-tools
+dotnet run --project src/bashGPT.Server -- --provider cerebras --force-tools
 ```
 
-Hinweis:
-- Die UI bietet Chat-Verlauf, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
+Hinweise:
+- Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
 - Im Server-Modus wird `ask` intern als `dry-run` behandelt (kein interaktives Terminal-Prompt im Browser-Flow).
 - `--force-tools` ist standardmäßig deaktiviert. Ohne Flag darf das Modell selbst entscheiden, ob ein Tool-Call nötig ist.
+- Sessions werden unter `~/.config/bashgpt/sessions/` gespeichert (max. 20 Sessions).
 
-## Agent-Modus
-Persistente Agenten prüfen zyklisch einen Zustand und melden nur bei Änderungen.
+## Agenten (Browser UI)
+Agenten sind spezialisierte Chat-Modi mit eigenem System-Prompt und Tool-Set. Sie werden in der Browser-UI ausgewählt.
 
-```bash
-# Git-Status-Agent: meldet wenn sich etwas im Repo ändert
- dotnet run --project src/bashGPT.Cli -- agent add git --name mein-repo --path . --every 30
+**Shell-Agent** (`shell`): Interaktiver Shell-Assistent mit `shell_exec`-Tool. Führt Befehle direkt aus.
 
-# HTTP-Agent: meldet wenn sich der Statuscode ändert
- dotnet run --project src/bashGPT.Cli -- agent add http --name mein-api --url https://example.com --every 60
-
-# Übersicht aller Agenten
- dotnet run --project src/bashGPT.Cli -- agent list
-
-# Detailstatus eines Agenten
- dotnet run --project src/bashGPT.Cli -- agent status mein-repo
-
-# Runner starten (alle aktiven Agenten, Ctrl+C zum Beenden)
- dotnet run --project src/bashGPT.Cli -- agent run
-
-# Pausieren / Fortsetzen / Entfernen
- dotnet run --project src/bashGPT.Cli -- agent pause mein-repo
- dotnet run --project src/bashGPT.Cli -- agent resume mein-repo
- dotnet run --project src/bashGPT.Cli -- agent remove mein-repo
-```
-
-Agenten werden in `~/.config/bashgpt/agents.json` gespeichert.
+**Dev-Agent** (`dev`): Entwicklungsagent mit vollständigem Zugriff auf Filesystem, Git, Build, Tests und Shell. Lädt Quelldateien gezielt in den Kontext.
 
 ## Tests
 ```bash
- dotnet test
+dotnet test
 # mit Coverage
- dotnet test --collect:"XPlat Code Coverage"
+dotnet test --collect:"XPlat Code Coverage"
 # vollständiger HTML-Report (inkl. vorherigem Cleanup)
- ./scripts/coverage-report.sh
+./scripts/coverage-report.sh
 ```
 
 ## Beispiele (Output-Format)

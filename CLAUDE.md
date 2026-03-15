@@ -14,22 +14,13 @@ dotnet test
 dotnet test --configuration Release
 dotnet test --filter "FullyQualifiedName~CerebrasProvider"  # einzelne Klasse
 dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"  # einzelner Test
-dotnet test --filter "FullyQualifiedName~AgentRunner"       # Agent-Tests
-dotnet test --filter "FullyQualifiedName~AgentStore"        # Store-Tests
 
 # CLI direkt ausführen
 dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
-dotnet run --project src/bashGPT.Cli -- server  # Web-UI auf Port 5050
 
-# Agent-Modus
-dotnet run --project src/bashGPT.Cli -- agent add git --name my-repo --path . --every 5
-dotnet run --project src/bashGPT.Cli -- agent add http --name my-api --url https://example.com --every 60
-dotnet run --project src/bashGPT.Cli -- agent list
-dotnet run --project src/bashGPT.Cli -- agent status <name-or-id>
-dotnet run --project src/bashGPT.Cli -- agent pause <name-or-id>
-dotnet run --project src/bashGPT.Cli -- agent resume <name-or-id>
-dotnet run --project src/bashGPT.Cli -- agent remove <name-or-id>
-dotnet run --project src/bashGPT.Cli -- agent run   # Ctrl+C zum Beenden
+# Server (Browser-UI) starten
+dotnet run --project src/bashGPT.Server
+dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
 # Nur Frontend bauen
 cd src/bashGPT.Web && npm run build
@@ -40,7 +31,25 @@ Das Frontend-Bundle (`dist/index.html` + `dist/bundle.js`) wird als Embedded Res
 
 ## Architektur
 
-bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend ist eine einzelne .NET 9-Anwendung, die bei Bedarf einen eingebetteten HTTP-Server hochfährt.
+bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend ist eine .NET 9-Solution mit mehreren Projekten.
+
+### Projektstruktur
+
+| Projekt | Zweck |
+|---|---|
+| `bashGPT.Core` | Shared Domain-Logik: Providers, Shell, Config, CLI-Runner, Session-Storage |
+| `bashGPT.Cli` | CLI-Executable (`System.CommandLine`), nur Prompt-Anfragen und Config |
+| `bashGPT.Server` | Server-Executable: eingebetteter HTTP-Listener, alle API-Handler |
+| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent` – Basis-Infrastruktur |
+| `bashGPT.Agents.Shell` | Shell-Agent (`shell`) mit `shell_exec`-Tool |
+| `bashGPT.Agents.Dev` | Dev-Agent (`dev`) mit Filesystem-, Git-, Build- und Test-Tools |
+| `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult` |
+| `bashGPT.Tools.Shell` | `shell_exec`-Tool |
+| `bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
+| `bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
+| `bashGPT.Tools.Build` | `build_run`-Tool |
+| `bashGPT.Tools.Testing` | `test_run`-Tool |
+| `bashGPT.Tools.Fetch` | `fetch`-Tool (HTTP GET mit HTML-Extraktion) |
 
 ### Datenfluss (Kernlogik)
 
@@ -48,10 +57,10 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 User-Prompt
   → ShellContextCollector   (Git, OS, Shell, Env-Variablen)
   → System-Prompt + History → ILlmProvider.ChatAsync()
-  → LLM antwortet mit Text und/oder Tool-Calls (bash-Tool)
-  → CommandExecutor.ProcessAsync()   (je nach ExecMode)
+  → LLM antwortet mit Text und/oder Tool-Calls
+  → ToolRegistry / CommandExecutor   (je nach ExecMode und aktivem Agenten)
   → Ergebnisse als Tool-Result-Messages zurück ans LLM
-  → Follow-up-Loop (max 3 Runden, Loop-Guard)
+  → Follow-up-Loop
   → Ausgabe
 ```
 
@@ -61,18 +70,20 @@ Fallback: Falls keine Tool-Calls, extrahiert `BashCommandExtractor` Befehle aus 
 
 | Klasse | Pfad | Zweck |
 |---|---|---|
-| `PromptHandler` | `Cli/PromptHandler.cs` | Hauptlogik: Kontext → LLM → Ausführung → Follow-up |
-| `ILlmProvider` | `Providers/ILlmProvider.cs` | Abstrahiertes Provider-Interface (`ChatAsync`, `StreamAsync`, `CompleteAsync`) |
-| `CerebrasProvider` | `Providers/CerebrasProvider.cs` | OpenAI-kompatible Cloud-API, inkl. 429-Retry-Logik (max 3 Versuche, `Retry-After`-Header) |
-| `OllamaProvider` | `Providers/OllamaProvider.cs` | Lokales LLM via ndjson-Stream |
-| `ShellContextCollector` | `Shell/ShellContextCollector.cs` | Sammelt Kontext + erstellt System-Prompt |
-| `CommandExecutor` | `Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (30s Timeout, interaktive Befehle geblockt) |
-| `BashCommandExtractor` | `Shell/BashCommandExtractor.cs` | Extrahiert Befehle, prüft Danger-Patterns |
-| `ServerHost` | `Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET) |
-| `AgentRunner` | `Agents/AgentRunner.cs` | 1s-Polling-Loop, führt aktive Agenten zyklisch aus, meldet bei Änderungen |
-| `AgentStore` | `Agents/AgentStore.cs` | Thread-sicherer Persistenz-Store für `~/.config/bashgpt/agents.json` |
-| `GitStatusCheck` | `Agents/GitStatusCheck.cs` | Prüft `git status --porcelain`, SHA256-Hash als Fingerprint |
-| `HttpStatusCheck` | `Agents/HttpStatusCheck.cs` | HTTP GET, Statuscode-Wechsel als Änderungssignal |
+| `CliChatRunner` | `Core/Cli/CliChatRunner.cs` | CLI-Ausführungslogik: Kontext → LLM → Ausführung → Follow-up |
+| `ServerChatRunner` | `Core/Cli/ServerChatRunner.cs` | Server-Variante mit Session-, Agent- und Tool-Unterstützung |
+| `ChatOrchestrator` | `Core/Cli/ChatOrchestrator.cs` | Gemeinsame Chat-Loop-Logik (Tool-Calls, Follow-up) |
+| `ILlmProvider` | `Core/Providers/ILlmProvider.cs` | Abstrahiertes Provider-Interface (`ChatAsync`, `StreamAsync`, `CompleteAsync`) |
+| `CerebrasProvider` | `Core/Providers/CerebrasProvider.cs` | OpenAI-kompatible Cloud-API, inkl. 429-Retry-Logik |
+| `OllamaProvider` | `Core/Providers/OllamaProvider.cs` | Lokales LLM via ndjson-Stream |
+| `ShellContextCollector` | `Core/Shell/ShellContextCollector.cs` | Sammelt Kontext + erstellt System-Prompt |
+| `CommandExecutor` | `Core/Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (30s Timeout, interaktive Befehle geblockt) |
+| `BashCommandExtractor` | `Core/Shell/BashCommandExtractor.cs` | Extrahiert Befehle, prüft Danger-Patterns |
+| `SessionStore` | `Core/Storage/SessionStore.cs` | Thread-sicherer Persistenz-Store für `~/.config/bashgpt/sessions/` |
+| `ServerHost` | `Server/Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET), Routing zu API-Handlern |
+| `AgentBase` | `Agents/AgentBase.cs` | Abstrakte Basisklasse für alle Chat-Agenten (code-first) |
+| `AgentRegistry` | `Agents/AgentRegistry.cs` | In-Memory-Registry registrierter Agenten |
+| `ToolRegistry` | `Tools/Builtins/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen |
 
 ### Provider
 
@@ -92,12 +103,33 @@ Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Ser
 ### Server-API (HTTP)
 
 ```
-GET  /             → index.html (embedded)
-GET  /bundle.js    → JS-Bundle (embedded)
-POST /api/chat     → { prompt, execMode } → { response, commands, usedToolCalls, logs }
-GET  /api/history  → { history: ChatMessage[] }
-POST /api/reset    → History löschen
+GET  /                        → index.html (embedded)
+GET  /bundle.js               → JS-Bundle (embedded)
+GET  /api/context             → Shell-Kontext (OS, Git, Verzeichnis)
+GET  /api/settings            → Aktuelle Server-Einstellungen
+POST /api/settings            → Einstellungen ändern
+POST /api/chat                → { prompt, execMode } → { response, commands, usedToolCalls, logs }
+POST /api/chat/stream         → Server-Sent Events (SSE), Token-Streaming
+POST /api/chat/cancel         → Laufenden Chat-Request abbrechen
+GET  /api/sessions            → Alle Sessions (Metadaten)
+GET  /api/sessions/<id>       → Einzelne Session mit Messages
+POST /api/sessions            → Neue Session anlegen
+DELETE /api/sessions/<id>     → Session löschen
+POST /api/sessions/clear      → Alle Sessions löschen
+GET  /api/agents              → Alle registrierten Agenten
+GET  /api/tools               → Alle verfügbaren Tools
+GET  /api/history             → (veraltet) Legacy-History
+POST /api/reset               → (veraltet) Legacy-History löschen
 ```
+
+### Session-Persistenz
+
+Sessions werden in einem Zwei-Schichten-Layout gespeichert:
+- `~/.config/bashgpt/sessions/index.json` – Metadaten aller Sessions
+- `~/.config/bashgpt/sessions/<id>/content.json` – Nachrichten einer Session
+- `~/.config/bashgpt/sessions/<id>/requests/` – Rohe LLM-Requests/Responses (Debug)
+
+`SessionStore` ist thread-safe via `SemaphoreSlim` und schreibt atomar via Temp-Datei. Maximum: 20 Sessions.
 
 ### Konfiguration
 
