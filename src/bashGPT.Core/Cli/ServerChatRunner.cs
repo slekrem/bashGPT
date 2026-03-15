@@ -69,8 +69,9 @@ public class ServerChatRunner(
             logs.Add($"Provider: {provider.Name}, Modell: {provider.Model}");
 
         var messages = new List<ChatMessage>();
-        if (!string.IsNullOrWhiteSpace(opts.SystemPrompt))
-            messages.Add(new ChatMessage(ChatRole.System, opts.SystemPrompt));
+        if (opts.SystemPrompt is not null)
+            foreach (var prompt in opts.SystemPrompt.Where(p => !string.IsNullOrWhiteSpace(p)))
+                messages.Add(new ChatMessage(ChatRole.System, prompt));
         foreach (var msg in opts.History)
             messages.Add(msg);
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));

@@ -27,10 +27,10 @@ public class DevAgentTests
     [Fact]
     public void DevAgent_SystemPrompt_ContainsToolCallRules()
     {
-        Assert.Contains("invalid_json", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("missing_required_field", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("invalid_type", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("invalid_value", _agent.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_json", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("missing_required_field", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_type", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_value", StringComparison.Ordinal));
     }
 
     [Fact]

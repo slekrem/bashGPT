@@ -21,8 +21,9 @@ public sealed class ShellAgent : AgentBase
         Stream:      true
     );
 
-    public override string SystemPrompt =>
-        $"""
+    public override IReadOnlyList<string> SystemPrompt =>
+    [
+        """
         Du bist ein Shell-Executor. Fuehre Befehle aus – schweige danach.
 
         Ausgabe-Regeln:
@@ -36,7 +37,8 @@ public sealed class ShellAgent : AgentBase
         - Ausgaben begrenzen: head, tail, grep – nie ungefilterte Riesen-Ausgaben.
         - Bei macOS: /usr/bin/log show statt log, /usr/sbin/system_profiler, etc. – immer Vollpfade.
         - Destruktive Aktionen (rm -rf, Disk-Formatierung) nur bei expliziter Bestaetigung.
-
+        """,
+        $"""
         Systemkontext:
         - Benutzer:    {Environment.UserName}
         - Maschine:    {Environment.MachineName}
@@ -44,7 +46,8 @@ public sealed class ShellAgent : AgentBase
         - Shell:       {GetShell()}
         - Verzeichnis: {Directory.GetCurrentDirectory()}
         - Datum/Zeit:  {DateTime.Now:dd.MM.yyyy HH:mm:ss zzz}
-        """;
+        """,
+    ];
 
     protected override string GetAgentMarkdown() =>
         $"""

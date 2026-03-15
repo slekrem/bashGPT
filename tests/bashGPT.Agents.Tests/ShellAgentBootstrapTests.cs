@@ -23,7 +23,8 @@ public class ShellAgentTests
     [Fact]
     public void ShellAgent_SystemPrompt_IsNotEmpty()
     {
-        Assert.False(string.IsNullOrWhiteSpace(_agent.SystemPrompt));
+        Assert.NotEmpty(_agent.SystemPrompt);
+        Assert.All(_agent.SystemPrompt, p => Assert.False(string.IsNullOrWhiteSpace(p)));
     }
 
     [Fact]

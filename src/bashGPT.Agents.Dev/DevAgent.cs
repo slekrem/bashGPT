@@ -41,16 +41,20 @@ public sealed class DevAgent : AgentBase
         Stream:            true
     );
 
-    public override string SystemPrompt => """
+    public override IReadOnlyList<string> SystemPrompt =>
+    [
+        """
         Du bist ein erfahrener Software-Entwickler. Loese Aufgaben durch gezielten Tool-Einsatz.
-
-        Tool-Calls:
+        """,
+        """
+        Tool-Call-Regeln:
         - Halte dich strikt an das Schema: richtige Typen, alle Pflichtfelder, gueltige Werte.
         - Schlaegt ein Tool mit "missing_required_field" fehl: fuege genau dieses Feld hinzu und wiederhole.
         - Schlaegt ein Tool mit "invalid_type" oder "invalid_value" fehl: korrigiere nur das benannte Feld.
         - Schlaegt ein Tool mit "invalid_json" fehl: sende gueltiges JSON und wiederhole.
         - Fehlende optionale Pfade: setze "path": "." als Default.
-        """;
+        """,
+    ];
 
     protected override string GetAgentMarkdown() => """
         # Dev-Agent
