@@ -14,6 +14,10 @@ dotnet test
 dotnet test --configuration Release
 dotnet test --filter "FullyQualifiedName~CerebrasProvider"  # einzelne Klasse
 dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"  # einzelner Test
+dotnet test --filter "FullyQualifiedName~DevAgent"          # Dev-Agent-Tests
+dotnet test --filter "FullyQualifiedName~ShellAgent"        # Shell-Agent-Tests
+dotnet test --filter "FullyQualifiedName~ShellExecTool"     # Tool-Tests
+dotnet test --project tests/bashGPT.Tools.Git.Tests         # einzelnes Test-Projekt
 
 # CLI direkt ausführen
 dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
@@ -50,6 +54,7 @@ bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend i
 | `bashGPT.Tools.Build` | `build_run`-Tool |
 | `bashGPT.Tools.Testing` | `test_run`-Tool |
 | `bashGPT.Tools.Fetch` | `fetch`-Tool (HTTP GET mit HTML-Extraktion) |
+| `bashGPT.Tools.Execution` | `context_load_files`, `context_unload_files`, `context_clear_files` (Datei-Kontext für Dev-Agent) |
 
 ### Datenfluss (Kernlogik)
 
@@ -139,7 +144,7 @@ Gespeichert in `~/.config/bashgpt/config.json`. Env-Variablen überschreiben die
 
 ### Frontend
 
-TypeScript + Lit Web Components, gebaut mit Vite als Single Bundle. Komponenten: `chat-app` (Router), `chat-view`, `dashboard`, `sidebar`, `terminal-panel`, `settings-view`.
+TypeScript + Lit Web Components, gebaut mit Vite als Single Bundle. Komponenten: `chat-app` (Router), `chat-view`, `dashboard`, `sidebar`, `settings-view`, `agents-view`, `tools-view`, `message-bubble`, `tool-calls-panel`, `chat-info-panel`.
 
 ## Coding Style
 

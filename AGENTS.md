@@ -15,7 +15,10 @@
 - `src/bashGPT.Tools.Build/` contains the `build_run` tool.
 - `src/bashGPT.Tools.Testing/` contains the `test_run` tool.
 - `src/bashGPT.Tools.Fetch/` contains the `fetch` tool (HTTP GET with HTML extraction).
-- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, and `tests/bashGPT.Server.Tests/` mirror the `src` projects with xUnit tests.
+- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — Kernprojekte
+- `tests/bashGPT.Agents.Tests/`, `tests/bashGPT.Agents.Shell.Tests/`, `tests/bashGPT.Agents.Dev.Tests/` — Agenten-Tests
+- `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — Tool-Tests
+- `tests/bashGPT.Tests/` — Integrations-/End-to-End-Tests
 
 ## Build, Test, and Development Commands
 

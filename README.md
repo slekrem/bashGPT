@@ -87,25 +87,25 @@ dotnet run --project src/bashGPT.Server
 # eigener Port, ohne automatisches Browser-Öffnen
 dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
-# Server mit Provider/Exec-Vorgaben
-dotnet run --project src/bashGPT.Server -- --provider cerebras --auto-exec --verbose
-
-# Tool-Calls im Server explizit erzwingen (optional)
-dotnet run --project src/bashGPT.Server -- --provider cerebras --force-tools
+# Server mit Provider/Modell-Vorgabe
+dotnet run --project src/bashGPT.Server -- --provider cerebras --model gpt-oss:120b-cloud --verbose
 ```
+
+Verfügbare Server-Flags: `--provider`, `--model`, `--port`, `--no-browser`, `--verbose`.
 
 Hinweise:
 - Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode pro Nachricht (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
 - Im Server-Modus wird `ask` intern als `dry-run` behandelt (kein interaktives Terminal-Prompt im Browser-Flow).
-- `--force-tools` ist standardmäßig deaktiviert. Ohne Flag darf das Modell selbst entscheiden, ob ein Tool-Call nötig ist.
 - Sessions werden unter `~/.config/bashgpt/sessions/` gespeichert (max. 20 Sessions).
 
 ## Agenten (Browser UI)
 Agenten sind spezialisierte Chat-Modi mit eigenem System-Prompt und Tool-Set. Sie werden in der Browser-UI ausgewählt.
 
+**Generic-Agent** (`generic`): Standard-Chat-Agent ohne spezielle Tool-Einschränkungen. Geeignet für allgemeine Anfragen.
+
 **Shell-Agent** (`shell`): Interaktiver Shell-Assistent mit `shell_exec`-Tool. Führt Befehle direkt aus.
 
-**Dev-Agent** (`dev`): Entwicklungsagent mit vollständigem Zugriff auf Filesystem, Git, Build, Tests und Shell. Lädt Quelldateien gezielt in den Kontext.
+**Dev-Agent** (`dev`): Entwicklungsagent mit vollständigem Zugriff auf Filesystem, Git, Build, Tests und Shell. Lädt Quelldateien gezielt in den Kontext (`context_load_files`, `context_unload_files`, `context_clear_files`).
 
 ## Tests
 ```bash
