@@ -58,11 +58,7 @@ public sealed class ContextLoadFilesTool : ITool
                         continue;
                     }
 
-                    var ext     = Path.GetExtension(path).TrimStart('.');
-                    var content = File.ReadAllText(path);
-                    sb.AppendLine($"## `{path}`\n\n```{ext}");
-                    sb.AppendLine(content);
-                    sb.AppendLine("```\n");
+                    sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
                     loadedPaths.Add(path);
                 }
                 catch (Exception ex)

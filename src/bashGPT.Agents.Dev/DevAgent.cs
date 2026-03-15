@@ -130,10 +130,7 @@ public sealed class DevAgent : AgentBase
                     sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
                     continue;
                 }
-                var ext = Path.GetExtension(path).TrimStart('.');
-                sb.AppendLine($"## `{path}`\n\n```{ext}");
-                sb.AppendLine(File.ReadAllText(path));
-                sb.AppendLine("```\n");
+                sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
             }
             catch (Exception ex)
             {

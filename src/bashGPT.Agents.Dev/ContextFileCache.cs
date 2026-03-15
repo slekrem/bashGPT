@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace BashGPT.Agents.Dev;
 
 /// <summary>
@@ -63,6 +65,23 @@ public static class ContextFileCache
             return;
         }
         File.WriteAllLines(cachePath, remaining);
+    }
+
+    /// <summary>
+    /// Gibt den Inhalt einer Datei als formatierten Markdown-Block zurück,
+    /// inklusive Zeilennummern (rechtsbündig, tabulatorgetrennt).
+    /// </summary>
+    internal static string FormatFileBlock(string path, string content)
+    {
+        var ext   = Path.GetExtension(path).TrimStart('.');
+        var lines = content.Split('\n');
+        var width = lines.Length.ToString().Length;
+        var sb    = new StringBuilder();
+        sb.AppendLine($"## `{path}`\n\n```{ext}");
+        for (var i = 0; i < lines.Length; i++)
+            sb.AppendLine($"{(i + 1).ToString().PadLeft(width)}\t{lines[i].TrimEnd()}");
+        sb.AppendLine("```\n");
+        return sb.ToString();
     }
 
     /// <summary>Löscht den Cache.</summary>
