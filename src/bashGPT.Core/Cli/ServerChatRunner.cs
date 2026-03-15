@@ -8,9 +8,9 @@ using BashGPT.Tools.Execution;
 namespace BashGPT.Cli;
 
 /// <summary>
-/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstützt optionalen Tool-Call-Loop,
-/// wenn der Session Tools zugewiesen sind. Shell-Funktionalität wird über den
-/// Shell-Agenten oder über zugewiesene Session-Tools bereitgestellt.
+/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstï¿½tzt optionalen Tool-Call-Loop,
+/// wenn der Session Tools zugewiesen sind. Shell-Funktionalitï¿½t wird ï¿½ber den
+/// Shell-Agenten oder ï¿½ber zugewiesene Session-Tools bereitgestellt.
 /// </summary>
 public class ServerChatRunner(
     ConfigurationService configService,
@@ -115,7 +115,7 @@ public class ServerChatRunner(
             totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
             totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
 
-            // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfügbar
+            // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfï¿½gbar
             if (tools.Count > 0 && toolRegistry is not null)
             {
                 var round = 0;
@@ -150,7 +150,7 @@ public class ServerChatRunner(
                             {
                                 var r = await iTool.ExecuteAsync(
                                     new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
-                                toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
+                                toolResult = r.Content;
                                 commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
                             }
                             catch (OperationCanceledException) when (ct.IsCancellationRequested)
