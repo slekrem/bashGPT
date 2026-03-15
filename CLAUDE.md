@@ -105,7 +105,7 @@ Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steue
 | `ServerHost` | `Server/Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET), Routing zu API-Handlern |
 | `AgentBase` | `Agents/AgentBase.cs` | Abstrakte Basisklasse für alle Chat-Agenten (code-first) |
 | `AgentRegistry` | `Agents/AgentRegistry.cs` | In-Memory-Registry registrierter Agenten |
-| `ToolRegistry` | `Tools/Builtins/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen |
+| `ToolRegistry` | `Tools/Execution/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen (Namespace `BashGPT.Tools.Execution`) |
 | `ContextFileCache` | `Agents.Dev/ContextFileCache.cs` | Persistiert geladene Dateipfade pro Session (AsyncLocal für Thread-Isolation); genutzt vom Dev-Agent |
 | `RunningChatRegistry` | `Server/Server/RunningChatRegistry.cs` | ConcurrentDictionary von RequestId → CancellationTokenSource; ermöglicht `POST /api/chat/cancel` |
 
@@ -118,6 +118,7 @@ Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Ser
 **Besonderheiten:**
 - `ILlmProvider` hat `Name` und `Model` Properties sowie drei Methoden: `ChatAsync` (Tool-Support), `CompleteAsync` (Legacy, kein Tool-Support), `StreamAsync` (Legacy, kein Tool-Support).
 - `RateLimitedLlmProvider` ist ein Dekorator, der einen echten Provider umhüllt und `LlmRateLimiter.WaitAsync()` vor jedem `ChatAsync`-Aufruf einfügt. Wird vom `ServerChatRunner` bei aktivem Rate-Limiting automatisch verwendet.
+- **Zwei `ToolCall`-Types:** `BashGPT.Providers.ToolCall` (hat `Id`, `Name`, `ArgumentsJson`, `Index` — kommt vom LLM) und `BashGPT.Tools.Abstractions.ToolCall` (hat `Name`, `ArgumentsJson`, `SessionPath` — geht an `ITool.ExecuteAsync`). Der `ServerChatRunner` konvertiert zwischen beiden.
 - `OllamaProvider`: Retry bei unvollständigem Stream (max. 3 Versuche). Bei HTTP 500 von Reasoning-Modellen (Denktext vor Tool-Call-JSON) versucht `TryRecoverToolCall()` den Tool-Call aus der Fehlermeldung zu rekonstruieren.
 - `CerebrasProvider`: 429-Retry mit `Retry-After`-Header (exponentiell: 2s, 4s, 8s, max 10s). Bei HTTP 422 mit "wrong_api_format" wird einmalig ohne `tool_choice` wiederholt.
 

@@ -18,7 +18,7 @@
 - `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — Kernprojekte
 - `tests/bashGPT.Agents.Tests/`, `tests/bashGPT.Agents.Shell.Tests/`, `tests/bashGPT.Agents.Dev.Tests/` — Agenten-Tests
 - `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — Tool-Tests
-- `tests/bashGPT.Tests/` — Integrations-/End-to-End-Tests
+- `tests/bashGPT.Tests/` — Platzhalter für künftige Integrations-/End-to-End-Tests (noch keine Tests implementiert)
 
 ## Build, Test, and Development Commands
 
