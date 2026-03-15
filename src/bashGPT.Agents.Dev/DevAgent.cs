@@ -31,12 +31,13 @@ public sealed class DevAgent : AgentBase
     ];
 
     public override AgentLlmConfig LlmConfig => new(
-        Temperature:       0.2,
-        TopP:              0.9,
-        NumCtx:            8192,
-        MaxTokens:         4096,
-        ReasoningEffort:   "medium",
-        ParallelToolCalls: false,
+        Temperature:       0.1,    // deterministisch – Code ist kein kreativer Output
+        TopP:              0.95,
+        NumCtx:            65536,  // 64k Kontext für Dateien, Diffs und Logs
+        MaxTokens:         8192,   // Output: genug für komplexe Code-Antworten
+        ReasoningEffort:   "high", // komplexe Aufgaben brauchen gutes Reasoning
+        FrequencyPenalty:  0.1,    // repetitive Tool-Call-Schleifen dämpfen
+        ParallelToolCalls: false,  // sequenziell – sicherer bei Dateimutationen
         Stream:            true
     );
 

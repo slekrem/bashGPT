@@ -61,9 +61,9 @@ public class DevAgentTests
         var cfg = _agent.LlmConfig;
 
         Assert.NotNull(cfg);
-        Assert.Equal(0.2, cfg.Temperature);
-        Assert.Equal(0.9, cfg.TopP);
-        Assert.Equal(4096, cfg.MaxTokens);
+        Assert.Equal(0.1, cfg.Temperature);
+        Assert.Equal(0.95, cfg.TopP);
+        Assert.Equal(8192, cfg.MaxTokens);
         Assert.True(cfg.Stream);
     }
 }
