@@ -59,6 +59,7 @@ public sealed class DevAgent : AgentBase
         - Fehlende optionale Pfade: setze "path": "." als Default.
         """,
         BuildProjectContext(),
+        BuildLoadedFilesContext(),
     ];
 
     /// <summary>
@@ -103,6 +104,40 @@ public sealed class DevAgent : AgentBase
             sb.AppendLine();
         }
 
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Lädt alle im Cache gespeicherten Dateien und gibt deren Inhalt als formatierten String zurück.
+    /// Leere Strings werden von ServerChatRunner automatisch gefiltert.
+    /// </summary>
+    private static string BuildLoadedFilesContext()
+    {
+        var paths = ContextFileCache.ReadFiles();
+        if (paths.Count == 0) return string.Empty;
+
+        var sb = new StringBuilder("# Geladene Dateien\n\n");
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var info = new FileInfo(path);
+                if (info.Length > 131_072)
+                {
+                    sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
+                    continue;
+                }
+                var ext = Path.GetExtension(path).TrimStart('.');
+                sb.AppendLine($"## `{path}`\n\n```{ext}");
+                sb.AppendLine(File.ReadAllText(path));
+                sb.AppendLine("```\n");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"## `{path}`\n\n> Fehler beim Lesen: {ex.Message}\n");
+            }
+        }
         return sb.ToString().TrimEnd();
     }
 

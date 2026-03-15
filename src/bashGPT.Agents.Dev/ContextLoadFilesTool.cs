@@ -37,8 +37,8 @@ public sealed class ContextLoadFilesTool : ITool
             return Task.FromResult(new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}"));
         }
 
-        var sb       = new StringBuilder();
-        var loaded   = 0;
+        var sb          = new StringBuilder();
+        var loadedPaths = new List<string>();
 
         foreach (var pattern in patterns)
         {
@@ -63,7 +63,7 @@ public sealed class ContextLoadFilesTool : ITool
                     sb.AppendLine($"## `{path}`\n\n```{ext}");
                     sb.AppendLine(content);
                     sb.AppendLine("```\n");
-                    loaded++;
+                    loadedPaths.Add(path);
                 }
                 catch (Exception ex)
                 {
@@ -72,13 +72,16 @@ public sealed class ContextLoadFilesTool : ITool
             }
         }
 
-        if (loaded == 0)
+        if (loadedPaths.Count == 0)
             return Task.FromResult(new ToolResult(Success: false, Content: "Keine Dateien für die angegebenen Muster gefunden."));
 
+        // Pfade im Session-Cache speichern → DevAgent.SystemPrompt lädt sie bei jedem Folge-Request frisch.
+        ContextFileCache.AddFiles(loadedPaths, call.SessionPath);
+
         return Task.FromResult(new ToolResult(
-            Success:         true,
-            Content:         sb.ToString().TrimEnd(),
-            InjectAsSystem:  true));
+            Success:        true,
+            Content:        sb.ToString().TrimEnd(),
+            InjectAsSystem: true));
     }
 
     private static string[] ParsePatterns(string json)

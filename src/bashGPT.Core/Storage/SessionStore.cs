@@ -254,7 +254,8 @@ public class SessionStore
             throw new ArgumentException($"Session-ID '{id}' führt außerhalb des erlaubten Verzeichnisses.", nameof(id));
     }
 
-    private string SessionDir(string id)         => Path.Combine(_sessionsDir, id);
+    public  string GetSessionDir(string id)       => Path.Combine(_sessionsDir, id);
+    private string SessionDir(string id)         => GetSessionDir(id);
     private string ContentFilePath(string id)    => Path.Combine(_sessionsDir, id, "content.json");
 
     private async Task<SessionIndex> ReadIndexAsync()

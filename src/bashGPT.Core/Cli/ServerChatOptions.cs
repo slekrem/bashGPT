@@ -17,7 +17,8 @@ public record ServerChatOptions(
     Func<int, string, Task>? OnLlmResponseJson = null,
     IReadOnlyList<ToolDefinition>? Tools = null,
     IReadOnlyList<string>? SystemPrompt = null,
-    AgentLlmConfig? LlmConfig = null
+    AgentLlmConfig? LlmConfig = null,
+    string? SessionPath = null
 );
 
 /// <summary>

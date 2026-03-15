@@ -151,14 +151,17 @@ public class ServerChatRunner(
                             try
                             {
                                 var r = await iTool.ExecuteAsync(
-                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
+                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
 
                                 if (r.InjectAsSystem && r.Success)
                                 {
-                                    // Dateiinhalte als persistente System-Nachricht injizieren,
-                                    // sodass der Kontext beim LLM denselben Status hat wie der System-Prompt.
-                                    messages.Insert(0, new ChatMessage(ChatRole.System, r.Content));
-                                    toolResult  = $"Dateien erfolgreich in den System-Kontext geladen.";
+                                    // System-Message für den aktuellen Request an den Anfang setzen.
+                                    // Außerdem in conversationDelta speichern, damit sie in der Session
+                                    // persistiert wird und bei Folge-Requests wiederhergestellt werden kann.
+                                    var injected = new ChatMessage(ChatRole.System, r.Content);
+                                    messages.Insert(0, injected);
+                                    conversationDelta.Add(injected);
+                                    toolResult = "Dateien erfolgreich in den System-Kontext geladen.";
                                 }
                                 else
                                 {
