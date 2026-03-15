@@ -22,24 +22,23 @@ public class ProviderAbstractionTests
         Assert.Equal(a, b);
     }
 
-    [Theory]
-    [InlineData(ProviderType.Ollama)]
-    [InlineData(ProviderType.Cerebras)]
-    public void ProviderFactory_Create_ReturnsCorrectProvider(ProviderType type)
+    [Fact]
+    public void ProviderFactory_Create_ReturnsOllamaProvider()
     {
-        var config = new AppConfig { DefaultProvider = type };
+        var config = new AppConfig { DefaultProvider = ProviderType.Ollama };
         var provider = ProviderFactory.Create(config);
 
-        Assert.Equal(type == ProviderType.Ollama ? "Ollama" : "Cerebras", provider.Name);
+        Assert.Equal("Ollama", provider.Name);
     }
 
     [Fact]
-    public void ProviderFactory_Create_OverrideWinsOverConfig()
+    public void ProviderFactory_Create_WithCerebrasOverride_ThrowsHelpfulError()
     {
         var config = new AppConfig { DefaultProvider = ProviderType.Ollama };
-        var provider = ProviderFactory.Create(config, overrideType: ProviderType.Cerebras);
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ProviderFactory.Create(config, overrideType: ProviderType.Cerebras));
 
-        Assert.Equal("Cerebras", provider.Name);
+        Assert.Contains("wird nicht mehr unterstützt", ex.Message);
     }
 
     [Fact]
@@ -88,6 +87,6 @@ public class ProviderAbstractionTests
         Assert.Same(provider1, provider2);
     }
 
-    // Name/Model und Implementierungsdetails der Provider werden
-    // in OllamaProviderTests und CerebrasProviderTests getestet.
+    // Name/Model und Implementierungsdetails des Providers werden
+    // in OllamaProviderTests getestet.
 }

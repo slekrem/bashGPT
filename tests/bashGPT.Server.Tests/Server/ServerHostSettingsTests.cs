@@ -117,6 +117,24 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Get_Settings_MasksExistingApiKey()
+    {
+        await _configService.SetAsync("cerebras.apiKey", "geheimer-key");
+
+        var response = await _client.GetAsync("/api/settings");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(json.GetProperty("hasApiKey").GetBoolean());
+        Assert.Equal("••••••••", json.GetProperty("apiKey").GetString());
+
+        var cerebras = json.GetProperty("cerebras");
+        Assert.True(cerebras.GetProperty("hasApiKey").GetBoolean());
+        Assert.Equal("••••••••", cerebras.GetProperty("apiKey").GetString());
+    }
+
+    [Fact]
     public async Task Unknown_Settings_Route_Returns404()
     {
         var response = await _client.GetAsync("/api/settings/unknown");

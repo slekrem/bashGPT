@@ -48,13 +48,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         var contextWindowTokens = config.DefaultProvider == ProviderType.Cerebras
             ? await TryResolveCerebrasContextWindowAsync(config, activeModel, ct)
             : null;
+        var maskedApiKey = config.Cerebras.ApiKey is not null ? "••••••••" : null;
         await ApiResponse.WriteJsonAsync(response, new
         {
             provider          = config.DefaultProvider.ToString().ToLower(),
             model             = activeModel,
             contextWindowTokens,
             hasApiKey         = config.Cerebras.ApiKey is not null,
-            apiKey            = config.Cerebras.ApiKey,
+            apiKey            = maskedApiKey,
             ollamaHost        = config.Ollama.BaseUrl,
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
@@ -70,7 +71,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             cerebras          = new
             {
                 model = config.Cerebras.Model,
-                apiKey = config.Cerebras.ApiKey,
+                apiKey = maskedApiKey,
                 hasApiKey = config.Cerebras.ApiKey is not null,
                 baseUrl = config.Cerebras.BaseUrl,
             },

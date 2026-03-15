@@ -15,13 +15,11 @@ public static class ProviderFactory
         LlmRateLimiter? sharedLimiter = null)
     {
         var type = overrideType ?? config.DefaultProvider;
+        if (type != ProviderType.Ollama)
+            throw new InvalidOperationException(
+                "Der Provider 'cerebras' wird nicht mehr unterstützt. Bitte nutze 'ollama'.");
 
-        ILlmProvider provider = type switch
-        {
-            ProviderType.Ollama   => new OllamaProvider(config.Ollama),
-            ProviderType.Cerebras => new CerebrasProvider(config.Cerebras),
-            _                     => throw new ArgumentOutOfRangeException(nameof(type), type, null)
-        };
+        ILlmProvider provider = new OllamaProvider(config.Ollama);
 
         if (config.RateLimiting.Enabled)
         {

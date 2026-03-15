@@ -287,7 +287,8 @@ export class SettingsView extends LitElement {
       },
       cerebras: {
         model: cerebrasModel,
-        apiKey: settings.cerebras?.apiKey ?? settings.apiKey ?? '',
+        // Never hydrate the frontend state with the stored secret from the server.
+        apiKey: '',
         hasApiKey,
         baseUrl: settings.cerebras?.baseUrl ?? 'https://api.cerebras.ai/v1',
         temperature: settings.cerebras?.temperature ?? 0.2,
@@ -339,7 +340,6 @@ export class SettingsView extends LitElement {
     if (!this._settings) return
     this._settings = {
       ...this._settings,
-      apiKey,
       cerebras: { ...this._settings.cerebras, apiKey },
     }
     this._status = ''
