@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using BashGPT.Agents;
 using BashGPT.Providers;
 
@@ -54,7 +56,60 @@ public sealed class DevAgent : AgentBase
         - Schlaegt ein Tool mit "invalid_json" fehl: sende gueltiges JSON und wiederhole.
         - Fehlende optionale Pfade: setze "path": "." als Default.
         """,
+        BuildProjectContext(),
     ];
+
+    /// <summary>
+    /// Generiert zur Laufzeit einen Projektkontext: Git-Status, Verzeichnisstruktur und CLAUDE.md.
+    /// Wird bei jedem Chat-Request frisch aufgebaut.
+    /// </summary>
+    private static string BuildProjectContext()
+    {
+        var cwd = Directory.GetCurrentDirectory();
+        var sb  = new StringBuilder("# Projektkontext\n\n");
+
+        // Arbeitsverzeichnis + Git
+        sb.AppendLine($"**Verzeichnis:** `{cwd}`\n");
+        var branch     = Git("rev-parse --abbrev-ref HEAD");
+        var lastCommit = Git("log -1 --oneline");
+        if (branch is not null)
+        {
+            sb.AppendLine("**Git:**");
+            sb.AppendLine($"- Branch: `{branch}`");
+            if (lastCommit is not null)
+                sb.AppendLine($"- Letzter Commit: `{lastCommit}`");
+            sb.AppendLine();
+        }
+
+        // src/-Struktur
+        var srcDir = Path.Combine(cwd, "src");
+        if (Directory.Exists(srcDir))
+        {
+            sb.AppendLine("**Projekte (src/):**");
+            foreach (var dir in Directory.GetDirectories(srcDir).Order())
+                sb.AppendLine($"- `{Path.GetFileName(dir)}/`");
+            sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string? Git(string args)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo("git", args)
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            });
+            var output = proc?.StandardOutput.ReadToEnd().Trim();
+            proc?.WaitForExit();
+            return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch { return null; }
+    }
 
     protected override string GetAgentMarkdown() => """
         # Dev-Agent
