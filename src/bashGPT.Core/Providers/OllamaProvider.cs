@@ -16,14 +16,20 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
     {
         var openAiRequest = new OpenAiChatRequest
         {
-            Model       = config.Model,
-            Messages    = request.Messages.Select(MapMessage).ToList(),
-            Stream      = request.Stream,
-            Temperature = config.Temperature,
-            TopP        = config.TopP,
-            Seed        = config.Seed,
-            Options     = config.NumCtx is > 0
-                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
+            Model            = config.Model,
+            Messages         = request.Messages.Select(MapMessage).ToList(),
+            Stream           = request.Stream,
+            Temperature      = request.Temperature,
+            TopP             = request.TopP,
+            MaxTokens        = request.MaxTokens,
+            Seed             = request.Seed,
+            ReasoningEffort  = string.IsNullOrWhiteSpace(request.ReasoningEffort) ? null : request.ReasoningEffort,
+            FrequencyPenalty = request.FrequencyPenalty,
+            PresencePenalty  = request.PresencePenalty,
+            Stop             = request.Stop?.Count > 0 ? [.. request.Stop] : null,
+            ResponseFormat   = OpenAiResponseFormat.FromString(request.ResponseFormat),
+            Options          = request.NumCtx is > 0
+                ? new OpenAiOllamaOptions { NumCtx = request.NumCtx }
                 : null,
         };
 
@@ -225,12 +231,6 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             Model       = config.Model,
             Messages    = messages.Select(m => new OpenAiMessage { Role = m.RoleString, Content = m.Content }).ToList(),
             Stream      = true,
-            Temperature = config.Temperature,
-            TopP        = config.TopP,
-            Seed        = config.Seed,
-            Options     = config.NumCtx is > 0
-                ? new OpenAiOllamaOptions { NumCtx = config.NumCtx }
-                : null,
         };
 
         var url = $"{config.BaseUrl.TrimEnd('/')}/v1/chat/completions";

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using BashGPT.Agents;
+using BashGPT.Agents.Dev;
 using BashGPT.Cli;
 using BashGPT.Providers;
 using BashGPT.Shell;
@@ -84,6 +85,12 @@ internal sealed class StreamingChatApiHandler(
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
             var sessionId  = body.SessionId;
 
+            // Session-Pfad setzen, bevor agent.SystemPrompt ausgewertet wird,
+            // damit Dev-Agent-Kontext-Cache session-spezifisch geladen werden kann.
+            ContextFileCache.CurrentSessionPath = sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                ? sessionStore.GetSessionDir(sessionId)
+                : null;
+
             var chatOpts = new ServerChatOptions(
                 Prompt:   body.Prompt.Trim(),
                 History:  historySnapshot,
@@ -118,7 +125,11 @@ internal sealed class StreamingChatApiHandler(
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
-                SystemPrompt: agent?.SystemPrompt);
+                SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
+                LlmConfig:    agent?.LlmConfig,
+                SessionPath:  sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                    ? sessionStore.GetSessionDir(sessionId)
+                    : null);
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 

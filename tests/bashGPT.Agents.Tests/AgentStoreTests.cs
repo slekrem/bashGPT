@@ -7,7 +7,7 @@ file sealed class ConcreteAgent : AgentBase
     public override string Id => "test";
     public override string Name => "Test-Agent";
     public override IReadOnlyList<string> EnabledTools => ["tool_a", "tool_b"];
-    public override string SystemPrompt => "Du bist ein Test.";
+    public override IReadOnlyList<string> SystemPrompt => ["Du bist ein Test."];
     protected override string GetAgentMarkdown() => "# Test-Agent\n\nInfo.";
 }
 
@@ -21,7 +21,7 @@ public class AgentBaseTests
         Assert.Equal("test", agent.Id);
         Assert.Equal("Test-Agent", agent.Name);
         Assert.Equal(["tool_a", "tool_b"], agent.EnabledTools);
-        Assert.Equal("Du bist ein Test.", agent.SystemPrompt);
+        Assert.Equal(["Du bist ein Test."], agent.SystemPrompt);
     }
 
     [Fact]

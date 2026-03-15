@@ -18,8 +18,8 @@ public sealed class GenericAgent : AgentBase
         Stream:      true
     );
 
-    public override string SystemPrompt =>
-        "Du bist ein hilfreicher Assistent. Beantworte Fragen klar und praezise.";
+    public override IReadOnlyList<string> SystemPrompt =>
+        ["Du bist ein hilfreicher Assistent. Beantworte Fragen klar und praezise."];
 
     protected override string GetAgentMarkdown() => """
         # Generischer Chat

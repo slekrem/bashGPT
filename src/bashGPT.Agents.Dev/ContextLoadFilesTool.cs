@@ -1,0 +1,134 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using BashGPT.Tools.Abstractions;
+
+namespace BashGPT.Agents.Dev;
+
+/// <summary>
+/// Agenten-spezifisches Tool: Lädt Dateiinhalte anhand von Glob-Mustern in den Kontext.
+/// Nutzt git ls-files, sodass .gitignore automatisch respektiert wird.
+/// </summary>
+public sealed class ContextLoadFilesTool : ITool
+{
+    private const int MaxFileSizeBytes = 131_072; // 128 KB pro Datei
+
+    public ToolDefinition Definition { get; } = new(
+        Name: "context_load_files",
+        Description: "Loads the content of files matching one or more glob patterns into context. Uses git ls-files internally, so .gitignore is respected automatically.",
+        Parameters:
+        [
+            new ToolParameter("patterns", "array", "Glob patterns to match files, e.g. [\"src/**/*.cs\", \"*.sln\"]. Respects .gitignore.", Required: true),
+        ]);
+
+    public Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct)
+    {
+        string[] patterns;
+        try
+        {
+            patterns = ParsePatterns(call.ArgumentsJson);
+        }
+        catch (ArgumentException ex)
+        {
+            return Task.FromResult(new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}"));
+        }
+        catch (JsonException ex)
+        {
+            return Task.FromResult(new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}"));
+        }
+
+        var sb          = new StringBuilder();
+        var loadedPaths = new List<string>();
+
+        foreach (var pattern in patterns)
+        {
+            var matched = GitLsFiles(pattern);
+            if (matched is null) continue;
+
+            foreach (var path in matched.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!File.Exists(path)) continue;
+
+                try
+                {
+                    var info = new FileInfo(path);
+                    if (info.Length > MaxFileSizeBytes)
+                    {
+                        sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
+                        continue;
+                    }
+
+                    sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+                    loadedPaths.Add(path);
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"## `{path}`\n\n> Fehler beim Lesen: {ex.Message}\n");
+                }
+            }
+        }
+
+        if (loadedPaths.Count == 0)
+            return Task.FromResult(new ToolResult(Success: false, Content: "Keine Dateien für die angegebenen Muster gefunden."));
+
+        // Pfade im Session-Cache speichern → DevAgent.SystemPrompt lädt sie bei jedem Request frisch.
+        ContextFileCache.AddFiles(loadedPaths, call.SessionPath);
+
+        return Task.FromResult(new ToolResult(
+            Success: true,
+            Content: $"{loadedPaths.Count} Datei(en) in den Kontext geladen: {string.Join(", ", loadedPaths)}"));
+    }
+
+    private static string[] ParsePatterns(string json)
+    {
+        using var doc  = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("patterns", out var patternsEl))
+            throw new ArgumentException("missing_required_field: 'patterns' is required. Example: {\"patterns\":[\"src/**/*.cs\"]}");
+
+        if (patternsEl.ValueKind == JsonValueKind.Array)
+        {
+            var list = new List<string>();
+            foreach (var item in patternsEl.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                    throw new ArgumentException("invalid_type: each entry in 'patterns' must be a string.");
+                var s = item.GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                    list.Add(s);
+            }
+            if (list.Count == 0)
+                throw new ArgumentException("invalid_value: 'patterns' must contain at least one non-empty string.");
+            return [.. list];
+        }
+
+        // Fallback: einzelner Pattern-String
+        if (patternsEl.ValueKind == JsonValueKind.String)
+        {
+            var s = patternsEl.GetString();
+            if (string.IsNullOrWhiteSpace(s))
+                throw new ArgumentException("invalid_value: 'patterns' must not be empty.");
+            return [s];
+        }
+
+        throw new ArgumentException("invalid_type: 'patterns' must be an array of strings.");
+    }
+
+    private static string? GitLsFiles(string pattern)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo("git", $"ls-files \"{pattern}\"")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            });
+            var output = proc?.StandardOutput.ReadToEnd().Trim();
+            proc?.WaitForExit();
+            return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch { return null; }
+    }
+}

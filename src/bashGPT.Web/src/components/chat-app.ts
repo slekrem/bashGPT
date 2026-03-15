@@ -60,6 +60,7 @@ export class ChatApp extends LitElement {
       chatView.scrollToBottom?.()
     } else {
       chatView.beforeSend = undefined
+      this._activeAgentId = data.agentId ?? ''
       chatView.loadSnapshot?.(data.messages, data.shellContext, undefined, data.enabledTools)
       chatView.scrollToBottom?.()
     }

@@ -1,6 +1,7 @@
 using System.Net;
 using BashGPT.Agents;
 using BashGPT.Configuration;
+using BashGPT.Providers;
 
 namespace BashGPT.Server;
 
@@ -45,6 +46,7 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
             return;
         }
 
+        // Effektives Modell aus Provider-Config auflösen (nur Model wird noch aus Config gelesen)
         AgentLlmConfig? effectiveConfig = null;
         if (configService is not null)
         {
@@ -57,35 +59,14 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
 
     private static AgentLlmConfig BuildEffectiveConfig(AgentLlmConfig? agentConfig, AppConfig appConfig)
     {
-        if (appConfig.DefaultProvider == ProviderType.Ollama)
-        {
-            var p = appConfig.Ollama;
-            return new AgentLlmConfig(
-                Model:             agentConfig?.Model ?? p.Model,
-                Temperature:       agentConfig?.Temperature ?? p.Temperature,
-                TopP:              agentConfig?.TopP ?? p.TopP,
-                NumCtx:            agentConfig?.NumCtx ?? p.NumCtx,
-                MaxTokens:         agentConfig?.MaxTokens,
-                Seed:              agentConfig?.Seed ?? p.Seed,
-                ReasoningEffort:   agentConfig?.ReasoningEffort,
-                ParallelToolCalls: agentConfig?.ParallelToolCalls,
-                Stream:            agentConfig?.Stream ?? true
-            );
-        }
-        else
-        {
-            var p = appConfig.Cerebras;
-            return new AgentLlmConfig(
-                Model:             agentConfig?.Model ?? p.Model,
-                Temperature:       agentConfig?.Temperature ?? p.Temperature,
-                TopP:              agentConfig?.TopP ?? p.TopP,
-                NumCtx:            null,
-                MaxTokens:         agentConfig?.MaxTokens ?? p.MaxCompletionTokens,
-                Seed:              agentConfig?.Seed ?? p.Seed,
-                ReasoningEffort:   agentConfig?.ReasoningEffort ?? p.ReasoningEffort,
-                ParallelToolCalls: agentConfig?.ParallelToolCalls,
-                Stream:            agentConfig?.Stream ?? true
-            );
-        }
+        var defaultModel = appConfig.DefaultProvider == ProviderType.Ollama
+            ? appConfig.Ollama.Model
+            : appConfig.Cerebras.Model;
+
+        var effectiveModel = agentConfig?.Model ?? defaultModel;
+
+        return agentConfig is not null
+            ? agentConfig with { Model = effectiveModel }
+            : new AgentLlmConfig(Model: effectiveModel);
     }
 }

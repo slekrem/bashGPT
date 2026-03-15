@@ -30,6 +30,9 @@ var toolRegistry = new ToolRegistry([
     new GitCheckoutTool(),
     new TestRunTool(),
     new BuildRunTool(),
+    new ContextLoadFilesTool(),
+    new ContextUnloadFilesTool(),
+    new ContextClearFilesTool(),
 ]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();

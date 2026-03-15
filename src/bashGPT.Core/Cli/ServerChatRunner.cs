@@ -8,9 +8,9 @@ using BashGPT.Tools.Execution;
 namespace BashGPT.Cli;
 
 /// <summary>
-/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstützt optionalen Tool-Call-Loop,
-/// wenn der Session Tools zugewiesen sind. Shell-Funktionalität wird über den
-/// Shell-Agenten oder über zugewiesene Session-Tools bereitgestellt.
+/// Verarbeitet Chat-Anfragen im Server-Modus. Unterstï¿½tzt optionalen Tool-Call-Loop,
+/// wenn der Session Tools zugewiesen sind. Shell-Funktionalitï¿½t wird ï¿½ber den
+/// Shell-Agenten oder ï¿½ber zugewiesene Session-Tools bereitgestellt.
 /// </summary>
 public class ServerChatRunner(
     ConfigurationService configService,
@@ -69,8 +69,19 @@ public class ServerChatRunner(
             logs.Add($"Provider: {provider.Name}, Modell: {provider.Model}");
 
         var messages = new List<ChatMessage>();
-        if (!string.IsNullOrWhiteSpace(opts.SystemPrompt))
-            messages.Add(new ChatMessage(ChatRole.System, opts.SystemPrompt));
+        void RefreshSystemMessages()
+        {
+            if (opts.SystemPrompt is null) return;
+            // System-Messages sind immer am Anfang; beim Refresh alte entfernen und neu einfÃ¼gen.
+            var firstNonSystem = messages.FindIndex(m => m.Role != ChatRole.System);
+            var removeCount    = firstNonSystem >= 0 ? firstNonSystem : messages.Count;
+            if (removeCount > 0) messages.RemoveRange(0, removeCount);
+            var freshPrompts = opts.SystemPrompt().Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            for (var i = freshPrompts.Count - 1; i >= 0; i--)
+                messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
+        }
+
+        RefreshSystemMessages();
         foreach (var msg in opts.History)
             messages.Add(msg);
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
@@ -100,7 +111,8 @@ public class ServerChatRunner(
                 {
                     resJson = json;
                     if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
-                });
+                },
+                llmConfig: opts.LlmConfig);
             llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
             return result;
         }
@@ -115,7 +127,7 @@ public class ServerChatRunner(
             totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
             totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
 
-            // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfügbar
+            // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verfï¿½gbar
             if (tools.Count > 0 && toolRegistry is not null)
             {
                 var round = 0;
@@ -149,9 +161,10 @@ public class ServerChatRunner(
                             try
                             {
                                 var r = await iTool.ExecuteAsync(
-                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}"), ct);
-                                toolResult = r.Success ? r.Content : $"Fehler: {r.Content}";
-                                commandResult = BuildCommandResult(call.Name, commandLabel, toolResult, r.Success);
+                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
+
+                                toolResult = r.Content;
+                                commandResult = BuildCommandResult(call.Name, commandLabel, r.Content, r.Success);
                             }
                             catch (OperationCanceledException) when (ct.IsCancellationRequested)
                             {
@@ -183,6 +196,7 @@ public class ServerChatRunner(
                         conversationDelta.Add(toolMessage);
                     }
 
+                    RefreshSystemMessages();
                     response = await CallOnce();
                     if (response.Error is not null) break;
                     lastResponse = response.Response;

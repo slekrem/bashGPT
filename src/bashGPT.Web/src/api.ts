@@ -30,6 +30,7 @@ interface SessionPayload {
   messages: SnapshotMessage[]
   shellContext?: ShellContext | null
   enabledTools?: string[]
+  agentId?: string | null
 }
 
 interface PutSessionPayload {

@@ -32,16 +32,7 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
         Assert.Equal("http://localhost:11434", config.Ollama.BaseUrl);
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
-        Assert.Equal(0.2, config.Ollama.Temperature);
-        Assert.Equal(0.9, config.Ollama.TopP);
-        Assert.Null(config.Ollama.Seed);
-        Assert.Equal(65536, config.Ollama.NumCtx);
         Assert.Equal("gpt-oss:120b-cloud", config.Cerebras.Model);
-        Assert.Equal(0.2, config.Cerebras.Temperature);
-        Assert.Equal(0.9, config.Cerebras.TopP);
-        Assert.Equal(2048, config.Cerebras.MaxCompletionTokens);
-        Assert.Null(config.Cerebras.Seed);
-        Assert.Equal("medium", config.Cerebras.ReasoningEffort);
         Assert.Null(config.Cerebras.ApiKey);
     }
 
@@ -121,35 +112,9 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("defaultProvider", list);
         Assert.Contains("ollama.baseUrl", list);
         Assert.Contains("ollama.model", list);
-        Assert.Contains("ollama.temperature", list);
-        Assert.Contains("ollama.topP", list);
-        Assert.Contains("ollama.seed", list);
-        Assert.Contains("ollama.numCtx", list);
         Assert.Contains("cerebras.apiKey", list);
         Assert.Contains("cerebras.model", list);
-        Assert.Contains("cerebras.temperature", list);
-        Assert.Contains("cerebras.topP", list);
-        Assert.Contains("cerebras.maxCompletionTokens", list);
-        Assert.Contains("cerebras.seed", list);
-        Assert.Contains("cerebras.reasoningEffort", list);
-    }
-
-    [Fact]
-    public async Task Set_CerebrasAdvancedOptions_ArePersisted()
-    {
-        var svc = CreateService();
-        await svc.SetAsync("cerebras.temperature", "0.3");
-        await svc.SetAsync("cerebras.topP", "0.85");
-        await svc.SetAsync("cerebras.maxCompletionTokens", "4096");
-        await svc.SetAsync("cerebras.seed", "42");
-        await svc.SetAsync("cerebras.reasoningEffort", "high");
-
-        var loaded = await svc.LoadAsync();
-        Assert.Equal(0.3, loaded.Cerebras.Temperature);
-        Assert.Equal(0.85, loaded.Cerebras.TopP);
-        Assert.Equal(4096, loaded.Cerebras.MaxCompletionTokens);
-        Assert.Equal(42, loaded.Cerebras.Seed);
-        Assert.Equal("high", loaded.Cerebras.ReasoningEffort);
+        Assert.Contains("cerebras.baseUrl", list);
     }
 
     [Fact]
@@ -214,64 +179,6 @@ public class ConfigurationServiceTests : IDisposable
         {
             Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", null);
         }
-    }
-
-    [Fact]
-    public async Task Set_OllamaAdvancedOptions_ArePersisted()
-    {
-        var svc = CreateService();
-        await svc.SetAsync("ollama.temperature", "0.4");
-        await svc.SetAsync("ollama.topP", "0.9");
-        await svc.SetAsync("ollama.seed", "77");
-        await svc.SetAsync("ollama.numCtx", "32768");
-
-        var loaded = await svc.LoadAsync();
-        Assert.Equal(0.4, loaded.Ollama.Temperature);
-        Assert.Equal(0.9, loaded.Ollama.TopP);
-        Assert.Equal(77, loaded.Ollama.Seed);
-        Assert.Equal(32768, loaded.Ollama.NumCtx);
-    }
-
-    [Fact]
-    public async Task Load_NormalizesNullProviderOptions_ToDefaults()
-    {
-        var svc = CreateService();
-        var config = new AppConfig
-        {
-            Ollama = new OllamaConfig
-            {
-                BaseUrl = "http://localhost:11434",
-                Model = "gpt-oss:20b",
-                Temperature = null,
-                TopP = null,
-                Seed = null,
-                NumCtx = null,
-            },
-            Cerebras = new CerebrasConfig
-            {
-                Model = "gpt-oss:120b-cloud",
-                BaseUrl = "https://api.cerebras.ai/v1",
-                Temperature = null,
-                TopP = null,
-                MaxCompletionTokens = null,
-                Seed = null,
-                ReasoningEffort = null,
-            }
-        };
-
-        await svc.SaveAsync(config);
-        var loaded = await svc.LoadAsync();
-
-        Assert.Equal(0.2, loaded.Ollama.Temperature);
-        Assert.Equal(0.9, loaded.Ollama.TopP);
-        Assert.Null(loaded.Ollama.Seed);
-        Assert.Equal(65536, loaded.Ollama.NumCtx);
-
-        Assert.Equal(0.2, loaded.Cerebras.Temperature);
-        Assert.Equal(0.9, loaded.Cerebras.TopP);
-        Assert.Equal(2048, loaded.Cerebras.MaxCompletionTokens);
-        Assert.Equal("medium", loaded.Cerebras.ReasoningEffort);
-        Assert.Null(loaded.Cerebras.Seed);
     }
 }
 

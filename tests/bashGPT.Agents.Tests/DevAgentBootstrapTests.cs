@@ -27,12 +27,10 @@ public class DevAgentTests
     [Fact]
     public void DevAgent_SystemPrompt_ContainsToolCallRules()
     {
-        Assert.Contains("Required Fields", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("'pattern' Pflicht", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("invalid_json", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("missing_required_field", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("invalid_type", _agent.SystemPrompt, StringComparison.Ordinal);
-        Assert.Contains("invalid_value", _agent.SystemPrompt, StringComparison.Ordinal);
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_json", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("missing_required_field", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_type", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_value", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -63,9 +61,9 @@ public class DevAgentTests
         var cfg = _agent.LlmConfig;
 
         Assert.NotNull(cfg);
-        Assert.Equal(0.2, cfg.Temperature);
-        Assert.Equal(0.9, cfg.TopP);
-        Assert.Equal(4096, cfg.MaxTokens);
+        Assert.Equal(0.1, cfg.Temperature);
+        Assert.Equal(0.95, cfg.TopP);
+        Assert.Equal(8192, cfg.MaxTokens);
         Assert.True(cfg.Stream);
     }
 }

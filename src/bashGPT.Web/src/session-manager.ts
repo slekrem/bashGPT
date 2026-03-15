@@ -59,6 +59,7 @@ export class SessionManager {
     messages: SnapshotMessage[]
     shellContext?: ShellContext | null
     enabledTools?: string[]
+    agentId?: string | null
     isArchived: boolean
   } | null> {
     if (this._useFallback) {
@@ -72,6 +73,7 @@ export class SessionManager {
       messages:     s.messages ?? [],
       shellContext: s.shellContext ?? null,
       enabledTools: s.enabledTools ?? undefined,
+      agentId:      s.agentId ?? null,
       isArchived:   false,
     }
   }

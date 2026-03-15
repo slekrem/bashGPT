@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Text;
 using BashGPT.Agents;
+using BashGPT.Providers;
 
 namespace BashGPT.Agents.Dev;
 
@@ -27,32 +30,132 @@ public sealed class DevAgent : AgentBase
         "test_run",
         "build_run",
         "shell_exec",
+        "context_load_files",
+        "context_unload_files",
+        "context_clear_files",
     ];
 
     public override AgentLlmConfig LlmConfig => new(
-        Temperature:       0.2,
-        TopP:              0.9,
-        NumCtx:            8192,
-        MaxTokens:         4096,
-        ReasoningEffort:   "medium",
-        ParallelToolCalls: false,
+        Temperature:       0.1,    // deterministisch – Code ist kein kreativer Output
+        TopP:              0.95,
+        NumCtx:            65536,  // 64k Kontext für Dateien, Diffs und Logs
+        MaxTokens:         8192,   // Output: genug für komplexe Code-Antworten
+        ReasoningEffort:   "high", // komplexe Aufgaben brauchen gutes Reasoning
+        FrequencyPenalty:  0.1,    // repetitive Tool-Call-Schleifen dämpfen
+        ParallelToolCalls: false,  // sequenziell – sicherer bei Dateimutationen
         Stream:            true
     );
 
-    public override string SystemPrompt => """
-        Du bist ein erfahrener Software-Entwickler.
-        Nutze verfuegbare Tools gezielt und liefere nur valide Tool-Argumente.
+    public override IReadOnlyList<string> SystemPrompt =>
+    [
+        """
+        Du bist ein erfahrener Software-Entwickler. Loese Aufgaben durch gezielten Tool-Einsatz.
+        Bevor du eine Aufgabe bearbeitest, lade relevante Quelldateien mit 'context_load_files' in den Kontext.
+        """,
+        """
+        Tool-Call-Regeln:
+        - Halte dich strikt an das Schema: richtige Typen, alle Pflichtfelder, gueltige Werte.
+        - Schlaegt ein Tool mit "missing_required_field" fehl: fuege genau dieses Feld hinzu und wiederhole.
+        - Schlaegt ein Tool mit "invalid_type" oder "invalid_value" fehl: korrigiere nur das benannte Feld.
+        - Schlaegt ein Tool mit "invalid_json" fehl: sende gueltiges JSON und wiederhole.
+        - Fehlende optionale Pfade: setze "path": "." als Default.
+        """,
+        BuildProjectContext(),
+        BuildLoadedFilesContext(),
+    ];
 
-        Regeln fuer Tool-Calls:
-        1. Halte dich strikt an das Tool-Schema (Required Fields, Typen, gueltige Werte).
-        2. Bei filesystem_search ist 'pattern' Pflicht und darf nicht leer sein.
-        3. Wenn 'path' fehlt oder leer ist, setze explizit "path": ".".
-        4. Wenn ein Tool mit "Invalid arguments [invalid_json]" fehlschlaegt, sende gueltiges JSON und versuche denselben Call erneut.
-        5. Wenn ein Tool-Fehler "missing_required_field" enthaelt, fuege genau dieses Pflichtfeld hinzu und wiederhole den Call.
-        6. Wenn ein Tool-Fehler "invalid_type" enthaelt, korrigiere nur den Datentyp des betroffenen Felds und wiederhole den Call.
-        7. Wenn ein Tool-Fehler "invalid_value" enthaelt, korrigiere nur den Wert gemaess Fehlermeldung (z. B. nicht leer, timeoutMs > 0) und wiederhole den Call.
-        8. Verwende keine geratenen Felder und lasse keine Pflichtfelder weg.
-        """;
+    /// <summary>
+    /// Generiert zur Laufzeit einen Projektkontext: Git-Infos und alle getrackten Dateien.
+    /// Ignorierte Dateien (.gitignore) werden ausgelassen. Wird bei jedem Chat-Request frisch aufgebaut.
+    /// </summary>
+    private static string BuildProjectContext()
+    {
+        var cwd = Directory.GetCurrentDirectory();
+        var sb  = new StringBuilder("# Projektkontext\n\n");
+
+        // Arbeitsverzeichnis + Git
+        sb.AppendLine($"**Verzeichnis:** `{cwd}`\n");
+        var branch     = Git("rev-parse --abbrev-ref HEAD");
+        var lastCommit = Git("log -1 --oneline");
+        if (branch is not null)
+        {
+            sb.AppendLine("**Git:**");
+            sb.AppendLine($"- Branch: `{branch}`");
+            if (lastCommit is not null)
+                sb.AppendLine($"- Letzter Commit: `{lastCommit}`");
+            sb.AppendLine();
+        }
+
+        // Alle getrackten Dateien via git ls-files (respektiert .gitignore),
+        // gruppiert nach Top-Level-Verzeichnis
+        var files = Git("ls-files");
+        if (files is not null)
+        {
+            var grouped = files
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .GroupBy(f => f.Contains('/') ? f[..f.IndexOf('/')] : ".")
+                .OrderBy(g => g.Key);
+
+            sb.AppendLine("**Dateien (gittracked):**");
+            foreach (var group in grouped)
+            {
+                sb.AppendLine($"\n`{group.Key}/`");
+                foreach (var file in group.Order())
+                    sb.AppendLine($"  - `{file}`");
+            }
+            sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Lädt alle im Cache gespeicherten Dateien und gibt deren Inhalt als formatierten String zurück.
+    /// Leere Strings werden von ServerChatRunner automatisch gefiltert.
+    /// </summary>
+    private static string BuildLoadedFilesContext()
+    {
+        var paths = ContextFileCache.ReadFiles();
+        if (paths.Count == 0) return string.Empty;
+
+        var sb = new StringBuilder("# Geladene Dateien\n\n");
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var info = new FileInfo(path);
+                if (info.Length > 131_072)
+                {
+                    sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
+                    continue;
+                }
+                sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"## `{path}`\n\n> Fehler beim Lesen: {ex.Message}\n");
+            }
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string? Git(string args)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo("git", args)
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            });
+            var output = proc?.StandardOutput.ReadToEnd().Trim();
+            proc?.WaitForExit();
+            return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch { return null; }
+    }
 
     protected override string GetAgentMarkdown() => """
         # Dev-Agent

@@ -19,8 +19,11 @@ public abstract class AgentBase
     /// <summary>Liste der Tool-Namen, die für diesen Agenten aktiv sind.</summary>
     public abstract IReadOnlyList<string> EnabledTools { get; }
 
-    /// <summary>System-Prompt, der dem LLM bei jedem Chat übergeben wird.</summary>
-    public abstract string SystemPrompt { get; }
+    /// <summary>
+    /// System-Prompts, die dem LLM bei jedem Chat übergeben werden.
+    /// Jeder Eintrag wird als separate System-Nachricht übermittelt.
+    /// </summary>
+    public abstract IReadOnlyList<string> SystemPrompt { get; }
 
     /// <summary>
     /// Optionale LLM-Konfiguration des Agenten (Modell, Temperatur, Top-P, etc.).
