@@ -128,14 +128,14 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_LegacyCerebrasConfig_IsNormalizedToOllama()
+    public async Task RunServerChatAsync_WithUnknownProviderInConfig_ReturnsConfigurationError()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
         {
             await File.WriteAllTextAsync(configPath, """
             {
-              "defaultProvider": "cerebras"
+              "defaultProvider": "legacy-provider"
             }
             """);
 
@@ -143,8 +143,7 @@ public sealed class ServerChatRunnerTests
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.DoesNotContain("wird nicht mehr unterstützt", result.Response);
-            Assert.DoesNotContain("Provider-Fehler:", result.Response);
+            Assert.Contains("Konfigurationsfehler:", result.Response);
         }
         finally
         {

@@ -115,7 +115,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Get_Settings_DoesNotExposeLegacyCerebrasFields()
+    public async Task Get_Settings_DoesNotExposeRemovedProviderFields()
     {
         var response = await _client.GetAsync("/api/settings");
 
@@ -124,7 +124,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.False(json.TryGetProperty("hasApiKey", out _));
         Assert.False(json.TryGetProperty("apiKey", out _));
-        Assert.False(json.TryGetProperty("cerebras", out _));
+        Assert.False(json.TryGetProperty("providerConfig", out _));
     }
 
     [Fact]

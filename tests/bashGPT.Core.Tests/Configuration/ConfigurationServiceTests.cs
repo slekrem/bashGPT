@@ -63,21 +63,6 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_NormalizesLegacyCerebrasProvider_ToOllama()
-    {
-        var svc = CreateService();
-        await File.WriteAllTextAsync(Path.Combine(_tmpDir, "config.json"), """
-        {
-          "defaultProvider": "cerebras"
-        }
-        """);
-
-        var config = await svc.LoadAsync();
-
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
-    }
-
-    [Fact]
     public async Task Set_UpdatesOllamaModel()
     {
         var svc = CreateService();
@@ -100,10 +85,10 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Set_CerebrasApiKey_Throws()
+    public async Task Set_RemovedProviderKey_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("cerebras.apiKey", "secret"));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("removed-provider.apiKey", "secret"));
     }
 
     [Fact]
