@@ -44,15 +44,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             ollamaHost        = config.Ollama.BaseUrl,
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
-            commandTimeoutSeconds = config.CommandTimeoutSeconds,
-            loopDetectionEnabled = config.LoopDetectionEnabled,
-            maxToolCallRounds    = config.MaxToolCallRounds,
-            rateLimiting      = new
-            {
-                enabled              = config.RateLimiting.Enabled,
-                maxRequestsPerMinute = config.RateLimiting.MaxRequestsPerMinute,
-                agentRequestDelayMs  = config.RateLimiting.AgentRequestDelayMs,
-            },
             ollama            = new
             {
                 model = config.Ollama.Model,
@@ -98,16 +89,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             state.ForceTools = ft;
             config.DefaultForceTools = ft;
         }
-        if (body.CommandTimeoutSeconds is { } timeout && timeout > 0)
-            config.CommandTimeoutSeconds = timeout;
-        if (body.LoopDetectionEnabled is { } lde) config.LoopDetectionEnabled = lde;
-        if (body.MaxToolCallRounds is { } mtr && mtr > 0) config.MaxToolCallRounds = mtr;
-        if (body.RateLimiting is { } rl)
-        {
-            if (rl.Enabled is { } enabled) config.RateLimiting.Enabled = enabled;
-            if (rl.MaxRequestsPerMinute is { } rpm && rpm > 0) config.RateLimiting.MaxRequestsPerMinute = rpm;
-            if (rl.AgentRequestDelayMs is { } delay && delay >= 0) config.RateLimiting.AgentRequestDelayMs = delay;
-        }
         await configService.SaveAsync(config);
         await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
     }
@@ -148,11 +129,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
     private sealed record SettingsRequest(
         string? Provider, string? Model,
         string? OllamaHost, string? ExecMode, bool? ForceTools,
-        int? CommandTimeoutSeconds, bool? LoopDetectionEnabled, int? MaxToolCallRounds,
-        RateLimitingRequest? RateLimiting,
         ProviderConfigRequest? Ollama);
-
-    private sealed record RateLimitingRequest(bool? Enabled, int? MaxRequestsPerMinute, int? AgentRequestDelayMs);
 
     private sealed record ProviderConfigRequest(
         string? Model,

@@ -69,7 +69,7 @@ public class CliChatRunner(
         {
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
-            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, execMode, toolChoiceName, config.CommandTimeoutSeconds, config.LoopDetectionEnabled, config.MaxToolCallRounds, ct);
+            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, execMode, toolChoiceName, AppDefaults.CommandTimeoutSeconds, loopDetectionEnabled: true, AppDefaults.MaxToolCallRounds, ct);
             return 0;
         }
 
@@ -86,7 +86,7 @@ public class CliChatRunner(
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] {commands.Count} Befehl(e) gefunden");
 
-        var executor = new CommandExecutor(execMode, commandTimeoutSeconds: config.CommandTimeoutSeconds);
+        var executor = new CommandExecutor(execMode, commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
         var results  = await executor.ProcessAsync(commands, ct);
 
         var executed = results.Where(r => r.WasExecuted).ToList();

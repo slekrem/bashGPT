@@ -11,25 +11,14 @@ public static class ProviderFactory
     /// </summary>
     public static ILlmProvider Create(
         AppConfig config,
-        ProviderType? overrideType = null,
-        LlmRateLimiter? sharedLimiter = null)
+        ProviderType? overrideType = null)
     {
         var type = overrideType ?? config.DefaultProvider;
         if (type != ProviderType.Ollama)
             throw new InvalidOperationException(
                 $"Nicht unterstützter Provider '{type}'. Erlaubt: ollama.");
 
-        ILlmProvider provider = new OllamaProvider(config.Ollama);
-
-        if (config.RateLimiting.Enabled)
-        {
-            var limiter = sharedLimiter ?? new LlmRateLimiter(
-                config.RateLimiting.MaxRequestsPerMinute,
-                config.RateLimiting.AgentRequestDelayMs);
-            provider = new RateLimitedLlmProvider(provider, limiter);
-        }
-
-        return provider;
+        return new OllamaProvider(config.Ollama);
     }
 
     /// <summary>

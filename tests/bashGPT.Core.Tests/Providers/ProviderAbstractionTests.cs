@@ -42,41 +42,12 @@ public class ProviderAbstractionTests
     }
 
     [Fact]
-    public void ProviderFactory_Create_WhenRateLimitingEnabled_WrapsProvider()
-    {
-        var config = new AppConfig
-        {
-            DefaultProvider = ProviderType.Ollama,
-            RateLimiting = new RateLimitingConfig { Enabled = true, MaxRequestsPerMinute = 30, AgentRequestDelayMs = 500 }
-        };
-
-        var provider = ProviderFactory.Create(config);
-
-        Assert.IsType<RateLimitedLlmProvider>(provider);
-    }
-
-    [Fact]
-    public void ProviderFactory_Create_WhenRateLimitingDisabled_ReturnsPlainProvider()
-    {
-        var config = new AppConfig
-        {
-            DefaultProvider = ProviderType.Ollama,
-            RateLimiting = new RateLimitingConfig { Enabled = false, MaxRequestsPerMinute = 30, AgentRequestDelayMs = 500 }
-        };
-
-        var provider = ProviderFactory.Create(config);
-
-        Assert.IsType<OllamaProvider>(provider);
-    }
-
-    [Fact]
     public void AddBashGptProviders_RegistersSingletonLlmProvider()
     {
         var services = new ServiceCollection();
         var config = new AppConfig
         {
             DefaultProvider = ProviderType.Ollama,
-            RateLimiting = new RateLimitingConfig { Enabled = false }
         };
 
         services.AddBashGptProviders(config);

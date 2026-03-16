@@ -17,12 +17,6 @@ public class ServerChatRunner(
     ILlmProvider? providerOverride = null,
     ToolRegistry? toolRegistry = null) : IPromptHandler
 {
-    // Shared across all requests so the rate limit is truly global per process.
-    // Recreated automatically when the rate-limiting config values change.
-    private LlmRateLimiter? _sharedLimiter;
-    private int _limiterMaxRpm;
-    private int _limiterMinIntervalMs;
-    private readonly object _limiterLock = new();
 
     public async Task<ServerChatResult> RunServerChatAsync(
         ServerChatOptions opts,
@@ -55,7 +49,7 @@ public class ServerChatRunner(
 
             try
             {
-                provider = ProviderFactory.Create(config, opts.Provider, GetOrCreateLimiter(config));
+                provider = ProviderFactory.Create(config, opts.Provider);
             }
             catch (Exception ex)
             {
@@ -247,23 +241,6 @@ public class ServerChatRunner(
             UsedToolCalls: usedToolCalls,
             ConversationDelta: conversationDelta,
             FinalStatus: finalStatus);
-    }
-
-    private LlmRateLimiter? GetOrCreateLimiter(AppConfig config)
-    {
-        if (!config.RateLimiting.Enabled) return null;
-        var rpm = config.RateLimiting.MaxRequestsPerMinute;
-        var delay = config.RateLimiting.AgentRequestDelayMs;
-        lock (_limiterLock)
-        {
-            if (_sharedLimiter is null || _limiterMaxRpm != rpm || _limiterMinIntervalMs != delay)
-            {
-                _sharedLimiter = new LlmRateLimiter(rpm, delay);
-                _limiterMaxRpm = rpm;
-                _limiterMinIntervalMs = delay;
-            }
-            return _sharedLimiter;
-        }
     }
 
     private static bool TryExtractCommand(string? argumentsJson, out string command)

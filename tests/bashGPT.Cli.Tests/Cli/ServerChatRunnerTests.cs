@@ -425,47 +425,6 @@ public sealed class ServerChatRunnerTests
         Assert.NotNull(result.LlmExchanges[0].ResponseJson);
     }
 
-    // â”€â”€ Rate-Limiter-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    [Fact]
-    public void GetOrCreateLimiter_ReusesAndRecreates_ByConfig()
-    {
-        var sut = new ServerChatRunner(new ConfigurationService());
-        var method = typeof(ServerChatRunner).GetMethod("GetOrCreateLimiter", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-
-        var config1 = new AppConfig();
-        config1.RateLimiting.Enabled = true;
-        config1.RateLimiting.MaxRequestsPerMinute = 10;
-        config1.RateLimiting.AgentRequestDelayMs = 100;
-
-        var limiter1 = method!.Invoke(sut, [config1]);
-        var limiter2 = method.Invoke(sut, [config1]);
-        Assert.Same(limiter1, limiter2);
-
-        var config2 = new AppConfig();
-        config2.RateLimiting.Enabled = true;
-        config2.RateLimiting.MaxRequestsPerMinute = 11;
-        config2.RateLimiting.AgentRequestDelayMs = 100;
-
-        var limiter3 = method.Invoke(sut, [config2]);
-        Assert.NotSame(limiter1, limiter3);
-    }
-
-    [Fact]
-    public void GetOrCreateLimiter_Disabled_ReturnsNull()
-    {
-        var sut = new ServerChatRunner(new ConfigurationService());
-        var method = typeof(ServerChatRunner).GetMethod("GetOrCreateLimiter", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-
-        var config = new AppConfig();
-        config.RateLimiting.Enabled = false;
-
-        var limiter = method!.Invoke(sut, [config]);
-
-        Assert.Null(limiter);
-    }
 }
 
 // â”€â”€ FakeTool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
