@@ -12,7 +12,6 @@ dotnet build --configuration Release
 # Tests ausführen
 dotnet test
 dotnet test --configuration Release
-dotnet test --filter "FullyQualifiedName~CerebrasProvider"  # einzelne Klasse
 dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"  # einzelner Test
 dotnet test --filter "FullyQualifiedName~DevAgent"          # Dev-Agent-Tests
 dotnet test --filter "FullyQualifiedName~ShellAgent"        # Shell-Agent-Tests
@@ -95,7 +94,6 @@ Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steue
 | `ServerChatRunner` | `Core/Cli/ServerChatRunner.cs` | Server-Variante mit Session-, Agent- und Tool-Unterstützung |
 | `ChatOrchestrator` | `Core/Cli/ChatOrchestrator.cs` | Gemeinsame Chat-Loop-Logik (Tool-Calls, Follow-up) |
 | `ILlmProvider` | `Core/Providers/ILlmProvider.cs` | Abstrahiertes Provider-Interface (`ChatAsync`, `StreamAsync`, `CompleteAsync`) |
-| `CerebrasProvider` | `Core/Providers/CerebrasProvider.cs` | OpenAI-kompatible Cloud-API, inkl. 429-Retry-Logik |
 | `OllamaProvider` | `Core/Providers/OllamaProvider.cs` | Lokales LLM via ndjson-Stream |
 | `ShellContextCollector` | `Core/Shell/ShellContextCollector.cs` | Sammelt Kontext + erstellt System-Prompt |
 | `CommandExecutor` | `Core/Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (300s Timeout); blockiert interaktive Befehle: `htop`, `btop`, `watch`, `less`, `more`, `man`, `vim`, `vi`, `nano`, `emacs`, `top` (ohne `-l`/`-n`), `tail -f`, `ping` (ohne `-c`/`-n`) |
@@ -121,7 +119,6 @@ Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Ser
 - `RateLimitedLlmProvider` ist ein Dekorator, der einen echten Provider umhüllt und `LlmRateLimiter.WaitAsync()` vor jedem `ChatAsync`-Aufruf einfügt. Wird vom `ServerChatRunner` bei aktivem Rate-Limiting automatisch verwendet.
 - **Zwei `ToolCall`-Types:** `BashGPT.Providers.ToolCall` (hat `Id`, `Name`, `ArgumentsJson`, `Index` — kommt vom LLM) und `BashGPT.Tools.Abstractions.ToolCall` (hat `Name`, `ArgumentsJson`, `SessionPath` — geht an `ITool.ExecuteAsync`). Der `ServerChatRunner` konvertiert zwischen beiden.
 - `OllamaProvider`: Retry bei unvollständigem Stream (max. 3 Versuche). Bei HTTP 500 von Reasoning-Modellen (Denktext vor Tool-Call-JSON) versucht `TryRecoverToolCall()` den Tool-Call aus der Fehlermeldung zu rekonstruieren.
-- `CerebrasProvider`: 429-Retry mit `Retry-After`-Header (exponentiell: 2s, 4s, 8s, max 10s). Bei HTTP 422 mit "wrong_api_format" wird einmalig ohne `tool_choice` wiederholt.
 
 ### ExecutionMode
 
@@ -186,9 +183,6 @@ Gespeichert in `~/.config/bashgpt/config.json`. Relevante `config set`-Schlüsse
 | `loopDetectionEnabled` | bool | `true` | Schleifenerkennung bei identischen Tool-Calls |
 | `ollama.baseUrl` | string | `http://localhost:11434` | Ollama-URL |
 | `ollama.model` | string | `gpt-oss:20b` | Ollama-Modell |
-| `cerebras.apiKey` | string | — | Cerebras API-Key |
-| `cerebras.model` | string | `gpt-oss:120b-cloud` | Cerebras-Modell |
-| `cerebras.baseUrl` | string | `https://api.cerebras.ai/v1` | Cerebras API-URL |
 
 `rateLimiting.*`-Felder (`enabled`, `maxRequestsPerMinute` (30), `agentRequestDelayMs` (500)) werden von `config set` **nicht** unterstützt — erreichbar über `PUT /api/settings` im Browser oder direkt in `~/.config/bashgpt/config.json`.
 
@@ -197,8 +191,6 @@ Env-Variablen überschreiben die Datei:
 | Variable | Entspricht |
 |---|---|
 | `BASHGPT_PROVIDER` | `defaultProvider` |
-| `BASHGPT_CEREBRAS_KEY` | `cerebras.apiKey` |
-| `BASHGPT_CEREBRAS_MODEL` | `cerebras.model` |
 | `BASHGPT_OLLAMA_URL` | `ollama.baseUrl` |
 | `BASHGPT_OLLAMA_MODEL` | `ollama.model` |
 | `BASHGPT_EXEC_MODE` | `defaultExecMode` |

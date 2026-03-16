@@ -10,12 +10,6 @@ namespace BashGPT.Server;
 
 internal sealed class SettingsApiHandler(ConfigurationService? configService, ServerState state)
 {
-    private static readonly HttpClient MetadataHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
-    private static readonly TimeSpan ContextWindowCacheTtl = TimeSpan.FromMinutes(10);
-    private static readonly Dictionary<string, (DateTime fetchedAtUtc, int? value)> ContextWindowCache
-        = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object ContextWindowCacheLock = new();
-
     public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
     {
         var path = ctx.Request.Url?.AbsolutePath ?? "/";
@@ -42,19 +36,11 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             return;
         }
         var config = await configService.LoadAsync();
-        var activeModel = config.DefaultProvider == ProviderType.Cerebras
-            ? config.Cerebras.Model
-            : config.Ollama.Model;
-        var contextWindowTokens = config.DefaultProvider == ProviderType.Cerebras
-            ? await TryResolveCerebrasContextWindowAsync(config, activeModel, ct)
-            : null;
         await ApiResponse.WriteJsonAsync(response, new
         {
-            provider          = config.DefaultProvider.ToString().ToLower(),
-            model             = activeModel,
-            contextWindowTokens,
-            hasApiKey         = config.Cerebras.ApiKey is not null,
-            apiKey            = config.Cerebras.ApiKey,
+            provider          = "ollama",
+            model             = config.Ollama.Model,
+            contextWindowTokens = (int?)null,
             ollamaHost        = config.Ollama.BaseUrl,
             execMode          = ExecModeConverter.ToString(state.ExecMode),
             forceTools        = state.ForceTools,
@@ -66,13 +52,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
                 enabled              = config.RateLimiting.Enabled,
                 maxRequestsPerMinute = config.RateLimiting.MaxRequestsPerMinute,
                 agentRequestDelayMs  = config.RateLimiting.AgentRequestDelayMs,
-            },
-            cerebras          = new
-            {
-                model = config.Cerebras.Model,
-                apiKey = config.Cerebras.ApiKey,
-                hasApiKey = config.Cerebras.ApiKey is not null,
-                baseUrl = config.Cerebras.BaseUrl,
             },
             ollama            = new
             {
@@ -101,25 +80,13 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         var providerType = ParseProviderType(body.Provider);
         if (providerType is not null) config.DefaultProvider = providerType.Value;
 
-        if (body.Cerebras is not null)
-        {
-            if (body.Cerebras.Model is not null) config.Cerebras.Model = body.Cerebras.Model;
-            if (!string.IsNullOrWhiteSpace(body.Cerebras.ApiKey)) config.Cerebras.ApiKey = body.Cerebras.ApiKey;
-            if (body.Cerebras.BaseUrl is not null) config.Cerebras.BaseUrl = body.Cerebras.BaseUrl;
-        }
-
         if (body.Ollama is not null)
         {
             if (body.Ollama.Model is not null) config.Ollama.Model = body.Ollama.Model;
             if (body.Ollama.Host is not null) config.Ollama.BaseUrl = body.Ollama.Host;
         }
 
-        if (body.Model is not null)
-        {
-            if (config.DefaultProvider == ProviderType.Cerebras) config.Cerebras.Model = body.Model;
-            else config.Ollama.Model = body.Model;
-        }
-        if (!string.IsNullOrEmpty(body.ApiKey)) config.Cerebras.ApiKey = body.ApiKey;
+        if (body.Model is not null) config.Ollama.Model = body.Model;
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
         if (body.ExecMode is not null && ExecModeConverter.Parse(body.ExecMode) is { } mode)
         {
@@ -169,82 +136,25 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         }
     }
 
-    // ── Cerebras context-window cache ───────────────────────────────────────
-
-    private static async Task<int?> TryResolveCerebrasContextWindowAsync(AppConfig config, string model, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(model)) return null;
-
-        lock (ContextWindowCacheLock)
-        {
-            if (ContextWindowCache.TryGetValue(model, out var cached)
-                && DateTime.UtcNow - cached.fetchedAtUtc <= ContextWindowCacheTtl)
-                return cached.value;
-        }
-
-        int? resolved = null;
-        try
-        {
-            var baseUri = TryGetCerebrasApiRoot(config.Cerebras.BaseUrl);
-            var modelId  = Uri.EscapeDataString(model);
-            var url      = $"{baseUri}/public/v1/models/{modelId}?format=huggingface";
-            using var response = await MetadataHttp.GetAsync(url, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                lock (ContextWindowCacheLock) ContextWindowCache[model] = (DateTime.UtcNow, null);
-                return null;
-            }
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            var payload = await JsonSerializer.DeserializeAsync<CerebrasModelMetadata>(stream, JsonDefaults.Options, ct);
-            resolved = payload?.ContextLength;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException
-                                      or TaskCanceledException or OperationCanceledException)
-        {
-            // Kein Hard-Fail: Settings-Endpoint bleibt nutzbar.
-            _ = ex;
-        }
-
-        lock (ContextWindowCacheLock) ContextWindowCache[model] = (DateTime.UtcNow, resolved);
-        return resolved;
-    }
-
-    private static string TryGetCerebrasApiRoot(string? configuredBaseUrl)
-    {
-        if (string.IsNullOrWhiteSpace(configuredBaseUrl)) return "https://api.cerebras.ai";
-        if (Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var uri))
-            return $"{uri.Scheme}://{uri.Authority}";
-        return "https://api.cerebras.ai";
-    }
-
     // ── Hilfsmethoden ───────────────────────────────────────────────────────
 
     private static ProviderType? ParseProviderType(string? provider) =>
         provider?.ToLowerInvariant() switch
         {
             "ollama"   => ProviderType.Ollama,
-            "cerebras" => ProviderType.Cerebras,
             _          => null
         };
 
     private sealed record SettingsRequest(
-        string? Provider, string? Model, string? ApiKey,
+        string? Provider, string? Model,
         string? OllamaHost, string? ExecMode, bool? ForceTools,
         int? CommandTimeoutSeconds, bool? LoopDetectionEnabled, int? MaxToolCallRounds,
         RateLimitingRequest? RateLimiting,
-        ProviderConfigRequest? Cerebras, ProviderConfigRequest? Ollama);
+        ProviderConfigRequest? Ollama);
 
     private sealed record RateLimitingRequest(bool? Enabled, int? MaxRequestsPerMinute, int? AgentRequestDelayMs);
 
     private sealed record ProviderConfigRequest(
         string? Model,
-        string? ApiKey,
-        string? BaseUrl,
         string? Host);
-
-    private sealed class CerebrasModelMetadata
-    {
-        [System.Text.Json.Serialization.JsonPropertyName("context_length")]
-        public int? ContextLength { get; set; }
-    }
 }

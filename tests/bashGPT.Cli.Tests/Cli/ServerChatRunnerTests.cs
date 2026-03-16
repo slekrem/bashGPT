@@ -128,21 +128,22 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithoutProviderOverride_UsesConfigProvider()
+    public async Task RunServerChatAsync_WithUnknownProviderInConfig_ReturnsConfigurationError()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
         {
-            var configService = new TestConfigurationService(configPath);
-            var config = await configService.LoadAsync();
-            config.DefaultProvider = ProviderType.Cerebras;
-            config.Cerebras.ApiKey = null;
-            await configService.SaveAsync(config);
+            await File.WriteAllTextAsync(configPath, """
+            {
+              "defaultProvider": "legacy-provider"
+            }
+            """);
 
+            var configService = new TestConfigurationService(configPath);
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Kein Cerebras API-Key konfiguriert", result.Response);
+            Assert.Contains("Konfigurationsfehler:", result.Response);
         }
         finally
         {
@@ -495,4 +496,3 @@ internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
         return Task.FromResult(new BashGPT.Tools.Abstractions.ToolResult(true, _returnValue));
     }
 }
-

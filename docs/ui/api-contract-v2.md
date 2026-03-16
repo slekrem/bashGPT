@@ -105,12 +105,24 @@ interface Session {
 
 ```typescript
 interface Settings {
-  provider:      "ollama" | "cerebras";                         // Pflicht
-  model:         string;                                         // Pflicht
-  apiKey?:       string;                                         // Optional – nur cerebras; im Response maskiert ("••••••••")
-  ollamaHost?:   string;                                         // Optional – Default: "http://localhost:11434"
-  execMode:      "ask" | "dry-run" | "auto-exec" | "no-exec";  // Pflicht
-  forceTools:    boolean;                                        // Pflicht
+  provider:              "ollama";                              // Pflicht
+  model:                 string;                                // Pflicht
+  contextWindowTokens?:  number;                                // Optional – aktuell null
+  ollamaHost?:           string;                                // Optional – Default: "http://localhost:11434"
+  execMode:              "ask" | "dry-run" | "auto-exec" | "no-exec";
+  forceTools:            boolean;
+  commandTimeoutSeconds: number;
+  loopDetectionEnabled:  boolean;
+  maxToolCallRounds:     number;
+  rateLimiting: {
+    enabled: boolean;
+    maxRequestsPerMinute: number;
+    agentRequestDelayMs: number;
+  };
+  ollama: {
+    model: string;
+    host: string;
+  };
 }
 ```
 
@@ -293,17 +305,29 @@ Löscht eine Session inkl. ihres Verlaufs.
 
 #### `GET /api/settings`
 
-Liest die aktuellen Einstellungen. `apiKey` wird maskiert zurückgegeben.
+Liest die aktuellen Einstellungen.
 
 **Response `200`:**
 ```json
 {
-  "provider":    "cerebras",
-  "model":       "gpt-oss-120b",
-  "apiKey":      "••••••••••••••••",
-  "ollamaHost":  "http://localhost:11434",
-  "execMode":    "ask",
-  "forceTools":  false
+  "provider": "ollama",
+  "model": "gpt-oss:20b",
+  "contextWindowTokens": null,
+  "ollamaHost": "http://localhost:11434",
+  "execMode": "ask",
+  "forceTools": false,
+  "commandTimeoutSeconds": 300,
+  "loopDetectionEnabled": true,
+  "maxToolCallRounds": 8,
+  "rateLimiting": {
+    "enabled": true,
+    "maxRequestsPerMinute": 30,
+    "agentRequestDelayMs": 500
+  },
+  "ollama": {
+    "model": "gpt-oss:20b",
+    "host": "http://localhost:11434"
+  }
 }
 ```
 
@@ -312,17 +336,27 @@ Liest die aktuellen Einstellungen. `apiKey` wird maskiert zurückgegeben.
 #### `PUT /api/settings`
 
 Speichert Einstellungen in `~/.config/bashgpt/config.json`.
-Ein leeres `apiKey`-Feld (`""`) belässt den bestehenden Key unverändert.
 
 **Request:**
 ```json
 {
-  "provider":   "cerebras",
-  "model":      "gpt-oss-120b",
-  "apiKey":     "",
+  "provider":   "ollama",
+  "model":      "gpt-oss:20b",
   "ollamaHost": "http://localhost:11434",
   "execMode":   "ask",
-  "forceTools": false
+  "forceTools": false,
+  "commandTimeoutSeconds": 300,
+  "loopDetectionEnabled": true,
+  "maxToolCallRounds": 8,
+  "rateLimiting": {
+    "enabled": true,
+    "maxRequestsPerMinute": 30,
+    "agentRequestDelayMs": 500
+  },
+  "ollama": {
+    "model": "gpt-oss:20b",
+    "host": "http://localhost:11434"
+  }
 }
 ```
 

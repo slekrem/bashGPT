@@ -1,10 +1,10 @@
 # bashGPT
 
-KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional Kontext (Verzeichnis, Git-Status) und fragt ein LLM (Ollama oder Cerebras) an. Gefundene Shell-Befehle können bestätigt, trocken getestet oder automatisch ausgeführt werden.
+KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional Kontext (Verzeichnis, Git-Status) und fragt ein LLM über Ollama an. Gefundene Shell-Befehle können bestätigt, trocken getestet oder automatisch ausgeführt werden.
 
 ## Features
 - CLI mit `System.CommandLine`
-- Provider: Ollama oder Cerebras (OpenAI-kompatibles Chat-API)
+- Provider: Ollama
 - Optionaler Shell-Kontext (Verzeichnis, OS, Shell, Git)
 - Sicherheitsabfrage für gefährliche Befehle
 - Streaming-Antworten
@@ -48,15 +48,10 @@ dotnet run --project src/bashGPT.Cli -- config set defaultProvider ollama
 # Ollama-URL und Modell
 dotnet run --project src/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
 dotnet run --project src/bashGPT.Cli -- config set ollama.model llama3.2
-
-# Cerebras-Key und Modell
-dotnet run --project src/bashGPT.Cli -- config set cerebras.apiKey <key>
-dotnet run --project src/bashGPT.Cli -- config set cerebras.model gpt-oss:120b-cloud
 ```
 
 Alternativ per Environment:
 - `BASHGPT_PROVIDER`
-- `BASHGPT_CEREBRAS_KEY`, `BASHGPT_CEREBRAS_MODEL`
 - `BASHGPT_OLLAMA_URL`, `BASHGPT_OLLAMA_MODEL`
 
 ## Ausführungsmodi
@@ -88,8 +83,8 @@ dotnet run --project src/bashGPT.Server
 # eigener Port, ohne automatisches Browser-Öffnen
 dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
-# Server mit Provider/Modell-Vorgabe
-dotnet run --project src/bashGPT.Server -- --provider cerebras --model gpt-oss:120b-cloud --verbose
+# Server mit Modell-Vorgabe
+dotnet run --project src/bashGPT.Server -- --provider ollama --model llama3.2 --verbose
 ```
 
 Verfügbare Server-Flags: `--provider`, `--model`, `--port`, `--no-browser`, `--verbose`.

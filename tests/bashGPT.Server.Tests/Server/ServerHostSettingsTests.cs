@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Reflection;
 using BashGPT.Configuration;
 using BashGPT.Server;
 using BashGPT.Shell;
@@ -107,13 +106,25 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(json.TryGetProperty("provider", out var provider));
         Assert.True(json.TryGetProperty("model", out _));
-        Assert.True(json.TryGetProperty("hasApiKey", out _));
         Assert.True(json.TryGetProperty("ollamaHost", out _));
         Assert.True(json.TryGetProperty("execMode", out _));
         Assert.True(json.TryGetProperty("forceTools", out _));
 
         // Standardprovider ist Ollama
         Assert.Equal("ollama", provider.GetString());
+    }
+
+    [Fact]
+    public async Task Get_Settings_DoesNotExposeRemovedProviderFields()
+    {
+        var response = await _client.GetAsync("/api/settings");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(json.TryGetProperty("hasApiKey", out _));
+        Assert.False(json.TryGetProperty("apiKey", out _));
+        Assert.False(json.TryGetProperty("providerConfig", out _));
     }
 
     [Fact]
@@ -128,7 +139,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     [Fact]
     public async Task Put_Settings_UpdatesProvider_And_Persists()
     {
-        var body = JsonSerializer.Serialize(new { provider = "cerebras", model = "test-model" });
+        var body = JsonSerializer.Serialize(new { provider = "ollama", model = "test-model" });
         var putResponse = await _client.PutAsync("/api/settings",
             new StringContent(body, Encoding.UTF8, "application/json"));
 
@@ -136,8 +147,8 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
 
         // Config-Datei prüfen
         var config = await _configService.LoadAsync();
-        Assert.Equal(ProviderType.Cerebras, config.DefaultProvider);
-        Assert.Equal("test-model", config.Cerebras.Model);
+        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        Assert.Equal("test-model", config.Ollama.Model);
     }
 
     [Fact]
@@ -174,12 +185,11 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Put_Settings_NestedProviderPayload_UpdatesBothWithoutOverwrite()
+    public async Task Put_Settings_NestedProviderPayload_UpdatesOllama()
     {
         var body = JsonSerializer.Serialize(new
         {
             provider = "ollama",
-            cerebras = new { model = "cerebras-model-x" },
             ollama = new { model = "ollama-model-y", host = "http://ollama.local:11434" },
         });
 
@@ -190,25 +200,21 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
 
         var config = await _configService.LoadAsync();
         Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
-        Assert.Equal("cerebras-model-x", config.Cerebras.Model);
         Assert.Equal("ollama-model-y", config.Ollama.Model);
         Assert.Equal("http://ollama.local:11434", config.Ollama.BaseUrl);
     }
 
     [Fact]
-    public async Task Put_Settings_EmptyApiKey_DoesNotOverwriteExisting()
+    public async Task Put_Settings_LegacyApiKeyField_IsIgnored()
     {
-        // Zuerst einen API-Key setzen
-        await _configService.SetAsync("cerebras.apiKey", "geheimer-key");
-
-        // PUT mit leerem apiKey senden
-        var body = JsonSerializer.Serialize(new { apiKey = "" });
-        await _client.PutAsync("/api/settings",
+        var body = JsonSerializer.Serialize(new { apiKey = "legacy-key", model = "ollama-updated" });
+        var response = await _client.PutAsync("/api/settings",
             new StringContent(body, Encoding.UTF8, "application/json"));
 
-        // Key darf nicht überschrieben worden sein
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
         var config = await _configService.LoadAsync();
-        Assert.Equal("geheimer-key", config.Cerebras.ApiKey);
+        Assert.Equal("ollama-updated", config.Ollama.Model);
     }
 
     [Fact]
@@ -335,22 +341,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Post_SettingsTest_CerebrasWithoutKey_ReturnsOkFalse()
-    {
-        var config = await _configService.LoadAsync();
-        config.DefaultProvider = ProviderType.Cerebras;
-        config.Cerebras.ApiKey = null;
-        await _configService.SaveAsync(config);
-
-        var response = await _client.PostAsync("/api/settings/test", null);
-        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.False(payload.GetProperty("ok").GetBoolean());
-        Assert.Contains("Kein Cerebras API-Key", payload.GetProperty("error").GetString());
-    }
-
-    [Fact]
     public async Task Put_Settings_WithoutConfigService_Returns503()
     {
         var port = GetFreePort();
@@ -401,43 +391,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         try { await task.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-    }
-
-    [Fact]
-    public void SettingsApiHandler_TryGetCerebrasApiRoot_HandlesExpectedInputs()
-    {
-        var method = typeof(ServerHost).Assembly
-            .GetType("BashGPT.Server.SettingsApiHandler")!
-            .GetMethod("TryGetCerebrasApiRoot", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
-
-        var fromNull = (string)method!.Invoke(null, [null])!;
-        var fromInvalid = (string)method.Invoke(null, ["not-a-url"])!;
-        var fromValid = (string)method.Invoke(null, ["https://api.cerebras.ai/v1/chat/completions"])!;
-
-        Assert.Equal("https://api.cerebras.ai", fromNull);
-        Assert.Equal("https://api.cerebras.ai", fromInvalid);
-        Assert.Equal("https://api.cerebras.ai", fromValid);
-    }
-
-    [Fact]
-    public async Task SettingsApiHandler_TryResolveCerebrasContextWindowAsync_HandlesEarlyExitAndCancelledToken()
-    {
-        var type = typeof(ServerHost).Assembly.GetType("BashGPT.Server.SettingsApiHandler")!;
-        var method = type.GetMethod("TryResolveCerebrasContextWindowAsync", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
-
-        var config = new AppConfig();
-
-        var whitespaceTask = (Task<int?>)method!.Invoke(null, [config, " ", CancellationToken.None])!;
-        var whitespaceResult = await whitespaceTask;
-        Assert.Null(whitespaceResult);
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-        var cancelledTask = (Task<int?>)method.Invoke(null, [config, "llama", cts.Token])!;
-        var cancelledResult = await cancelledTask;
-        Assert.Null(cancelledResult);
     }
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────

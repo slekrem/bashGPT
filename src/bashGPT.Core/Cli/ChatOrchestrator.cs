@@ -22,10 +22,8 @@ internal static class ChatOrchestrator
         string? modelOverride)
     {
         if (modelOverride is null) return;
-        if (providerOverride is ProviderType.Cerebras || config.DefaultProvider == ProviderType.Cerebras)
-            config.Cerebras.Model = modelOverride;
-        else
-            config.Ollama.Model = modelOverride;
+        _ = providerOverride;
+        config.Ollama.Model = modelOverride;
     }
 
     /// <summary>

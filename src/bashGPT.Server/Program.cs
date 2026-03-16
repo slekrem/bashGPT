@@ -41,7 +41,7 @@ var serverHost = new ServerHost(serverRunner, configService, sessionStore, agent
 
 var providerOpt = new Option<string?>("--provider", "-p")
 {
-    Description = "LLM-Provider: 'ollama' oder 'cerebras' (überschreibt Config)"
+    Description = "LLM-Provider: 'ollama' (überschreibt Config)"
 };
 var modelOpt = new Option<string?>("--model", "-m")
 {

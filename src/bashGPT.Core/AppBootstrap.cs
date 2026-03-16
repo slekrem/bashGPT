@@ -13,9 +13,8 @@ public static class AppBootstrap
     public static ProviderType? ParseProviderOrThrow(string? providerStr) => providerStr?.ToLowerInvariant() switch
     {
         "ollama" => ProviderType.Ollama,
-        "cerebras" => ProviderType.Cerebras,
         null => null,
-        var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama, cerebras")
+        var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama")
     };
 
     public static ExecutionMode? ResolveExecutionMode(bool noExec, bool dryRun, bool autoExec) => (noExec, dryRun, autoExec) switch

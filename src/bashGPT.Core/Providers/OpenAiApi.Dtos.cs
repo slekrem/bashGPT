@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace BashGPT.Providers;
 
-// ── OpenAI-API-DTOs für CerebrasProvider ────────────────────────────────────
+// ── OpenAI-kompatible DTOs für Provider-Integrationen ───────────────────────
 
 internal sealed class OpenAiChatRequest
 {

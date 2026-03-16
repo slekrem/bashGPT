@@ -4,8 +4,7 @@ namespace BashGPT.Configuration;
 
 public enum ProviderType
 {
-    Ollama,
-    Cerebras
+    Ollama
 }
 
 public class AppConfig
@@ -17,6 +16,5 @@ public class AppConfig
     public ExecutionMode DefaultExecMode { get; set; } = ExecutionMode.Ask;
     public bool DefaultForceTools { get; set; } = false;
     public OllamaConfig Ollama { get; set; } = new();
-    public CerebrasConfig Cerebras { get; set; } = new();
     public RateLimitingConfig RateLimiting { get; set; } = new();
 }
