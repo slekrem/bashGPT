@@ -231,18 +231,22 @@
 │  Einstellungen                                            │
 │                                                           │
 │  ── Verbindung ──────────────────────────────────────    │
-│  Provider       [cerebras ▾]                             │
-│  Modell         [gpt-oss-120b              ]             │
-│  API-Key        [••••••••••••••••          ]             │
+│  Provider       [ollama                 ]                 │
+│  Modell         [gpt-oss:20b             ]                │
+│  Ollama Host    [http://localhost:11434  ]                │
 │  [Verbindung testen]                                      │
 │                                                           │
 │  ── Ausführung ──────────────────────────────────────    │
 │  Standard Exec-Mode  [ask ▾]                             │
 │  Force Tools         [ ] aktiviert                       │
+│  Timeout (s)         [300                    ]           │
+│  Schleifenerkennung  [x] aktiviert                       │
+│  Max. Tool-Runden    [8                      ]           │
 │                                                           │
-│  ── Darstellung ─────────────────────────────────────    │
-│  Theme          ○ Dark  ○ Light                          │
-│  Schriftgröße   ──●──── 14px                             │
+│  ── Rate Limiting ───────────────────────────────────    │
+│  Aktiviert      [x]                                      │
+│  RPM Limit      [30                     ]                │
+│  Delay (ms)     [500                    ]                │
 │                                                           │
 │  ── Daten ───────────────────────────────────────────    │
 │  [Verlauf löschen]                                        │

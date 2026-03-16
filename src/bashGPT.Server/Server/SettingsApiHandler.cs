@@ -156,7 +156,5 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
 
     private sealed record ProviderConfigRequest(
         string? Model,
-        string? ApiKey,
-        string? BaseUrl,
         string? Host);
 }
