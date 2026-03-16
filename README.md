@@ -115,6 +115,9 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/coverage-report.sh
 ```
 
+Reproduzierbarer Open-Source-Launch-Check:
+- [docs/testing/open-source-launch-checklist.md](/Users/stefanmerkel/Documents/GitHub/bashGPT-codex/docs/testing/open-source-launch-checklist.md)
+
 ## Beispiele (Output-Format)
 bashGPT erwartet, dass Shell-Befehle in Code-Blöcken stehen. Beispielantwort:
 ```bash
