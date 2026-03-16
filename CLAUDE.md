@@ -1,212 +1,238 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (`claude.ai/code`) when working with code in this repository.
 
 ## Commands
 
 ```bash
-# Build (Frontend wird automatisch mit gebaut)
+# Build (frontend bundle is built automatically by the server project)
 dotnet build
 dotnet build --configuration Release
 
-# Tests ausführen
+# Tests
 dotnet test
 dotnet test --configuration Release
-dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"  # einzelner Test
-dotnet test --filter "FullyQualifiedName~DevAgent"          # Dev-Agent-Tests
-dotnet test --filter "FullyQualifiedName~ShellAgent"        # Shell-Agent-Tests
-dotnet test --filter "FullyQualifiedName~ShellExecTool"     # Tool-Tests
-dotnet test --project tests/bashGPT.Tools.Git.Tests         # einzelnes Test-Projekt
+dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"
+dotnet test --filter "FullyQualifiedName~DevAgent"
+dotnet test --filter "FullyQualifiedName~ShellAgent"
+dotnet test tests/bashGPT.Tools.Git.Tests/bashGPT.Tools.Git.Tests.csproj
 
-# CLI direkt ausführen
+# Run CLI
 dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
 
-# Server (Browser-UI) starten
+# Run server UI
 dotnet run --project src/bashGPT.Server
 dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
 
-# Nur Frontend bauen
+# Frontend only
+cd src/bashGPT.Web && npm test
 cd src/bashGPT.Web && npm run build
-cd src/bashGPT.Web && npm run dev   # Dev-Server mit HMR (nur Frontend)
+cd src/bashGPT.Web && npm run dev
 
-# Coverage-Report (HTML) generieren
-./scripts/coverage-report.sh        # Output: coverage/report/index.html
+# Coverage report
+./scripts/coverage-report.sh
 ```
 
-Das Frontend-Bundle (`dist/index.html` + `dist/bundle.js`) wird als Embedded Resource in `bashGPT.Server.csproj` eingebettet. `dotnet build` ruft automatisch `npm install` + `npm run build` via MSBuild-Target (`BeforeTargets="BeforeBuild"`) auf. Voraussetzung: **Node.js ≥ 20.19.0 oder ≥ 22.12.0** (Vite 7). CI/CD: `.github/workflows/ci.yml` — baut auf `ubuntu-latest` bei Push/PR auf `main` (dotnet 9 + node 20, Release-Build, TRX-Test-Results als Artifact).
+`src/bashGPT.Server/bashGPT.Server.csproj` embeds `src/bashGPT.Web/dist/index.html` and `src/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
 
-## Architektur
+## Architecture
 
-bashGPT ist ein KI-gestützter Shell-Assistent (CLI + Browser-UI). Das Backend ist eine .NET 9-Solution mit mehreren Projekten.
+bashGPT is a local Ollama-based shell assistant with two hosts:
+- CLI for terminal-first use
+- embedded HTTP server with a browser UI, sessions, agents, and tool-calling
 
-### Projektstruktur
+### Project structure
 
-| Projekt | Zweck |
+| Project | Purpose |
 |---|---|
-| `bashGPT.Core` | Shared Domain-Logik: Providers, Shell, Config, CLI-Runner, Session-Storage |
-| `bashGPT.Cli` | CLI-Executable (`System.CommandLine`), nur Prompt-Anfragen und Config |
-| `bashGPT.Server` | Server-Executable: eingebetteter HTTP-Listener, alle API-Handler |
-| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent` – Basis-Infrastruktur |
-| `bashGPT.Agents.Shell` | Shell-Agent (`shell`): nur `shell_exec`, Temperature=0.1 |
-| `bashGPT.Agents.Dev` | Dev-Agent (`dev`): 17 Tools aktiv (fetch, filesystem_*, git_*, test_run, build_run, shell_exec, context_*), Temperature=0.1, NumCtx=64K; enthält auch `context_load_files`/`context_unload_files`/`context_clear_files`-Tools und `ContextFileCache` |
-| `bashGPT.Tools` | Tool-Abstraktion: `ITool`, `ToolDefinition`, `ToolCall`, `ToolResult`; `ToolRegistry` in `Execution/`-Unterordner (Namespace `BashGPT.Tools.Execution`) |
-| `bashGPT.Tools.Shell` | `shell_exec`-Tool |
+| `bashGPT.Core` | shared configuration, providers, shell/context, CLI/server runners, storage |
+| `bashGPT.Cli` | CLI host based on `System.CommandLine` |
+| `bashGPT.Server` | embedded HTTP/UI host and API handlers |
+| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent`, shared agent config types |
+| `bashGPT.Agents.Shell` | Shell agent with `shell_exec` |
+| `bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
+| `bashGPT.Tools` | tool abstractions and `ToolRegistry` |
+| `bashGPT.Tools.Shell` | `shell_exec` |
 | `bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
 | `bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
-| `bashGPT.Tools.Build` | `build_run`-Tool |
-| `bashGPT.Tools.Testing` | `test_run`-Tool |
-| `bashGPT.Tools.Fetch` | `fetch`-Tool (HTTP GET mit HTML-Extraktion) |
+| `bashGPT.Tools.Build` | `build_run` |
+| `bashGPT.Tools.Testing` | `test_run` |
+| `bashGPT.Tools.Fetch` | `fetch` |
+| `bashGPT.Web` | Lit/TypeScript frontend source |
 
-### Datenfluss
+Current test projects:
+- `tests/bashGPT.Core.Tests`
+- `tests/bashGPT.Cli.Tests`
+- `tests/bashGPT.Server.Tests`
+- `tests/bashGPT.Agents.Tests`
+- `tests/bashGPT.Tools.Tests`
+- `tests/bashGPT.Tools.Shell.Tests`
+- `tests/bashGPT.Tools.Filesystem.Tests`
+- `tests/bashGPT.Tools.Git.Tests`
+- `tests/bashGPT.Tools.Build.Tests`
+- `tests/bashGPT.Tools.Testing.Tests`
+- `tests/bashGPT.Tools.Fetch.Tests`
 
-**CLI-Modus (`CliChatRunner`):**
+### Main execution flows
+
+**CLI (`CliChatRunner`)**
+```text
+prompt
+  -> ShellContextCollector
+  -> provider request (Ollama)
+  -> tool-call loop via ChatOrchestrator / CLI runner
+  -> CommandExecutor for extracted shell commands
+  -> console output
 ```
-User-Prompt
-  → ShellContextCollector   (Git, OS, Shell, gefilterte Env-Variablen)
-  → System-Prompt + History → ILlmProvider.ChatAsync()
-  → LLM antwortet mit Text und/oder Tool-Calls (bash-Tool)
-  → CommandExecutor   (ExecMode: Ask / AutoExec / DryRun / NoExec)
-  → Ergebnisse als Tool-Result-Messages zurück ans LLM
-  → Follow-up-Loop (max. 8 Runden, Loop-Guard bei identischen Tool-Calls)
-  → Ausgabe auf Console
-```
-Fallback: Falls keine Tool-Calls, extrahiert `BashCommandExtractor` Befehle aus ` ```bash ` Code-Blöcken.
 
-**Server-Modus (`ServerChatRunner`):**
-```
-POST /api/chat   (prompt, sessionId?, agentId?, enabledTools?)
-  → Agent-Lookup via AgentRegistry → SystemPrompt + LlmConfig
-  → Session laden via SessionStore
-  → ILlmProvider.ChatAsync()  (mit LlmRateLimiter)
-  → LLM antwortet mit Tool-Calls
-  → ToolRegistry.TryGet(name) → ITool.ExecuteAsync()
-  → Ergebnisse als Tool-Result-Messages zurück ans LLM
-  → Follow-up-Loop (max. 8 Runden)
-  → Session persistieren, ServerChatResult zurückgeben
-```
-Hinweis: ExecMode wird im Server-Modus nicht ausgewertet — das Verhalten steuern die Tools selbst.
+The CLI still supports execution modes (`ask`, `dry-run`, `auto-exec`, `no-exec`) and optional `forceTools`.
 
-### Wichtige Klassen
+**Server (`ServerChatRunner`)**
+```text
+POST /api/chat or /api/chat/stream
+  -> SessionStore load/create
+  -> AgentRegistry lookup
+  -> tool resolution via ToolHelper.Resolve()
+  -> provider request (Ollama)
+  -> tool-call loop
+  -> SessionStore persist
+  -> JSON response or SSE stream
+```
 
-| Klasse | Pfad | Zweck |
+Server-side settings are intentionally simpler than before:
+- only Ollama is supported
+- settings API persists provider/model/base URL plus default exec-mode and force-tools
+- command timeout, loop detection and max tool-call rounds now come from `AppDefaults`
+- there is no configurable rate limiter anymore
+
+### Important classes
+
+| Class | Path | Purpose |
 |---|---|---|
-| `CliChatRunner` | `Core/Cli/CliChatRunner.cs` | CLI-Ausführungslogik: Kontext → LLM → Ausführung → Follow-up |
-| `ServerChatRunner` | `Core/Cli/ServerChatRunner.cs` | Server-Variante mit Session-, Agent- und Tool-Unterstützung |
-| `ChatOrchestrator` | `Core/Cli/ChatOrchestrator.cs` | Gemeinsame Chat-Loop-Logik (Tool-Calls, Follow-up) |
-| `ILlmProvider` | `Core/Providers/ILlmProvider.cs` | Abstrahiertes Provider-Interface (`ChatAsync`, `StreamAsync`, `CompleteAsync`) |
-| `OllamaProvider` | `Core/Providers/OllamaProvider.cs` | Lokales LLM via ndjson-Stream |
-| `ShellContextCollector` | `Core/Shell/ShellContextCollector.cs` | Sammelt Kontext + erstellt System-Prompt |
-| `CommandExecutor` | `Core/Shell/CommandExecutor.cs` | Führt Shell-Befehle aus (300s Timeout); blockiert interaktive Befehle: `htop`, `btop`, `watch`, `less`, `more`, `man`, `vim`, `vi`, `nano`, `emacs`, `top` (ohne `-l`/`-n`), `tail -f`, `ping` (ohne `-c`/`-n`) |
-| `BashCommandExtractor` | `Core/Shell/BashCommandExtractor.cs` | Fallback-Extraktion aus ` ```bash ` Blöcken; prüft 13 Danger-Patterns (u.a. `rm -rf`, `sudo`, `dd`, `mkfs`, `curl \| sh`, Fork-Bomb) |
-| `LlmRateLimiter` | `Core/Providers/LlmRateLimiter.cs` | Sliding-Window Rate-Limiter (nur Server); Mindestabstand + Max-Anfragen/Minute |
-| `SessionStore` | `Core/Storage/SessionStore.cs` | Thread-sicherer Persistenz-Store für `~/.config/bashgpt/sessions/` |
-| `ServerHost` | `Server/Server/ServerHost.cs` | Eingebetteter HTTP-Listener (kein ASP.NET), Routing zu API-Handlern |
-| `AgentBase` | `Agents/AgentBase.cs` | Abstrakte Basisklasse für alle Chat-Agenten (code-first) |
-| `AgentRegistry` | `Agents/AgentRegistry.cs` | In-Memory-Registry registrierter Agenten |
-| `ToolRegistry` | `Tools/Execution/ToolRegistry.cs` | Registry aller verfügbaren `ITool`-Implementierungen (Namespace `BashGPT.Tools.Execution`) |
-| `ContextFileCache` | `Agents.Dev/ContextFileCache.cs` | Persistiert geladene Dateipfade pro Session (AsyncLocal für Thread-Isolation); genutzt vom Dev-Agent |
-| `RunningChatRegistry` | `Server/Server/RunningChatRegistry.cs` | ConcurrentDictionary von RequestId → CancellationTokenSource; ermöglicht `POST /api/chat/cancel` |
-| `LegacyHistory` | `Server/Server/LegacyHistory.cs` | In-Memory-Fallback-History wenn kein SessionStore; max. `AppDefaults.MaxHistoryMessages` (40) |
+| `CliChatRunner` | `src/bashGPT.Core/Cli/CliChatRunner.cs` | CLI prompt flow and command execution |
+| `ServerChatRunner` | `src/bashGPT.Core/Cli/ServerChatRunner.cs` | server chat loop with sessions, agents, tools |
+| `ChatOrchestrator` | `src/bashGPT.Core/Cli/ChatOrchestrator.cs` | shared request orchestration helpers |
+| `ConfigurationService` | `src/bashGPT.Core/Configuration/ConfigurationService.cs` | `config.json` load/save and env overrides |
+| `ProviderFactory` | `src/bashGPT.Core/Providers/ProviderFactory.cs` | creates the active Ollama provider |
+| `OllamaProvider` | `src/bashGPT.Core/Providers/OllamaProvider.cs` | OpenAI-compatible Ollama integration |
+| `ShellContextCollector` | `src/bashGPT.Core/Shell/ShellContextCollector.cs` | shell/git/system context for prompts |
+| `CommandExecutor` | `src/bashGPT.Core/Shell/CommandExecutor.cs` | shell command execution with guardrails |
+| `SessionStore` | `src/bashGPT.Core/Storage/SessionStore.cs` | thread-safe session persistence |
+| `ServerHost` | `src/bashGPT.Server/Server/ServerHost.cs` | HTTP listener and routing |
+| `AgentBase` | `src/bashGPT.Agents/AgentBase.cs` | code-first base type for agents |
+| `AgentRegistry` | `src/bashGPT.Agents/AgentRegistry.cs` | in-memory agent lookup |
+| `ContextFileCache` | `src/bashGPT.Agents.Dev/ContextFileCache.cs` | loaded-file cache for dev agent |
+| `ToolRegistry` | `src/bashGPT.Tools/Execution/ToolRegistry.cs` | available `ITool` implementations |
+| `RunningChatRegistry` | `src/bashGPT.Server/Server/RunningChatRegistry.cs` | request cancellation support |
+| `LegacyHistory` | `src/bashGPT.Server/Server/LegacyHistory.cs` | compatibility layer for `/api/history` and `/api/reset` |
 
-### Provider
+### Agents
 
-Beide Provider implementieren `ILlmProvider`. Die relevante Methode für den Server-Modus ist `ChatAsync(LlmChatRequest)` — sie unterstützt Tool-Definitions, `OnToken`/`OnReasoningToken`-Callbacks für Streaming und gibt `LlmChatResponse` mit `Content` + `ToolCalls` + `Usage` zurück.
+Agents are defined in code, not JSON. The server registers:
+- `generic`
+- `dev`
+- `shell`
 
-`StreamAsync` / `CompleteAsync` sind einfachere Legacy-Methoden ohne Tool-Support.
+`AgentBase` drives:
+- stable agent id
+- display name
+- enabled tool set
+- one or more system prompt messages
+- optional `AgentLlmConfig`
+- markdown info panel for the UI
 
-**Besonderheiten:**
-- `ILlmProvider` hat `Name` und `Model` Properties sowie drei Methoden: `ChatAsync` (Tool-Support), `CompleteAsync` (Legacy, kein Tool-Support), `StreamAsync` (Legacy, kein Tool-Support).
-- `RateLimitedLlmProvider` ist ein Dekorator, der einen echten Provider umhüllt und `LlmRateLimiter.WaitAsync()` vor jedem `ChatAsync`-Aufruf einfügt. Wird vom `ServerChatRunner` bei aktivem Rate-Limiting automatisch verwendet.
-- **Zwei `ToolCall`-Types:** `BashGPT.Providers.ToolCall` (hat `Id`, `Name`, `ArgumentsJson`, `Index` — kommt vom LLM) und `BashGPT.Tools.Abstractions.ToolCall` (hat `Name`, `ArgumentsJson`, `SessionPath` — geht an `ITool.ExecuteAsync`). Der `ServerChatRunner` konvertiert zwischen beiden.
-- `OllamaProvider`: Retry bei unvollständigem Stream (max. 3 Versuche). Bei HTTP 500 von Reasoning-Modellen (Denktext vor Tool-Call-JSON) versucht `TryRecoverToolCall()` den Tool-Call aus der Fehlermeldung zu rekonstruieren.
+`GetInfoPanelMarkdown()` automatically appends the effective LLM config.
 
-### ExecutionMode
+### Tools
 
-| Mode | Verhalten |
-|---|---|
-| `Ask` | Interaktive Bestätigung vor jedem Befehl |
-| `AutoExec` | Sofortige Ausführung ohne Nachfrage (`-y`) |
-| `DryRun` | Befehle anzeigen, nie ausführen |
-| `NoExec` | Kein Anzeigen, kein Ausführen (reiner Chat) |
+All tools implement:
 
-### Server-API (HTTP)
-
-```
-GET  /                        → index.html (embedded)
-GET  /bundle.js               → JS-Bundle (embedded)
-GET  /api/context             → Shell-Kontext (OS, Git, Verzeichnis)
-GET    /api/settings          → Aktuelle Server-Einstellungen
-PUT    /api/settings          → Einstellungen ändern
-POST   /api/settings/test     → Provider-Verbindung testen
-POST /api/chat                → { prompt, sessionId?, agentId?, enabledTools?, verbose? } → { response, commands, usedToolCalls, finalStatus, logs, shellContext, usage }
-POST /api/chat/stream         → Server-Sent Events (SSE), Token-Streaming
-POST /api/chat/cancel         → Laufenden Chat-Request abbrechen
-GET  /api/sessions            → Alle Sessions (Metadaten)
-GET  /api/sessions/<id>       → Einzelne Session mit Messages
-POST /api/sessions            → Neue Session anlegen
-DELETE /api/sessions/<id>     → Session löschen
-POST /api/sessions/clear      → Alle Sessions löschen
-GET  /api/agents              → [{ id, name }] — alle registrierten Agenten
-GET  /api/agents/<id>/info-panel → { markdown } — Agent-Beschreibung für UI-Panel
-PUT  /api/sessions/<id>       → Session aktualisieren (Title, Messages, etc.)
-GET  /api/tools               → [{ name, description, parameters[] }] — alle verfügbaren Tools
-GET  /api/history             → (veraltet) Legacy-History
-POST /api/reset               → (veraltet) Legacy-History löschen
+```csharp
+public interface ITool
+{
+    ToolDefinition Definition { get; }
+    Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct);
+}
 ```
 
-**Tool-Auflösung bei `POST /api/chat`:** `agent.EnabledTools` > `session.EnabledTools` > `body.enabledTools` (erste nicht-leere Liste gewinnt). `ToolHelper.Resolve()` übersetzt Tool-Namen in `ToolDefinition`-Objekte für das LLM.
+Important details:
+- `BashGPT.Tools.Abstractions.ToolCall` is the tool execution contract (`Name`, `ArgumentsJson`, `SessionPath`)
+- `BashGPT.Providers.ToolCall` is the LLM/provider-side tool-call model
+- server code converts between the two
+- the browser UI only exposes a safe default subset of tools for manual selection; agents can still have broader fixed tool sets
 
-**`AgentBase.SystemPrompt`** ist `IReadOnlyList<string>` — mehrere System-Prompts möglich, jeder wird als separate System-Nachricht gesendet. Beim Dev-Agent werden die letzten zwei Einträge dynamisch generiert (Projektkontext + geladene Dateien).
+### HTTP API
 
-**SSE-Events** (`OnEvent`-Callback, `SseEvent(string Event, object? Data)`): `round_start` (neue Tool-Call-Runde, `{ round }`), `tool_call` (vor Ausführung, `{ name, command }`), `command_result` (nach Ausführung, `{ command, output, exitCode, wasExecuted, status }`).
+Current endpoints:
 
-### Session-Persistenz
+```text
+GET  /                        -> embedded index.html
+GET  /bundle.js               -> embedded frontend bundle
+GET  /api/context
+GET  /api/settings
+PUT  /api/settings
+POST /api/settings/test
+POST /api/chat
+POST /api/chat/stream
+POST /api/chat/cancel
+GET  /api/sessions
+POST /api/sessions
+POST /api/sessions/clear
+GET  /api/sessions/<id>
+PUT  /api/sessions/<id>
+DELETE /api/sessions/<id>
+GET  /api/tools
+GET  /api/agents
+GET  /api/agents/<id>/info-panel
+GET  /api/history      # legacy compatibility
+POST /api/reset        # legacy compatibility
+```
 
-Sessions werden in einem Zwei-Schichten-Layout gespeichert:
-- `~/.config/bashgpt/sessions/index.json` – Metadaten aller Sessions
-- `~/.config/bashgpt/sessions/<id>/content.json` – Nachrichten einer Session
-- `~/.config/bashgpt/sessions/<id>/requests/` – Rohe LLM-Requests/Responses (Debug)
+Notes:
+- `POST /api/chat/cancel` expects `{ "requestId": "..." }`
+- `POST /api/chat/stream` is SSE-based
+- tool resolution priority is `agent.EnabledTools` -> `session.EnabledTools` -> request `enabledTools`
 
-`SessionStore` ist thread-safe via `SemaphoreSlim` und schreibt atomar via Temp-Datei. Maximum: 20 Sessions. Session-Titel wird automatisch aus der ersten User-Message gesetzt (max. 40 Zeichen). Migration alter `history.json` / `sessions.json` erfolgt einmalig beim ersten Start.
+### Session storage
 
-### Konfiguration
+Sessions live under `~/.config/bashgpt/sessions/`:
+- `index.json` for session metadata
+- `<id>/content.json` for messages and per-session state
+- `<id>/requests/` for recorded request/debug artifacts
 
-Gespeichert in `~/.config/bashgpt/config.json`. Relevante `config set`-Schlüssel:
+`SessionStore` writes atomically and keeps at most 20 sessions.
 
-| Schlüssel | Typ | Default | Beschreibung |
-|---|---|---|---|
-| `defaultProvider` | string | `ollama` | Aktiver Provider |
-| `defaultExecMode` | string | `ask` | Standard-ExecutionMode |
-| `defaultForceTools` | bool | `false` | Tool-Calls immer erzwingen |
-| `commandTimeoutSeconds` | int | `300` | Shell-Befehl-Timeout |
-| `maxToolCallRounds` | int | `8` | Max. Tool-Call-Runden pro Anfrage |
-| `loopDetectionEnabled` | bool | `true` | Schleifenerkennung bei identischen Tool-Calls |
-| `ollama.baseUrl` | string | `http://localhost:11434` | Ollama-URL |
-| `ollama.model` | string | `gpt-oss:20b` | Ollama-Modell |
+### Configuration
 
-`rateLimiting.*`-Felder (`enabled`, `maxRequestsPerMinute` (30), `agentRequestDelayMs` (500)) werden von `config set` **nicht** unterstützt — erreichbar über `PUT /api/settings` im Browser oder direkt in `~/.config/bashgpt/config.json`.
+Config file: `~/.config/bashgpt/config.json`
 
-Env-Variablen überschreiben die Datei:
+Supported `config set` keys:
+- `defaultProvider`
+- `execMode`
+- `forceTools`
+- `ollama.baseUrl`
+- `ollama.model`
 
-| Variable | Entspricht |
-|---|---|
-| `BASHGPT_PROVIDER` | `defaultProvider` |
-| `BASHGPT_OLLAMA_URL` | `ollama.baseUrl` |
-| `BASHGPT_OLLAMA_MODEL` | `ollama.model` |
-| `BASHGPT_EXEC_MODE` | `defaultExecMode` |
-| `BASHGPT_FORCE_TOOLS` | `defaultForceTools` |
-| `BASHGPT_COMMAND_TIMEOUT` | `commandTimeoutSeconds` |
-| `BASHGPT_LOOP_DETECTION` | `loopDetectionEnabled` |
-| `BASHGPT_MAX_TOOL_CALL_ROUNDS` | `maxToolCallRounds` |
+Environment overrides:
+- `BASHGPT_PROVIDER`
+- `BASHGPT_OLLAMA_URL`
+- `BASHGPT_OLLAMA_MODEL`
+- `BASHGPT_EXEC_MODE`
+- `BASHGPT_FORCE_TOOLS`
+- `BASHGPT_SERVER_ALLOWED_TOOLS`
 
-### Frontend
+No longer configurable:
+- `commandTimeoutSeconds`
+- `loopDetectionEnabled`
+- `maxToolCallRounds`
+- any `rateLimiting.*` settings
 
-TypeScript + Lit Web Components, gebaut mit Vite als Single Bundle. Komponenten: `chat-app` (Router), `chat-view`, `dashboard`, `sidebar`, `settings-view`, `agents-view`, `tools-view`, `message-bubble`, `tool-calls-panel`, `chat-info-panel`.
+Those runtime defaults are now fixed internally via `AppDefaults`.
 
-## Coding Style
+## Coding style
 
-- C# mit Nullable Reference Types und Implicit Usings
-- 4 Spaces, file-scoped Namespaces
-- `PascalCase` für Types/Members, `camelCase` für Locals
-- Tests: xUnit, Naming `Method_Condition_Result` (z.B. `StreamAsync_StopsAtDone`)
-- Commits: Conventional Messages (`feat:`, `fix:`, `test:` etc.), oft auf Deutsch
+- C# with nullable reference types and implicit usings
+- 4 spaces, file-scoped namespaces
+- `PascalCase` for types/members, `camelCase` for locals
+- xUnit tests using `Method_Condition_Result`
+- conventional commits like `feat:`, `fix:`, `test:`, `docs:`
