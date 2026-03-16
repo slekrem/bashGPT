@@ -93,6 +93,9 @@ Hinweise:
 - Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode-Auswahl (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
 - Im Server-Modus wird der Exec-Mode vom Backend nicht ausgewertet — das Verhalten der Tools ist fest definiert (kein interaktives Terminal-Prompt möglich).
 - Sessions werden unter `~/.config/bashgpt/sessions/` gespeichert (max. 20 Sessions).
+- Manuell auswählbare Tools in der Browser-UI sind standardmäßig auf eine Safe-Default-Liste begrenzt: `fetch`, `filesystem_read`, `filesystem_search`, `git_status`, `git_diff`, `git_log`, `git_branch`.
+- Zusätzliche, riskantere Tools können explizit über `BASHGPT_SERVER_ALLOWED_TOOLS` freigegeben werden, z. B. `BASHGPT_SERVER_ALLOWED_TOOLS=shell_exec,filesystem_write`.
+- Agenten mit fest definierten Tool-Sets (z. B. `shell`, `dev`) bleiben eine bewusste Vertrauensgrenze und können weiter mächtigere Tools verwenden.
 
 ## Agenten (Browser UI)
 Agenten sind spezialisierte Chat-Modi mit eigenem System-Prompt und Tool-Set. Sie werden in der Browser-UI ausgewählt.
@@ -111,6 +114,9 @@ dotnet test --collect:"XPlat Code Coverage"
 # vollständiger HTML-Report (inkl. vorherigem Cleanup)
 ./scripts/coverage-report.sh
 ```
+
+Reproduzierbarer Open-Source-Launch-Check:
+- [docs/testing/open-source-launch-checklist.md](docs/testing/open-source-launch-checklist.md)
 
 ## Beispiele (Output-Format)
 bashGPT erwartet, dass Shell-Befehle in Code-Blöcken stehen. Beispielantwort:

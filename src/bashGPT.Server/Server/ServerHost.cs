@@ -26,29 +26,32 @@ public class ServerHost
     private readonly SessionStore?             _sessionStore;
     private readonly ToolRegistry?             _toolRegistry;
     private readonly RunningChatRegistry       _runningChats;
+    private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
 
     public ServerHost(
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null,
         AgentRegistry? agentRegistry = null,
-        ToolRegistry? toolRegistry = null)
+        ToolRegistry? toolRegistry = null,
+        ServerToolSelectionPolicy? toolSelectionPolicy = null)
     {
         _configService        = configService;
         _agentRegistry        = agentRegistry;
         _sessionStore         = sessionStore;
         _toolRegistry         = toolRegistry;
+        _toolSelectionPolicy  = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats         = new RunningChatRegistry();
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService, _state);
-        _chatHandler          = new ChatApiHandler(handler, _legacyHistory, sessionStore, toolRegistry, agentRegistry);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, sessionStore, toolRegistry, agentRegistry);
+        _chatHandler          = new ChatApiHandler(handler, _legacyHistory, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
         _chatCancelHandler    = new ChatCancelApiHandler(_runningChats);
         _sessionHandler       = new SessionApiHandler(sessionStore, _legacyHistory);
         _agentHandler         = new AgentApiHandler(agentRegistry, configService);
-        _toolHandler          = new ToolApiHandler(toolRegistry);
+        _toolHandler          = new ToolApiHandler(toolRegistry, _toolSelectionPolicy);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)

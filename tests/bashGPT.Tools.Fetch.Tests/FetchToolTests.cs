@@ -217,12 +217,21 @@ public class FetchToolTests
     }
 
     [Fact]
-    public void DefaultFetchPolicy_AllowsHttpAndHttps()
+    public void DefaultFetchPolicy_AllowsReadOnlyHttpAndHttps()
     {
         var policy = new DefaultFetchPolicy();
 
         Assert.True(policy.Allow(new FetchInput("https://example.com", "GET", null, null, 5000)));
-        Assert.True(policy.Allow(new FetchInput("http://example.com", "POST", null, null, 5000)));
+        Assert.True(policy.Allow(new FetchInput("http://example.com", "HEAD", null, null, 5000)));
+    }
+
+    [Fact]
+    public void DefaultFetchPolicy_BlocksMutatingMethods()
+    {
+        var policy = new DefaultFetchPolicy();
+
+        Assert.False(policy.Allow(new FetchInput("https://example.com", "POST", null, null, 5000)));
+        Assert.False(policy.Allow(new FetchInput("https://example.com", "DELETE", null, null, 5000)));
     }
 
     [Fact]

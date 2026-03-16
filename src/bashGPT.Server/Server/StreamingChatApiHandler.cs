@@ -14,6 +14,7 @@ internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
     LegacyHistory legacyHistory,
     RunningChatRegistry runningChats,
+    ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
     AgentRegistry? agentRegistry = null)
@@ -79,7 +80,11 @@ internal sealed class StreamingChatApiHandler(
                     ? session.EnabledTools
                     : body.EnabledTools?.ToList();
 
-            var resolvedTools = ToolHelper.Resolve(effectiveToolNames, toolRegistry);
+            var selectableToolNames = agent?.EnabledTools.Count > 0
+                ? effectiveToolNames
+                : toolSelectionPolicy.FilterRequestedToolNames(effectiveToolNames);
+
+            var resolvedTools = ToolHelper.Resolve(selectableToolNames, toolRegistry);
 
             var now        = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
@@ -182,7 +187,7 @@ internal sealed class StreamingChatApiHandler(
                     UpdatedAt    = now,
                     Messages     = allMessages,
                     ShellContext = shellCtx,
-                    EnabledTools = effectiveToolNames,
+                    EnabledTools = selectableToolNames?.ToList(),
                     AgentId      = agent?.Id ?? session?.AgentId,
                 });
 
