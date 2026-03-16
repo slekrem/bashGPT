@@ -31,7 +31,24 @@
     <EmbeddedResource Include="..\bashGPT.Web\dist\bundle.js" LogicalName="bashGPT.Web.bundle.js" />
   </ItemGroup>
 
-  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild">
+  <Target Name="RestoreWebFrontendDependencies"
+          Inputs="$(MSBuildProjectDirectory)/../bashGPT.Web/package.json;$(MSBuildProjectDirectory)/../bashGPT.Web/package-lock.json"
+          Outputs="$(MSBuildProjectDirectory)/../bashGPT.Web/node_modules/.package-lock.stamp">
+    <PropertyGroup>
+      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(WebFrontendDir)/package-lock.json')"
+           Text="package-lock.json fehlt im Web-Frontend. Für reproduzierbare Builds wird ein Lockfile benötigt." />
+
+    <Exec Command="npm ci" WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)" />
+
+    <Touch Files="$(WebFrontendDir)/node_modules/.package-lock.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies">
     <PropertyGroup>
       <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
@@ -59,9 +76,6 @@
     <Message Text="[WebBuild] $(_NodeCheckOutput)" Importance="high" />
     <Error Condition="'$(_NodeCheckExitCode)' != '' and '$(_NodeCheckExitCode)' != '0'"
            Text="Frontend-Build abgebrochen: Node.js >= 20.19 (oder >= 22.12) erforderlich. Bitte Node auf der Build-Maschine aktualisieren." />
-
-    <Exec Command="npm install --include=dev" WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)" />
 
     <Exec Command="sh -c 'if [ -x node_modules/.bin/tsc ]; then ls -la node_modules/.bin/tsc; echo TSC_AFTER=found; else echo TSC_AFTER=missing; fi'"
           WorkingDirectory="$(WebFrontendDir)"
