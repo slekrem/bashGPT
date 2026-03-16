@@ -2,7 +2,7 @@ namespace BashGPT.Tools.Fetch;
 
 public sealed class DefaultFetchPolicy : IFetchPolicy
 {
-    private static readonly string[] AllowedMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
+    private static readonly string[] AllowedMethods = ["GET", "HEAD"];
 
     public bool Allow(FetchInput input)
     {

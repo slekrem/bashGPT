@@ -1,9 +1,10 @@
 using System.Net;
+using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
-internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
+internal sealed class ToolApiHandler(ToolRegistry? toolRegistry, ServerToolSelectionPolicy toolSelectionPolicy)
 {
     public async Task HandleAsync(HttpListenerResponse response, CancellationToken ct)
     {
@@ -13,7 +14,9 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
             return;
         }
 
-        var tools = toolRegistry.Tools.Select(t => new
+        var tools = toolRegistry.Tools
+            .Where(IsSelectable)
+            .Select(t => new
         {
             name        = t.Definition.Name,
             description = t.Definition.Description,
@@ -28,4 +31,6 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
 
         await ApiResponse.WriteJsonAsync(response, new { tools });
     }
+
+    private bool IsSelectable(ITool tool) => toolSelectionPolicy.IsAllowed(tool.Definition.Name);
 }
