@@ -1,14 +1,15 @@
 using System.Diagnostics;
 using System.Text;
+using BashGPT.Tools.Abstractions;
 
 namespace BashGPT.Tools.Git;
 
 internal static class GitRunner
 {
     internal static async Task<(string Stdout, string Stderr, int ExitCode)> RunAsync(
-        string args, string? cwd, CancellationToken ct)
+        string args, string? cwd, CancellationToken ct, string executable = "git")
     {
-        var psi = new ProcessStartInfo("git", args)
+        var psi = new ProcessStartInfo(executable, args)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -22,7 +23,22 @@ internal static class GitRunner
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
 
-        process.Start();
+        try
+        {
+            process.Start();
+        }
+        catch (Exception ex)
+        {
+            var missingExecutable = ExternalDependencyErrors.TryCreateMissingExecutableException(
+                executable,
+                "Install Git and verify 'git --version' works in your shell.",
+                ex);
+
+            if (missingExecutable is not null)
+                return (string.Empty, missingExecutable.Message, -1);
+
+            throw;
+        }
 
         var outTask = process.StandardOutput.ReadToEndAsync(ct);
         var errTask = process.StandardError.ReadToEndAsync(ct);

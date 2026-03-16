@@ -170,4 +170,36 @@ public class BuildRunToolTests
         var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
         Assert.Contains("[truncated]", output.GetProperty("rawOutput").GetString());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingDotnetExecutable_ReturnsHelpfulFailure()
+    {
+        var tool = new BuildRunTool(runners: new Dictionary<string, (string Executable, Func<BuildRunInput, string> Args, string MissingDependencyHelp)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dotnet"] = ("bashgpt-missing-dotnet", _ => "build", "Install the .NET SDK and verify 'dotnet --info' works in your shell."),
+        });
+
+        var result = await tool.ExecuteAsync(Call(new { runner = "dotnet" }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_dependency", result.Content, StringComparison.Ordinal);
+        Assert.Contains("bashgpt-missing-dotnet", result.Content, StringComparison.Ordinal);
+        Assert.Contains("dotnet --info", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingNpmExecutable_ReturnsHelpfulFailure()
+    {
+        var tool = new BuildRunTool(runners: new Dictionary<string, (string Executable, Func<BuildRunInput, string> Args, string MissingDependencyHelp)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["npm"] = ("bashgpt-missing-npm", _ => "run build", "Install Node.js including npm and verify 'npm --version' works in your shell."),
+        });
+
+        var result = await tool.ExecuteAsync(Call(new { runner = "npm" }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_dependency", result.Content, StringComparison.Ordinal);
+        Assert.Contains("bashgpt-missing-npm", result.Content, StringComparison.Ordinal);
+        Assert.Contains("npm --version", result.Content, StringComparison.Ordinal);
+    }
 }
