@@ -16,9 +16,8 @@
 - `src/bashGPT.Tools.Testing/` contains the `test_run` tool.
 - `src/bashGPT.Tools.Fetch/` contains the `fetch` tool (HTTP GET with HTML extraction).
 - `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — Kernprojekte
-- `tests/bashGPT.Agents.Tests/`, `tests/bashGPT.Agents.Shell.Tests/`, `tests/bashGPT.Agents.Dev.Tests/` — Agenten-Tests
+- `tests/bashGPT.Agents.Tests/` — Agenten-Tests
 - `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — Tool-Tests
-- `tests/bashGPT.Tests/` — Platzhalter für künftige Integrations-/End-to-End-Tests (noch keine Tests implementiert)
 
 ## Build, Test, and Development Commands
 
@@ -43,7 +42,7 @@
 - Test naming follows `Method_Condition_Result` (e.g., `StreamAsync_StopsAtDone`).
 - Put new tests under the matching test project and production namespace:
   - Core/Cli/Server code → `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/`
-  - Agent code → `tests/bashGPT.Agents.Tests/`, `tests/bashGPT.Agents.Shell.Tests/`, `tests/bashGPT.Agents.Dev.Tests/`
+  - Agent code → `tests/bashGPT.Agents.Tests/`
   - Tool code → `tests/bashGPT.Tools.Tests/` and the corresponding `tests/bashGPT.Tools.<Name>.Tests/` project
 
 ## Commit & Pull Request Guidelines
@@ -63,7 +62,7 @@
 - A legacy `~/.config/bashgpt/agents.json` file may exist from older versions — it is no longer read or written by the current code-first agent system and can be safely ignored or deleted.
 - **Tool resolution priority** when a chat request arrives: `agent.EnabledTools` → `session.EnabledTools` → `body.enabledTools` (first non-empty list wins). Resolved via `ToolHelper.Resolve()`.
 - The server backend does **not** evaluate `execMode` from chat requests — tool behaviour is fixed per tool implementation (no interactive terminal in browser context).
-- Loop detection (`loopDetectionEnabled`, default `true`) aborts the tool-call loop if the LLM issues identical tool calls twice in a row. Max rounds: `maxToolCallRounds` (default `8`).
+- Runtime defaults like command timeout, loop detection, and max tool-call rounds are internal `AppDefaults` values and are no longer configurable via `config set`, environment variables, or the settings UI.
 
 ## Implementing a New Agent
 
