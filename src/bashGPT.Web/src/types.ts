@@ -46,12 +46,6 @@ export interface OllamaSettings {
   host: string
 }
 
-export interface RateLimitingSettings {
-  enabled: boolean
-  maxRequestsPerMinute: number
-  agentRequestDelayMs: number
-}
-
 export interface Settings {
   provider: ProviderName
   model: string
@@ -59,10 +53,6 @@ export interface Settings {
   ollamaHost?: string
   execMode: ExecMode
   forceTools: boolean
-  commandTimeoutSeconds: number
-  loopDetectionEnabled: boolean
-  maxToolCallRounds: number
-  rateLimiting: RateLimitingSettings
   ollama: OllamaSettings
 }
 

@@ -70,14 +70,6 @@ public class ConfigurationService
             case "ollama.model":
                 config.Ollama.Model = value;
                 break;
-            case "commandtimeoutseconds":
-            {
-                var timeout = ParseInt(value, "commandTimeoutSeconds");
-                if (timeout <= 0)
-                    throw new ArgumentException($"Ungültiger Wert für 'commandTimeoutSeconds': '{value}'. Muss größer als 0 sein.");
-                config.CommandTimeoutSeconds = timeout;
-                break;
-            }
             case "execmode":
             case "defaultexecmode":
                 config.DefaultExecMode = ExecModeConverter.Parse(value)
@@ -89,19 +81,10 @@ public class ConfigurationService
                     throw new ArgumentException($"Ungültiger Wert für 'forceTools': '{value}'. Erlaubt: true, false");
                 config.DefaultForceTools = ft;
                 break;
-            case "loopdetectionenabled":
-                if (!bool.TryParse(value, out var ld))
-                    throw new ArgumentException($"Ungültiger Wert für 'loopDetectionEnabled': '{value}'. Erlaubt: true, false");
-                config.LoopDetectionEnabled = ld;
-                break;
-            case "maxtoolcallrounds":
-                config.MaxToolCallRounds = ParseInt(value, "maxToolCallRounds");
-                break;
             default:
                 throw new ArgumentException(
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
-                    "Gültige Schlüssel: defaultProvider, commandTimeoutSeconds, execMode, forceTools, " +
-                    "loopDetectionEnabled, maxToolCallRounds, " +
+                    "Gültige Schlüssel: defaultProvider, execMode, forceTools, " +
                     "ollama.baseUrl, ollama.model");
         }
 
@@ -115,11 +98,8 @@ public class ConfigurationService
         return key.ToLowerInvariant() switch
         {
             "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLower(),
-            "commandtimeoutseconds" => config.CommandTimeoutSeconds.ToString(),
             "execmode" or "defaultexecmode" => ExecModeConverter.ToString(config.DefaultExecMode),
             "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLower(),
-            "loopdetectionenabled" => config.LoopDetectionEnabled.ToString().ToLower(),
-            "maxtoolcallrounds" => config.MaxToolCallRounds.ToString(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
             _ => throw new ArgumentException($"Unbekannter Konfigurationsschlüssel '{key}'.")
@@ -131,11 +111,8 @@ public class ConfigurationService
         var config = await LoadAsync();
         return $"""
             defaultProvider  = {config.DefaultProvider.ToString().ToLower()}
-            commandTimeoutSeconds = {config.CommandTimeoutSeconds}
             execMode         = {ExecModeConverter.ToString(config.DefaultExecMode)}
             forceTools       = {config.DefaultForceTools.ToString().ToLower()}
-            loopDetectionEnabled = {config.LoopDetectionEnabled.ToString().ToLower()}
-            maxToolCallRounds = {config.MaxToolCallRounds}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
             """;
@@ -157,9 +134,6 @@ public class ConfigurationService
         if (ollamaModel is not null)
             config.Ollama.Model = ollamaModel;
 
-        if (int.TryParse(Environment.GetEnvironmentVariable("BASHGPT_COMMAND_TIMEOUT"), out var t) && t > 0)
-            config.CommandTimeoutSeconds = t;
-
         if (ExecModeConverter.Parse(Environment.GetEnvironmentVariable("BASHGPT_EXEC_MODE")) is { } em)
             config.DefaultExecMode = em;
 
@@ -167,13 +141,6 @@ public class ConfigurationService
             && bool.TryParse(fts, out var ftBool))
             config.DefaultForceTools = ftBool;
 
-        if (Environment.GetEnvironmentVariable("BASHGPT_LOOP_DETECTION") is { } ldEnv
-            && bool.TryParse(ldEnv, out var ldBool))
-            config.LoopDetectionEnabled = ldBool;
-
-        if (Environment.GetEnvironmentVariable("BASHGPT_MAX_TOOL_CALL_ROUNDS") is { } mr
-            && int.TryParse(mr, out var mrInt) && mrInt > 0)
-            config.MaxToolCallRounds = mrInt;
     }
 
     private static int ParseInt(string value, string key)

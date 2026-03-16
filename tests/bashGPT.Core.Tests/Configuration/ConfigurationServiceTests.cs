@@ -103,15 +103,6 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetAsync_CommandTimeoutSeconds_PersistsValue()
-    {
-        var svc = CreateService();
-        await svc.SetAsync("commandTimeoutSeconds", "120");
-        var config = await svc.LoadAsync();
-        Assert.Equal(120, config.CommandTimeoutSeconds);
-    }
-
-    [Fact]
     public async Task SetAsync_ExecMode_PersistsValue()
     {
         var svc = CreateService();
@@ -139,15 +130,15 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListAsync_IncludesAllNewKeys()
+    public async Task ListAsync_IncludesAllKeys()
     {
         var svc = CreateService();
         var list = await svc.ListAsync();
-        Assert.Contains("commandTimeoutSeconds", list);
         Assert.Contains("execMode", list);
         Assert.Contains("forceTools", list);
-        Assert.Contains("loopDetectionEnabled", list);
-        Assert.Contains("maxToolCallRounds", list);
+        Assert.DoesNotContain("commandTimeoutSeconds", list);
+        Assert.DoesNotContain("loopDetectionEnabled", list);
+        Assert.DoesNotContain("maxToolCallRounds", list);
     }
 
     [Fact]

@@ -7,8 +7,8 @@ namespace BashGPT.Tools.Testing;
 
 public sealed class TestRunTool : ITool
 {
-    private static readonly IReadOnlyDictionary<string, (string Executable, Func<TestRunInput, string> Args)> Runners =
-        new Dictionary<string, (string, Func<TestRunInput, string>)>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<string, (string Executable, Func<TestRunInput, string> Args, string MissingDependencyHelp)> DefaultRunners =
+        new Dictionary<string, (string, Func<TestRunInput, string>, string)>(StringComparer.OrdinalIgnoreCase)
         {
             ["dotnet"] = ("dotnet", i =>
             {
@@ -17,26 +17,30 @@ public sealed class TestRunTool : ITool
                 if (!string.IsNullOrWhiteSpace(i.Filter))  args += $" --filter \"{i.Filter}\"";
                 args += " --logger \"console;verbosity=normal\"";
                 return args;
-            }),
+            }, "Install the .NET SDK and verify 'dotnet --info' works in your shell."),
             ["npm"] = ("npm", i =>
             {
                 var args = "test";
                 if (!string.IsNullOrWhiteSpace(i.Project)) args += $" -- {i.Project}";
                 return args;
-            }),
+            }, "Install Node.js including npm and verify 'npm --version' works in your shell."),
             ["pytest"] = ("pytest", i =>
             {
                 var args = string.IsNullOrWhiteSpace(i.Project) ? "." : i.Project;
                 if (!string.IsNullOrWhiteSpace(i.Filter)) args += $" -k \"{i.Filter}\"";
                 return args;
-            }),
+            }, "Install Python plus pytest and verify 'pytest --version' works in your shell."),
         };
 
+    private readonly IReadOnlyDictionary<string, (string Executable, Func<TestRunInput, string> Args, string MissingDependencyHelp)> _runners;
     private readonly Func<TestRunInput, CancellationToken, Task<(string Output, long DurationMs, bool TimedOut)>>? _runOverride;
 
-    public TestRunTool(Func<TestRunInput, CancellationToken, Task<(string, long, bool)>>? runOverride = null)
+    public TestRunTool(
+        Func<TestRunInput, CancellationToken, Task<(string, long, bool)>>? runOverride = null,
+        IReadOnlyDictionary<string, (string Executable, Func<TestRunInput, string> Args, string MissingDependencyHelp)>? runners = null)
     {
         _runOverride = runOverride;
+        _runners = runners ?? DefaultRunners;
     }
 
     public ToolDefinition Definition { get; } = new(
@@ -71,8 +75,8 @@ public sealed class TestRunTool : ITool
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
         }
 
-        if (!Runners.ContainsKey(input.Runner))
-            return new ToolResult(Success: false, Content: $"Unknown runner '{input.Runner}'. Supported: {string.Join(", ", Runners.Keys)}");
+        if (!_runners.ContainsKey(input.Runner))
+            return new ToolResult(Success: false, Content: $"Unknown runner '{input.Runner}'. Supported: {string.Join(", ", _runners.Keys)}");
 
         string rawOutput;
         long durationMs;
@@ -84,7 +88,14 @@ public sealed class TestRunTool : ITool
         }
         else
         {
-            (rawOutput, durationMs, timedOut) = await RunProcessAsync(input, ct);
+            try
+            {
+                (rawOutput, durationMs, timedOut) = await RunProcessAsync(input, ct);
+            }
+            catch (MissingExecutableException ex)
+            {
+                return new ToolResult(Success: false, Content: ex.Message);
+            }
         }
 
         var parser = GetParser(input.Runner);
@@ -95,10 +106,10 @@ public sealed class TestRunTool : ITool
             Content: JsonSerializer.Serialize(output, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 
-    private static async Task<(string Output, long DurationMs, bool TimedOut)> RunProcessAsync(
+    private async Task<(string Output, long DurationMs, bool TimedOut)> RunProcessAsync(
         TestRunInput input, CancellationToken externalCt)
     {
-        var (executable, argsFactory) = Runners[input.Runner];
+        var (executable, argsFactory, missingDependencyHelp) = _runners[input.Runner];
         var args = argsFactory(input);
 
         using var timeoutCts = new CancellationTokenSource(input.TimeoutMs);
@@ -119,7 +130,14 @@ public sealed class TestRunTool : ITool
         bool timedOut = false;
 
         using var process = new Process { StartInfo = psi };
-        process.Start();
+        try
+        {
+            process.Start();
+        }
+        catch (Exception ex)
+        {
+            throw ExternalDependencyErrors.TryCreateMissingExecutableException(executable, missingDependencyHelp, ex) ?? ex;
+        }
 
         var outTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
         var errTask = process.StandardError.ReadToEndAsync(linkedCts.Token);

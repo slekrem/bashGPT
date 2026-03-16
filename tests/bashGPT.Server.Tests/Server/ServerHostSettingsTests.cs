@@ -161,30 +161,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Put_Settings_RateLimiting_IsPersisted()
-    {
-        var body = JsonSerializer.Serialize(new
-        {
-            rateLimiting = new
-            {
-                enabled = true,
-                maxRequestsPerMinute = 7,
-                agentRequestDelayMs = 321
-            }
-        });
-
-        var putResponse = await _client.PutAsync("/api/settings",
-            new StringContent(body, Encoding.UTF8, "application/json"));
-
-        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
-
-        var config = await _configService.LoadAsync();
-        Assert.True(config.RateLimiting.Enabled);
-        Assert.Equal(7, config.RateLimiting.MaxRequestsPerMinute);
-        Assert.Equal(321, config.RateLimiting.AgentRequestDelayMs);
-    }
-
-    [Fact]
     public async Task Put_Settings_NestedProviderPayload_UpdatesOllama()
     {
         var body = JsonSerializer.Serialize(new

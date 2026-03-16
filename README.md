@@ -16,6 +16,12 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 ## Installation
 Voraussetzungen: **.NET 9 SDK** und **Node.js ≥ 20.19.0** (oder ≥ 22.12.0) — benötigt von Vite 7 beim Frontend-Build.
 
+Weitere lokale Voraussetzungen je nach Nutzung:
+- `git` für Git-Tools und Git-Kontext (`git --version`)
+- `ollama` für lokale Modellaufrufe im CLI- und Server-Modus (`ollama --version`, danach `ollama serve`)
+- `npm` für den Web-Build sowie den `build_run`-/`test_run`-Runner `npm` (`npm --version`)
+- `pytest` nur falls du den `test_run`-Runner `pytest` verwenden willst (`pytest --version`)
+
 ```bash
 # Repo klonen, dann bauen (npm install + npm run build laufen automatisch)
 dotnet build

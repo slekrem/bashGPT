@@ -286,6 +286,21 @@ public class GitToolTests : IDisposable
         Assert.True(output.GetProperty("created").GetBoolean());
     }
 
+    [Fact]
+    public async Task GitRunner_MissingGitExecutable_ReturnsHelpfulFailure()
+    {
+        var (_, stderr, exitCode) = await GitRunner.RunAsync(
+            "status --porcelain=v1 -b",
+            _repoDir,
+            CancellationToken.None,
+            executable: "bashgpt-missing-git");
+
+        Assert.Equal(-1, exitCode);
+        Assert.Contains("missing_dependency", stderr, StringComparison.Ordinal);
+        Assert.Contains("bashgpt-missing-git", stderr, StringComparison.Ordinal);
+        Assert.Contains("git --version", stderr, StringComparison.Ordinal);
+    }
+
     private static ToolCall Call(string name, object args) =>
         new(name, JsonSerializer.Serialize(args));
 

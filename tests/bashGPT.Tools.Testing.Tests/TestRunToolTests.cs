@@ -169,4 +169,20 @@ public class TestRunToolTests
         var output = JsonSerializer.Deserialize<JsonElement>(result.Content);
         Assert.Contains("[truncated]", output.GetProperty("rawOutput").GetString());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingPytestExecutable_ReturnsHelpfulFailure()
+    {
+        var tool = new TestRunTool(runners: new Dictionary<string, (string Executable, Func<TestRunInput, string> Args, string MissingDependencyHelp)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["pytest"] = ("bashgpt-missing-pytest", _ => ".", "Install Python plus pytest and verify 'pytest --version' works in your shell."),
+        });
+
+        var result = await tool.ExecuteAsync(Call(new { runner = "pytest" }), CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("missing_dependency", result.Content, StringComparison.Ordinal);
+        Assert.Contains("bashgpt-missing-pytest", result.Content, StringComparison.Ordinal);
+        Assert.Contains("pytest --version", result.Content, StringComparison.Ordinal);
+    }
 }
