@@ -11,6 +11,7 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 - **Browser-UI**: eingebetteter HTTP-Server mit Chat-Verlauf, Session-Verwaltung und Agent-Auswahl
 - **Agenten**: spezialisierte Chat-Modi (Shell-Agent, Dev-Agent) mit dedizierten Tool-Sets
 - **Tools-Ökosystem**: modulare LLM-Tools für Filesystem, Git, Build, Tests, Web-Fetch und Shell
+- Lizenz: [MIT](LICENSE)
 
 ## Installation
 Voraussetzungen: **.NET 9 SDK** und **Node.js ≥ 20.19.0** (oder ≥ 22.12.0) — benötigt von Vite 7 beim Frontend-Build.
@@ -125,4 +126,9 @@ ls -la
 ```
 
 ## Lizenz
-Noch nicht definiert.
+MIT. Details in [LICENSE](LICENSE).
+
+## Community
+- Contribution Guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Code of Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security Policy: [SECURITY.md](SECURITY.md)
