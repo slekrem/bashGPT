@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { getSettings, saveSettings, testConnection } from '../api'
-import type { Settings, ExecMode, ProviderName } from '../types'
+import type { Settings, ProviderName } from '../types'
 
 @customElement('bashgpt-settings-view')
 export class SettingsView extends LitElement {
@@ -272,25 +272,11 @@ export class SettingsView extends LitElement {
       provider,
       model: ollamaModel,
       ollamaHost,
-      commandTimeoutSeconds: settings.commandTimeoutSeconds ?? 300,
-      loopDetectionEnabled: settings.loopDetectionEnabled ?? true,
-      maxToolCallRounds: settings.maxToolCallRounds ?? 8,
-      rateLimiting: {
-        enabled: settings.rateLimiting?.enabled ?? true,
-        maxRequestsPerMinute: settings.rateLimiting?.maxRequestsPerMinute ?? 30,
-        agentRequestDelayMs: settings.rateLimiting?.agentRequestDelayMs ?? 500,
-      },
       ollama: {
         model: ollamaModel,
         host: ollamaHost,
       },
     }
-  }
-
-  private _setRoot<K extends keyof Settings>(key: K, value: Settings[K]) {
-    if (!this._settings) return
-    this._settings = { ...this._settings, [key]: value }
-    this._status = ''
   }
 
   private _setOllamaModel(model: string) {
@@ -321,24 +307,11 @@ export class SettingsView extends LitElement {
       provider: settings.provider,
       model: settings.ollama.model,
       ollamaHost: settings.ollama.host,
-      execMode: settings.execMode,
-      forceTools: settings.forceTools,
-      commandTimeoutSeconds: settings.commandTimeoutSeconds,
-      loopDetectionEnabled: settings.loopDetectionEnabled,
-      maxToolCallRounds: settings.maxToolCallRounds,
-      rateLimiting: settings.rateLimiting,
       ollama: {
         model: settings.ollama.model,
         host: settings.ollama.host,
       },
     }
-  }
-
-  private _parseIntInput(value: string): number | undefined {
-    const trimmed = value.trim()
-    if (!trimmed) return undefined
-    const parsed = Number.parseInt(trimmed, 10)
-    return Number.isFinite(parsed) ? parsed : undefined
   }
 
   private async _save() {
@@ -457,123 +430,6 @@ export class SettingsView extends LitElement {
           <button @click=${this._test} ?disabled=${!s || this._testing || this._loading}>
             ${this._testing ? 'Teste…' : 'Verbindung testen'}
           </button>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Ausführung</div>
-
-        <div class="field">
-          <label>Standard Exec-Mode</label>
-          <select
-            .value=${s?.execMode ?? 'ask'}
-            @change=${(e: Event) => this._setRoot('execMode', (e.target as HTMLSelectElement).value as ExecMode)}
-            ?disabled=${!s || this._loading}
-          >
-            <option value="ask">ask</option>
-            <option value="dry-run">dry-run</option>
-            <option value="auto-exec">auto-exec</option>
-            <option value="no-exec">no-exec</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="force-tools"
-              .checked=${s?.forceTools ?? false}
-              @change=${(e: Event) => this._setRoot('forceTools', (e.target as HTMLInputElement).checked)}
-              ?disabled=${!s || this._loading}
-            />
-            <label for="force-tools">Force Tools (Tool-Calling erzwingen)</label>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Befehl-Timeout (Sekunden)</label>
-          <input
-            type="number"
-            step="1"
-            min="1"
-            .value=${s?.commandTimeoutSeconds?.toString() ?? '300'}
-            @input=${(e: InputEvent) => this._setRoot('commandTimeoutSeconds', this._parseIntInput((e.target as HTMLInputElement).value) ?? 300)}
-            ?disabled=${!s || this._loading}
-          />
-          <div class="hint">Maximale Laufzeit pro Shell-Befehl. Standard: 300 s (5 min).</div>
-        </div>
-
-        <div class="field">
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="loop-detection"
-              .checked=${s?.loopDetectionEnabled ?? true}
-              @change=${(e: Event) => this._setRoot('loopDetectionEnabled', (e.target as HTMLInputElement).checked)}
-              ?disabled=${!s || this._loading}
-            />
-            <label for="loop-detection">Schleifenerkennung</label>
-          </div>
-          <div class="hint">Beendet wiederholende Tool-Call-Schleifen automatisch.</div>
-        </div>
-
-        <div class="field">
-          <label>Max. Tool-Call-Runden</label>
-          <input
-            type="number"
-            step="1"
-            min="1"
-            max="32"
-            .value=${s?.maxToolCallRounds?.toString() ?? '8'}
-            @input=${(e: InputEvent) => this._setRoot('maxToolCallRounds', this._parseIntInput((e.target as HTMLInputElement).value) ?? 8)}
-            ?disabled=${!s || this._loading || !(s?.loopDetectionEnabled ?? true)}
-          />
-          <div class="hint">Maximale Anzahl Tool-Call-Runden pro Anfrage. Standard: 8.</div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-label">Rate Limiting</div>
-
-        <div class="field">
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="rate-limit-enabled"
-              .checked=${s?.rateLimiting?.enabled ?? false}
-              @change=${(e: Event) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), enabled: (e.target as HTMLInputElement).checked })}
-              ?disabled=${!s || this._loading}
-            />
-            <label for="rate-limit-enabled">Rate Limiting aktivieren</label>
-          </div>
-          <div class="hint">Begrenzt LLM-Anfragen global – schützt vor 429-Fehlern bei vielen Agenten.</div>
-        </div>
-
-        <div class="field">
-          <label>Max. Anfragen pro Minute</label>
-          <input
-            type="number"
-            step="1"
-            min="1"
-            max="600"
-            .value=${s?.rateLimiting?.maxRequestsPerMinute?.toString() ?? '30'}
-            @input=${(e: InputEvent) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), maxRequestsPerMinute: this._parseIntInput((e.target as HTMLInputElement).value) ?? 30 })}
-            ?disabled=${!s || this._loading || !(s?.rateLimiting?.enabled ?? false)}
-          />
-          <div class="hint">Gleitendes Fenster über 60 Sekunden. Standard: 30.</div>
-        </div>
-
-        <div class="field">
-          <label>Mindestabstand zwischen Anfragen (ms)</label>
-          <input
-            type="number"
-            step="100"
-            min="0"
-            .value=${s?.rateLimiting?.agentRequestDelayMs?.toString() ?? '500'}
-            @input=${(e: InputEvent) => this._setRoot('rateLimiting', { ...(s?.rateLimiting ?? { enabled: true, maxRequestsPerMinute: 30, agentRequestDelayMs: 500 }), agentRequestDelayMs: this._parseIntInput((e.target as HTMLInputElement).value) ?? 500 })}
-            ?disabled=${!s || this._loading || !(s?.rateLimiting?.enabled ?? false)}
-          />
-          <div class="hint">Minimale Pause zwischen zwei aufeinanderfolgenden LLM-Aufrufen. Standard: 500 ms.</div>
         </div>
       </div>
 
