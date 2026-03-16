@@ -161,6 +161,40 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Put_Settings_WithPartialPayload_PreservesExistingNonUiFields()
+    {
+        var config = await _configService.LoadAsync();
+        config.CommandTimeoutSeconds = 123;
+        config.LoopDetectionEnabled = false;
+        config.MaxToolCallRounds = 17;
+        config.RateLimiting.Enabled = false;
+        config.RateLimiting.MaxRequestsPerMinute = 11;
+        config.RateLimiting.AgentRequestDelayMs = 654;
+        await _configService.SaveAsync(config);
+
+        var body = JsonSerializer.Serialize(new
+        {
+            model = "ollama-updated",
+            ollamaHost = "http://localhost:22434",
+        });
+
+        var putResponse = await _client.PutAsync("/api/settings",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+        var updated = await _configService.LoadAsync();
+        Assert.Equal("ollama-updated", updated.Ollama.Model);
+        Assert.Equal("http://localhost:22434", updated.Ollama.BaseUrl);
+        Assert.Equal(123, updated.CommandTimeoutSeconds);
+        Assert.False(updated.LoopDetectionEnabled);
+        Assert.Equal(17, updated.MaxToolCallRounds);
+        Assert.False(updated.RateLimiting.Enabled);
+        Assert.Equal(11, updated.RateLimiting.MaxRequestsPerMinute);
+        Assert.Equal(654, updated.RateLimiting.AgentRequestDelayMs);
+    }
+
+    [Fact]
     public async Task Put_Settings_RateLimiting_IsPersisted()
     {
         var body = JsonSerializer.Serialize(new

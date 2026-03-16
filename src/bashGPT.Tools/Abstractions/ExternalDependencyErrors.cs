@@ -42,7 +42,6 @@ public static class ExternalDependencyErrors
 
         var message = exception.Message.ToLowerInvariant();
         return message.Contains("no such file or directory", StringComparison.Ordinal)
-            || message.Contains("cannot find the file", StringComparison.Ordinal)
-            || message.Contains("system cannot find the file", StringComparison.Ordinal);
+            || message.Contains("cannot find the file", StringComparison.Ordinal);
     }
 }
