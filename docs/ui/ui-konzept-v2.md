@@ -28,7 +28,7 @@
 |---------|-------|---------|
 | **Dashboard** | Einstieg, Use-Cases, zuletzt genutzte Prompts | Start, Logo-Klick |
 | **Chat** | Interaktion mit bashGPT, Tool-Ausgaben | Session wählen, Neuer Chat |
-| **Settings** | Provider, Modell, Exec-Defaults, Theme | Settings-Button |
+| **Settings** | Provider-Hinweis, Ollama-Verbindung, Verlauf | Settings-Button |
 
 ---
 
@@ -236,17 +236,9 @@
 │  Ollama Host    [http://localhost:11434  ]                │
 │  [Verbindung testen]                                      │
 │                                                           │
-│  ── Ausführung ──────────────────────────────────────    │
-│  Standard Exec-Mode  [ask ▾]                             │
-│  Force Tools         [ ] aktiviert                       │
-│  Timeout (s)         [300                    ]           │
-│  Schleifenerkennung  [x] aktiviert                       │
-│  Max. Tool-Runden    [8                      ]           │
-│                                                           │
-│  ── Rate Limiting ───────────────────────────────────    │
-│  Aktiviert      [x]                                      │
-│  RPM Limit      [30                     ]                │
-│  Delay (ms)     [500                    ]                │
+│  Hinweis: Open-Source-Builds nutzen ausschließlich       │
+│  Ollama; weitere Runtime-Optionen werden nicht           │
+│  über diese Seite konfiguriert.                          │
 │                                                           │
 │  ── Daten ───────────────────────────────────────────    │
 │  [Verlauf löschen]                                        │
@@ -255,7 +247,7 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Gespeichert in:** `~/.config/bashgpt/config.json` (bestehende Mechanik)
+**Gespeichert in:** `~/.config/bashgpt/config.json` (Provider-/Ollama-/UI-relevante Felder)
 
 ---
 

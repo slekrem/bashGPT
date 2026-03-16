@@ -111,14 +111,6 @@ interface Settings {
   ollamaHost?:           string;                                // Optional – Default: "http://localhost:11434"
   execMode:              "ask" | "dry-run" | "auto-exec" | "no-exec";
   forceTools:            boolean;
-  commandTimeoutSeconds: number;
-  loopDetectionEnabled:  boolean;
-  maxToolCallRounds:     number;
-  rateLimiting: {
-    enabled: boolean;
-    maxRequestsPerMinute: number;
-    agentRequestDelayMs: number;
-  };
   ollama: {
     model: string;
     host: string;
@@ -316,14 +308,6 @@ Liest die aktuellen Einstellungen.
   "ollamaHost": "http://localhost:11434",
   "execMode": "ask",
   "forceTools": false,
-  "commandTimeoutSeconds": 300,
-  "loopDetectionEnabled": true,
-  "maxToolCallRounds": 8,
-  "rateLimiting": {
-    "enabled": true,
-    "maxRequestsPerMinute": 30,
-    "agentRequestDelayMs": 500
-  },
   "ollama": {
     "model": "gpt-oss:20b",
     "host": "http://localhost:11434"
@@ -345,14 +329,6 @@ Speichert Einstellungen in `~/.config/bashgpt/config.json`.
   "ollamaHost": "http://localhost:11434",
   "execMode":   "ask",
   "forceTools": false,
-  "commandTimeoutSeconds": 300,
-  "loopDetectionEnabled": true,
-  "maxToolCallRounds": 8,
-  "rateLimiting": {
-    "enabled": true,
-    "maxRequestsPerMinute": 30,
-    "agentRequestDelayMs": 500
-  },
   "ollama": {
     "model": "gpt-oss:20b",
     "host": "http://localhost:11434"
@@ -375,6 +351,8 @@ Speichert Einstellungen in `~/.config/bashgpt/config.json`.
 #### `POST /api/settings/test`
 
 Testet die Verbindung zum konfigurierten Provider mit einem minimalen API-Call.
+
+Laufzeit-Defaults wie Command-Timeout, Loop-Detection und maximale Tool-Call-Runden sind im Open-Source-Build nicht über die Settings-API konfigurierbar. Diese Werte kommen intern aus `AppDefaults`.
 
 **Response `200`:**
 ```json
