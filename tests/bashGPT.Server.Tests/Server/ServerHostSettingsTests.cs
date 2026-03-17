@@ -107,8 +107,8 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         Assert.True(json.TryGetProperty("provider", out var provider));
         Assert.True(json.TryGetProperty("model", out _));
         Assert.True(json.TryGetProperty("ollamaHost", out _));
-        Assert.True(json.TryGetProperty("execMode", out _));
-        Assert.True(json.TryGetProperty("forceTools", out _));
+        Assert.False(json.TryGetProperty("execMode", out _));
+        Assert.False(json.TryGetProperty("forceTools", out _));
 
         // Standardprovider ist Ollama
         Assert.Equal("ollama", provider.GetString());
@@ -191,110 +191,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
 
         var config = await _configService.LoadAsync();
         Assert.Equal("ollama-updated", config.Ollama.Model);
-    }
-
-    [Fact]
-    public async Task Put_Settings_UpdatesExecMode_InMemory()
-    {
-        // ExecMode auf auto-exec setzen
-        var body = JsonSerializer.Serialize(new { execMode = "auto-exec" });
-        var putResponse = await _client.PutAsync("/api/settings",
-            new StringContent(body, Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
-
-        // GET prüft, ob der In-Memory-Wert aktualisiert wurde
-        var getResponse = await _client.GetFromJsonAsync<JsonElement>("/api/settings");
-        Assert.Equal("auto-exec", getResponse.GetProperty("execMode").GetString());
-    }
-
-    // ── Persistenz über Neustart ─────────────────────────────────────────────
-
-    [Fact]
-    public async Task PutSettings_ExecMode_PersistsAcrossServerRestart()
-    {
-        // ExecMode auf dry-run setzen
-        var body = System.Text.Json.JsonSerializer.Serialize(new { execMode = "dry-run" });
-        var putResponse = await _client.PutAsync("/api/settings",
-            new StringContent(body, Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
-
-        // Config-Datei enthält DefaultExecMode
-        var config = await _configService.LoadAsync();
-        Assert.Equal(BashGPT.Shell.ExecutionMode.DryRun, config.DefaultExecMode);
-
-        // Neuen Server mit derselben Config-Datei starten (ohne CLI-Override)
-        var port2 = GetFreePort();
-        var server2 = new ServerHost(_handler, _configService);
-        using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, false);
-        var task2 = server2.RunAsync(options2, cts2.Token);
-        var url2 = $"http://127.0.0.1:{port2}";
-        await WaitForServerAsync(url2);
-
-        using var client2 = new HttpClient { BaseAddress = new Uri(url2) };
-        var getResponse = await client2.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/settings");
-        Assert.Equal("dry-run", getResponse.GetProperty("execMode").GetString());
-
-        await cts2.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"{url2}/"); } catch { }
-        try { await task2.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-    }
-
-    [Fact]
-    public async Task PutSettings_ForceTools_PersistsAcrossServerRestart()
-    {
-        // ForceTools auf true setzen
-        var body = System.Text.Json.JsonSerializer.Serialize(new { forceTools = true });
-        var putResponse = await _client.PutAsync("/api/settings",
-            new StringContent(body, Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
-
-        // Config-Datei enthält DefaultForceTools
-        var config = await _configService.LoadAsync();
-        Assert.True(config.DefaultForceTools);
-
-        // Neuen Server mit derselben Config-Datei starten (ohne CLI-Override)
-        var port2 = GetFreePort();
-        var server2 = new ServerHost(_handler, _configService);
-        using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, false);
-        var task2 = server2.RunAsync(options2, cts2.Token);
-        var url2 = $"http://127.0.0.1:{port2}";
-        await WaitForServerAsync(url2);
-
-        using var client2 = new HttpClient { BaseAddress = new Uri(url2) };
-        var getResponse = await client2.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/settings");
-        Assert.True(getResponse.GetProperty("forceTools").GetBoolean());
-
-        await cts2.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"{url2}/"); } catch { }
-        try { await task2.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-    }
-
-    [Fact]
-    public async Task ServerInit_LoadsDefaultExecModeFromConfig()
-    {
-        // Config mit DefaultExecMode=AutoExec speichern
-        var config = await _configService.LoadAsync();
-        config.DefaultExecMode = BashGPT.Shell.ExecutionMode.AutoExec;
-        await _configService.SaveAsync(config);
-
-        // Neuen Server starten ohne CLI-ExecMode-Override (null)
-        var port2 = GetFreePort();
-        var server2 = new ServerHost(_handler, _configService);
-        using var cts2 = new CancellationTokenSource();
-        var options2 = new ServerOptions(port2, true, null, null, false);
-        var task2 = server2.RunAsync(options2, cts2.Token);
-        var url2 = $"http://127.0.0.1:{port2}";
-        await WaitForServerAsync(url2);
-
-        using var client2 = new HttpClient { BaseAddress = new Uri(url2) };
-        var getResponse = await client2.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/settings");
-        Assert.Equal("auto-exec", getResponse.GetProperty("execMode").GetString());
-
-        await cts2.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"{url2}/"); } catch { }
-        try { await task2.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
     }
 
     // ── POST /api/settings/test ─────────────────────────────────────────────
