@@ -14,7 +14,9 @@ KI-gestützter Shell-Assistent für die Kommandozeile. bashGPT sammelt optional 
 - Lizenz: [MIT](LICENSE)
 
 ## Installation
-Voraussetzungen: **.NET 9 SDK** und **Node.js ≥ 20.19.0** (oder ≥ 22.12.0) — benötigt von Vite 7 beim Frontend-Build.
+Voraussetzungen für reproduzierbare Release-Checks: **.NET SDK 9.0.301** und **Node.js 20.19.0**.
+
+Für den Frontend-Build sind zusätzlich kompatibel: **Node.js ≥ 20.19.0** oder **≥ 22.12.0** — benötigt von Vite 7.
 
 Weitere lokale Voraussetzungen je nach Nutzung:
 - `git` für Git-Tools und Git-Kontext (`git --version`)

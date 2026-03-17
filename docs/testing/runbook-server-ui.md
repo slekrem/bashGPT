@@ -13,8 +13,8 @@ ein `FakePromptHandler`-Stub injiziert wird.
 
 ### Voraussetzungen
 
-- .NET SDK 9.0
-- Node.js 20+ (für Frontend-Build, der dem .NET-Build vorgelagert ist)
+- .NET SDK 9.0.301 (`global.json`)
+- Node.js 20.19.0 für denselben Frontend-Build-Pfad wie in CI
 
 ### Alle Tests ausführen
 
