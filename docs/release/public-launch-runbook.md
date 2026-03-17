@@ -16,6 +16,7 @@ Provide a predictable maintainer workflow for making the repository public and p
   - `CODE_OF_CONDUCT.md`
   - `SECURITY.md`
 - README reflects the current CLI, server, and Ollama-only setup
+- Command-line host dependency is on a stable `System.CommandLine` release
 - Open-source launch check has passed:
   - `dotnet build -m:1 /nodeReuse:false`
   - `dotnet test -m:1 /nodeReuse:false`
@@ -78,4 +79,5 @@ Before switching the repository to public:
   - public-facing docs contradict the shipped behavior
 
 ## Notes
+- `System.CommandLine` is pinned to the stable `2.0.0` release for both host projects. No preview-only APIs are used in the current CLI or server entry points.
 - Repository metadata like description, topics, homepage, and visibility cannot be enforced from this repository alone; they must be set in GitHub UI or via `gh repo edit`.
