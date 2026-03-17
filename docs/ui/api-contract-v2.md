@@ -109,19 +109,11 @@ interface Settings {
   model:                 string;                                // Pflicht
   contextWindowTokens?:  number;                                // Optional – aktuell null
   ollamaHost?:           string;                                // Optional – Default: "http://localhost:11434"
-  execMode:              "ask" | "dry-run" | "auto-exec" | "no-exec";
-  forceTools:            boolean;
   ollama: {
     model: string;
     host: string;
   };
 }
-```
-
-### 2.6 `ExecMode`
-
-```typescript
-type ExecMode = "ask" | "dry-run" | "auto-exec" | "no-exec";
 ```
 
 ---
@@ -148,7 +140,6 @@ Liefert das kompilierte TypeScript-Bundle.
 ```json
 {
   "prompt":    "Zeige alle laufenden Prozesse",
-  "execMode":  "ask",
   "sessionId": "550e8400-e29b-41d4-a716-446655440000",
   "verbose":   false
 }
@@ -157,7 +148,6 @@ Liefert das kompilierte TypeScript-Bundle.
 | Feld | Typ | Pflicht | Beschreibung |
 |------|-----|---------|-------------|
 | `prompt` | `string` | ✅ | Nutzer-Eingabe |
-| `execMode` | `ExecMode` | ❌ | Überschreibt Server-Default |
 | `sessionId` | `string` | ❌ | `[NEU]` Session zuordnen; ohne = aktuelle globale Session |
 | `verbose` | `boolean` | ❌ | Debug-Logs zurückgeben |
 
@@ -306,8 +296,6 @@ Liest die aktuellen Einstellungen.
   "model": "gpt-oss:20b",
   "contextWindowTokens": null,
   "ollamaHost": "http://localhost:11434",
-  "execMode": "ask",
-  "forceTools": false,
   "ollama": {
     "model": "gpt-oss:20b",
     "host": "http://localhost:11434"
@@ -327,8 +315,6 @@ Speichert Einstellungen in `~/.config/bashgpt/config.json`.
   "provider":   "ollama",
   "model":      "gpt-oss:20b",
   "ollamaHost": "http://localhost:11434",
-  "execMode":   "ask",
-  "forceTools": false,
   "ollama": {
     "model": "gpt-oss:20b",
     "host": "http://localhost:11434"
@@ -340,13 +326,6 @@ Speichert Einstellungen in `~/.config/bashgpt/config.json`.
 ```json
 { "ok": true }
 ```
-
-**Response `400`:**
-```json
-{ "error": "Ungültiger execMode.", "code": "SETTINGS_INVALID" }
-```
-
----
 
 #### `POST /api/settings/test`
 
@@ -427,7 +406,6 @@ interface ChatState {
   messages:    UiMessage[];
   status:      "idle" | "loading" | "tool_running" | "error";
   statusText:  string;           // z.B. "Denke…" / "Führt Befehl aus…"
-  execMode:    ExecMode;
   terminal:    TerminalEntry[];
 }
 
@@ -495,8 +473,6 @@ error
 ```typescript
 // src/types.ts
 
-export type ExecMode = "ask" | "dry-run" | "auto-exec" | "no-exec";
-
 export interface CommandResult {
   command:     string;
   exitCode:    number;
@@ -524,12 +500,14 @@ export interface Session {
 }
 
 export interface Settings {
-  provider:     string;
-  model:        string;
-  apiKey?:      string;
-  ollamaHost?:  string;
-  execMode:     ExecMode;
-  forceTools:   boolean;
+  provider:            "ollama";
+  model:               string;
+  contextWindowTokens?: number;
+  ollamaHost?:         string;
+  ollama: {
+    model: string;
+    host: string;
+  };
 }
 
 export type AppView = "dashboard" | "chat" | "settings";
