@@ -217,7 +217,8 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(json.TryGetProperty("error", out _));
+        Assert.Equal("Interner Serverfehler.", json.GetProperty("error").GetString());
+        Assert.DoesNotContain("Simulierter Fehler", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,6 +258,28 @@ public sealed class ServerHostTests : IAsyncLifetime
         var ssePayload = await streamResponse.Content.ReadAsStringAsync();
         Assert.Contains("\"finalStatus\":\"user_cancelled\"", ssePayload);
         Assert.Contains("[DONE]", ssePayload);
+    }
+
+    [Fact]
+    public async Task Post_ChatStream_HandlerThrows_ReturnsSanitizedErrorEvent()
+    {
+        _handler.NextException = new InvalidOperationException("Vertrauliches Streaming-Detail");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/chat/stream")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { prompt = "Bitte streamen" }),
+                Encoding.UTF8,
+                "application/json"),
+        };
+
+        var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        var ssePayload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Interner Serverfehler.", ssePayload, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vertrauliches Streaming-Detail", ssePayload, StringComparison.Ordinal);
+        Assert.Contains("[DONE]", ssePayload, StringComparison.Ordinal);
     }
 
     // ── 404 ──────────────────────────────────────────────────────────────────

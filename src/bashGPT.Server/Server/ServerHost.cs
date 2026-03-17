@@ -184,7 +184,8 @@ public class ServerHost
         }
         catch (Exception ex)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = ex.Message }, statusCode: 500);
+            Console.Error.WriteLine($"[server] Unbehandelter Request-Fehler: {ex}");
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = ApiErrors.GenericServerError }, statusCode: 500);
         }
     }
 
