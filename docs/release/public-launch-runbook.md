@@ -47,6 +47,7 @@ Before switching the repository to public:
 - Verify Actions permissions and default branch protections
 - Verify security reporting path in `SECURITY.md`
 - Verify issue and PR templates are active
+- Verify Dependabot and dependency review automation are enabled and green
 
 ## Go-Live Day Steps
 1. Pull latest `main`.
@@ -81,3 +82,8 @@ Before switching the repository to public:
 ## Notes
 - `System.CommandLine` is pinned to the stable `2.0.2` release for both host projects. No preview-only APIs are used in the current CLI or server entry points.
 - Repository metadata like description, topics, homepage, and visibility cannot be enforced from this repository alone; they must be set in GitHub UI or via `gh repo edit`.
+
+## Security Triage
+- Dependabot PRs for NuGet and npm should be reviewed weekly.
+- A dependency review failure on a PR blocks merge until the dependency change is understood and explicitly accepted.
+- Moderate-or-higher findings should be triaged into an issue or fixed directly before the next public release.
