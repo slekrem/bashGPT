@@ -31,7 +31,6 @@ export interface HistoryMessage {
   content: string
 }
 
-export type ExecMode = 'ask' | 'dry-run' | 'auto-exec' | 'no-exec'
 export type ProviderName = 'ollama'
 
 export interface Session {
@@ -51,8 +50,6 @@ export interface Settings {
   model: string
   contextWindowTokens?: number
   ollamaHost?: string
-  execMode: ExecMode
-  forceTools: boolean
   ollama: OllamaSettings
 }
 

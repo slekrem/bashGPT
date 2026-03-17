@@ -8,7 +8,7 @@ using BashGPT.Providers;
 
 namespace BashGPT.Server;
 
-internal sealed class SettingsApiHandler(ConfigurationService? configService, ServerState state)
+internal sealed class SettingsApiHandler(ConfigurationService? configService)
 {
     public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
     {
@@ -42,8 +42,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
             model             = config.Ollama.Model,
             contextWindowTokens = (int?)null,
             ollamaHost        = config.Ollama.BaseUrl,
-            execMode          = ExecModeConverter.ToString(state.ExecMode),
-            forceTools        = state.ForceTools,
             ollama            = new
             {
                 model = config.Ollama.Model,
@@ -79,16 +77,6 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
 
         if (body.Model is not null) config.Ollama.Model = body.Model;
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
-        if (body.ExecMode is not null && ExecModeConverter.Parse(body.ExecMode) is { } mode)
-        {
-            state.ExecMode = mode;
-            config.DefaultExecMode = mode;
-        }
-        if (body.ForceTools is bool ft)
-        {
-            state.ForceTools = ft;
-            config.DefaultForceTools = ft;
-        }
         await configService.SaveAsync(config);
         await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
     }
@@ -129,7 +117,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
 
     private sealed record SettingsRequest(
         string? Provider, string? Model,
-        string? OllamaHost, string? ExecMode, bool? ForceTools,
+        string? OllamaHost,
         ProviderConfigRequest? Ollama);
 
     private sealed record ProviderConfigRequest(

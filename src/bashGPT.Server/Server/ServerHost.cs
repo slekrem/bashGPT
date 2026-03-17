@@ -45,7 +45,7 @@ public class ServerHost
         _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
-        _settingsHandler      = new SettingsApiHandler(configService, _state);
+        _settingsHandler      = new SettingsApiHandler(configService);
         _chatHandler          = new ChatApiHandler(handler, _legacyHistory, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
         _streamingChatHandler = new StreamingChatApiHandler(handler, _legacyHistory, _runningChats, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
         _chatCancelHandler    = new ChatCancelApiHandler(_runningChats);
