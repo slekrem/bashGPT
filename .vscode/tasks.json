@@ -9,6 +9,12 @@
         "build",
         "/m:1"
       ],
+      "options": {
+        "env": {
+          "PATH": "${env:HOME}/.dotnet:${env:PATH}",
+          "DOTNET_ROOT": "${env:HOME}/.dotnet"
+        }
+      },
       "group": {
         "kind": "build",
         "isDefault": true
