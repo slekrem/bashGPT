@@ -7,10 +7,6 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/bashGPT.Cli/bin/Debug/net9.0/bashGPT.Cli.dll",
             "cwd": "${workspaceFolder}",
-            "env": {
-                "PATH": "${env:HOME}/.dotnet:${env:PATH}",
-                "DOTNET_ROOT": "${env:HOME}/.dotnet"
-            },
             "args": [
                 "zeige alle .cs dateien"
             ],
@@ -23,10 +19,6 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/bashGPT.Server/bin/Debug/net9.0/bashGPT.Server.dll",
             "cwd": "${workspaceFolder}",
-            "env": {
-                "PATH": "${env:HOME}/.dotnet:${env:PATH}",
-                "DOTNET_ROOT": "${env:HOME}/.dotnet"
-            },
             "args": [
                 "--no-browser"
             ],

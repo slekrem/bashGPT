@@ -64,6 +64,17 @@ Alternativ per Environment:
 - `BASHGPT_PROVIDER`
 - `BASHGPT_OLLAMA_URL`, `BASHGPT_OLLAMA_MODEL`
 
+## Troubleshooting
+
+### VS Code Run/Debug schlägt fehl mit "The application 'run' does not exist"
+Wenn VS Code "Run and Debug" für `bashGPT.Cli` oder `bashGPT.Server` mit einem SDK-Fehler fehlschlägt, obwohl `dotnet --list-sdks` das erforderliche SDK zeigt:
+
+- Stelle sicher, dass das .NET SDK 9.0.301 installiert ist (siehe Installation).
+- Falls das SDK nur in `~/.dotnet` installiert ist (z. B. via `dotnet-install.sh`), setze temporär die Umgebungsvariablen:
+  - `PATH=$HOME/.dotnet:$PATH`
+  - `DOTNET_ROOT=$HOME/.dotnet`
+- Für dauerhafte Lösung: Installiere das SDK global oder passe deine Shell-Profile an (z. B. `~/.bashrc` oder `~/.zshrc`).
+
 ## Ausführungsmodi
 ```bash
 # nur anzeigen, nicht ausführen
