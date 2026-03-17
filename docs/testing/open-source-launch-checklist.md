@@ -6,8 +6,8 @@ Last validated: March 16, 2026
 Provide a minimal, reproducible launch check for an external developer on a clean machine.
 
 ## Prerequisites
-- .NET 9 SDK
-- Node.js >= 20.19.0 or >= 22.12.0
+- .NET SDK 9.0.301 (`global.json`)
+- Node.js 20.19.0 (same version as CI release checks)
 - Ollama available locally if chat/server runtime should be exercised beyond build/test
 
 ## Reproducible Check
@@ -49,6 +49,7 @@ npm test
   - `dotnet test -m:1 /nodeReuse:false`: passed
   - `src/bashGPT.Web` build path is reproducible via stamp-based `npm ci`
   - README matches the Ollama-only setup and current server flags
+  - Release baseline is pinned to `.NET SDK 9.0.301` and `Node.js 20.19.0`
 
 ## Known Launch Blockers Outside This Check
 - License and community-health files are still tracked separately in `#154`.
