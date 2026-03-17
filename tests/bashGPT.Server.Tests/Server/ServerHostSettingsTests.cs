@@ -317,6 +317,24 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Post_SettingsTest_Failure_ReturnsSanitizedError()
+    {
+        var config = await _configService.LoadAsync();
+        config.Ollama.BaseUrl = "http://127.0.0.1:1";
+        await _configService.SaveAsync(config);
+
+        var response = await _client.PostAsync("/api/settings/test", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var raw = await response.Content.ReadAsStringAsync();
+        var json = JsonSerializer.Deserialize<JsonElement>(raw);
+        Assert.False(json.GetProperty("ok").GetBoolean());
+        Assert.Equal("Verbindungstest fehlgeschlagen.", json.GetProperty("error").GetString());
+        Assert.DoesNotContain("127.0.0.1:1", raw, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Put_Settings_WithoutConfigService_Returns503()
     {
         var port = GetFreePort();

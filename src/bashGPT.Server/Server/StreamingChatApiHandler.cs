@@ -244,8 +244,9 @@ internal sealed class StreamingChatApiHandler(
         {
             try
             {
+                Console.Error.WriteLine($"[server] Streaming-Request fehlgeschlagen: {ex}");
                 var errJson = JsonSerializer.Serialize(
-                    new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", data = new { message = ex.Message } } } } } },
+                    new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", data = new { message = ApiErrors.GenericServerError } } } } } },
                     JsonDefaults.Options);
                 ApiResponse.WriteSseEvent(stream, errJson);
                 ApiResponse.WriteSseEvent(stream, "[DONE]");

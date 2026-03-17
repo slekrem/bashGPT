@@ -113,7 +113,8 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService, Se
         }
         catch (LlmProviderException ex)
         {
-            await ApiResponse.WriteJsonAsync(response, new { ok = false, error = ex.Message });
+            Console.Error.WriteLine($"[server] Provider-Verbindungstest fehlgeschlagen: {ex}");
+            await ApiResponse.WriteJsonAsync(response, new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
 
