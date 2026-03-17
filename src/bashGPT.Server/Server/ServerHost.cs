@@ -3,7 +3,6 @@ using System.Net;
 using BashGPT.Agents;
 using BashGPT.Cli;
 using BashGPT.Configuration;
-using BashGPT.Shell;
 using BashGPT.Storage;
 using BashGPT.Tools.Execution;
 
@@ -11,7 +10,6 @@ namespace BashGPT.Server;
 
 public class ServerHost
 {
-    private readonly ServerState               _state;
     private readonly LegacyHistory             _legacyHistory;
     private readonly ContextApiHandler         _contextHandler;
     private readonly SettingsApiHandler        _settingsHandler;
@@ -42,7 +40,6 @@ public class ServerHost
         _toolRegistry         = toolRegistry;
         _toolSelectionPolicy  = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats         = new RunningChatRegistry();
-        _state                = new ServerState();
         _legacyHistory        = new LegacyHistory();
         _contextHandler       = new ContextApiHandler();
         _settingsHandler      = new SettingsApiHandler(configService);
@@ -56,13 +53,6 @@ public class ServerHost
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
     {
-        AppConfig? appConfig = null;
-        if (_configService is not null)
-            appConfig = await _configService.LoadAsync();
-
-        _state.ExecMode   = appConfig?.DefaultExecMode   ?? ExecutionMode.Ask;
-        _state.ForceTools = appConfig?.DefaultForceTools ?? false;
-
         var prefix = $"http://127.0.0.1:{options.Port}/";
         using var listener = new HttpListener();
         listener.Prefixes.Add(prefix);
