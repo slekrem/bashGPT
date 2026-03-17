@@ -25,9 +25,13 @@ Provide a predictable maintainer workflow for making the repository public and p
 ## Release Candidate Flow
 1. Merge all launch-blocking issues into `main`.
 2. Run the full build and test check from a clean checkout.
-3. Review the diff since the last internal milestone and summarize user-visible changes.
-4. Create tag `v0.1.0` from the exact release commit.
-5. Draft GitHub release notes from the merged PRs and milestone issues.
+3. Verify artifact identity:
+   - `dotnet run --project src/bashGPT.Cli -- --version`
+   - start the server and check `GET /api/version`
+   - both should report the intended release version/tag
+4. Review the diff since the last internal milestone and summarize user-visible changes.
+5. Create tag `v0.1.0` from the exact release commit.
+6. Draft GitHub release notes from the merged PRs and milestone issues.
 
 ## Recommended Release Notes Structure
 - Highlights

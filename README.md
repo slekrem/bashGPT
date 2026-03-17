@@ -23,6 +23,7 @@ Weitere lokale Voraussetzungen je nach Nutzung:
 - `ollama` für lokale Modellaufrufe im CLI- und Server-Modus (`ollama --version`, danach `ollama serve`)
 - `npm` für den Web-Build sowie den `build_run`-/`test_run`-Runner `npm` (`npm --version`)
 - `pytest` nur falls du den `test_run`-Runner `pytest` verwenden willst (`pytest --version`)
+- Version prüfen: CLI über `dotnet run --project src/bashGPT.Cli -- --version`, Server über `GET /api/version`
 
 ```bash
 # Repo klonen, dann bauen (npm install + npm run build laufen automatisch)

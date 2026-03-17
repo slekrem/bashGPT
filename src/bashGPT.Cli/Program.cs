@@ -3,6 +3,16 @@ using BashGPT;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Shell;
+using BashGPT.Versioning;
+
+if (args is ["--version"])
+{
+    var info = AppVersion.ForAssembly(typeof(Program).Assembly);
+    Console.WriteLine($"{info.Application} {info.InformationalVersion}");
+    if (!string.IsNullOrWhiteSpace(info.RepositoryUrl))
+        Console.WriteLine(info.RepositoryUrl);
+    return 0;
+}
 
 var configService = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
