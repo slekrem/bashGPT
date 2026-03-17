@@ -86,6 +86,20 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.Contains("javascript", response.Content.Headers.ContentType?.MediaType);
     }
 
+    [Fact]
+    public async Task Get_Version_ReturnsVersionMetadata()
+    {
+        var response = await _client.GetAsync("/api/version");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("bashGPT.Server", json.GetProperty("application").GetString());
+        Assert.Equal("0.1.0.0", json.GetProperty("version").GetString());
+        Assert.StartsWith("0.1.0", json.GetProperty("informationalVersion").GetString(), StringComparison.Ordinal);
+        Assert.Equal("https://github.com/slekrem/bashGPT", json.GetProperty("repositoryUrl").GetString());
+    }
+
     // ── GET /api/history ────────────────────────────────────────────────────
 
     [Fact]

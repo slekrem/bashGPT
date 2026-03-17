@@ -156,6 +156,9 @@ public class ServerHost
             if (req.HttpMethod == "GET"  && path == "/api/context")
             { await _contextHandler.HandleAsync(ctx.Response, ct); return; }
 
+            if (req.HttpMethod == "GET"  && path == "/api/version")
+            { await new VersionApiHandler().HandleAsync(ctx.Response, ct); return; }
+
             if (path.StartsWith("/api/settings", StringComparison.Ordinal))
             { await _settingsHandler.HandleAsync(ctx, ct); return; }
 
