@@ -395,19 +395,22 @@ PUT /api/settings → config.json aktualisiert
 Toast: "Einstellungen gespeichert"
 ```
 
-### Flow 4: Exec-Mode pro Nachricht
+### Flow 4: Ollama-Host ändern
 
 ```
-[User wählt "dry-run" im Dropdown]
+[User ändert den Ollama Host]
         │
         ▼
-Nächste Nachricht wird mit execMode="dry-run" gesendet
-Bash-Befehle werden angezeigt aber NICHT ausgeführt
-Terminal zeigt: [übersprungen] $ befehl
+PUT /api/settings → ollamaHost + ollama.host werden aktualisiert
         │
         ▼
-[User wählt "auto-exec"]
-Nächste Nachricht führt Befehle ohne Rückfrage aus
+[User klickt "Verbindung testen"]
+        │
+        ▼
+POST /api/settings/test
+        │
+        ▼
+Toast: "Verbindung OK" oder "Verbindung fehlgeschlagen"
 ```
 
 ---
