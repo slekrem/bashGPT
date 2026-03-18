@@ -10,9 +10,6 @@ public static class AppDefaults
     /// <summary>Timeout pro Shell-Befehl in Sekunden (CommandExecutor).</summary>
     public const int CommandTimeoutSeconds = 300;
 
-    /// <summary>Maximale Ausgabe-Zeichen pro Shell-Befehl (CommandExecutor).</summary>
-    public const int MaxCommandOutputChars = 10_000;
-
     /// <summary>Maximale Anzahl beibehaltener Nachrichten im In-Memory-Verlauf (LegacyHistory).</summary>
     public const int MaxHistoryMessages = 40;
 
