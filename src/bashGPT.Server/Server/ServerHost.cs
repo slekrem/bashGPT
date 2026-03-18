@@ -21,6 +21,7 @@ public class ServerHost
     private readonly ConfigurationService? _configService;
     private readonly AgentRegistry? _agentRegistry;
     private readonly SessionStore? _sessionStore;
+    private readonly SessionRequestStore? _sessionRequestStore;
     private readonly ToolRegistry? _toolRegistry;
     private readonly RunningChatRegistry _runningChats;
     private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
@@ -29,6 +30,7 @@ public class ServerHost
         IPromptHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null,
+        SessionRequestStore? sessionRequestStore = null,
         AgentRegistry? agentRegistry = null,
         ToolRegistry? toolRegistry = null,
         ServerToolSelectionPolicy? toolSelectionPolicy = null)
@@ -36,13 +38,14 @@ public class ServerHost
         _configService = configService;
         _agentRegistry = agentRegistry;
         _sessionStore = sessionStore;
+        _sessionRequestStore = sessionRequestStore;
         _toolRegistry = toolRegistry;
         _toolSelectionPolicy = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats = new RunningChatRegistry();
         _contextHandler = new ContextApiHandler();
         _settingsHandler = new SettingsApiHandler(configService);
-        _chatHandler = new ChatApiHandler(handler, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _runningChats, _toolSelectionPolicy, sessionStore, toolRegistry, agentRegistry);
+        _chatHandler = new ChatApiHandler(handler, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _runningChats, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
         _chatCancelHandler = new ChatCancelApiHandler(_runningChats);
         _sessionHandler = new SessionApiHandler(sessionStore);
         _agentHandler = new AgentApiHandler(agentRegistry, configService);

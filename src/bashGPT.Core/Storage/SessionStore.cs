@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using BashGPT.Storage;
 
 namespace bashGPT.Core.Storage;
@@ -23,8 +22,6 @@ public class SessionStore
         PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
-
-    private static readonly Regex ValidIdPattern = new(@"^[a-zA-Z0-9_-]{1,128}$", RegexOptions.Compiled);
 
     private readonly string _sessionsDir;
     private readonly string _indexFile;
@@ -163,77 +160,12 @@ public class SessionStore
         }
     }
 
-    /// <summary>
-    /// Stores request documentation under <c>sessions/&lt;id&gt;/requests/&lt;timestamp&gt;.json</c>.
-    /// No global lock is required because each request uses a unique timestamp.
-    /// </summary>
-    public async Task SaveRequestAsync(string sessionId, SessionRequestRecord record)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        var safeName = record.Timestamp.Replace(":", "-").Replace("+", "+");
-        var path = Path.Combine(dir, safeName + ".json");
-        var tmp = path + ".tmp";
-        var json = JsonSerializer.Serialize(record, JsonOptions);
-
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    /// <summary>
-    /// Stores the raw LLM request body under <c>sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-request.json</c>.
-    /// </summary>
-    public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
-        var path = Path.Combine(dir, safeName + "-llm-request.json");
-        var tmp = path + ".tmp";
-
-        await File.WriteAllTextAsync(tmp, llmRequestJson);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    /// <summary>
-    /// Stores the raw LLM response body under <c>sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-response.json</c>.
-    /// </summary>
-    public async Task SaveLlmResponseAsync(string sessionId, string timestamp, string llmResponseJson)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
-        var path = Path.Combine(dir, safeName + "-llm-response.json");
-        var tmp = path + ".tmp";
-
-        await File.WriteAllTextAsync(tmp, llmResponseJson);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    /// <summary>
-    /// Throws <see cref="ArgumentException"/> if the ID violates the allowed character whitelist
-    /// or would resolve outside <see cref="_sessionsDir"/>.
-    /// </summary>
     private void ValidateSessionId(string id)
-    {
-        if (!ValidIdPattern.IsMatch(id))
-            throw new ArgumentException($"Invalid session ID: '{id}'.", nameof(id));
+        => SessionStoragePaths.ValidateSessionId(_sessionsDir, id);
 
-        var root = Path.GetFullPath(_sessionsDir) + Path.DirectorySeparatorChar;
-        var target = Path.GetFullPath(Path.Combine(_sessionsDir, id)) + Path.DirectorySeparatorChar;
-        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Session ID '{id}' resolves outside the allowed directory.", nameof(id));
-    }
-
-    public string GetSessionDir(string id) => Path.Combine(_sessionsDir, id);
+    public string GetSessionDir(string id) => SessionStoragePaths.GetSessionDir(_sessionsDir, id);
     private string SessionDir(string id) => GetSessionDir(id);
-    private string ContentFilePath(string id) => Path.Combine(_sessionsDir, id, "content.json");
+    private string ContentFilePath(string id) => SessionStoragePaths.GetContentFilePath(_sessionsDir, id);
 
     private async Task<SessionIndex> ReadIndexAsync()
     {

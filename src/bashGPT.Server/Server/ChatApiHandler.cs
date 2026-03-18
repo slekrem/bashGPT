@@ -15,6 +15,7 @@ internal sealed class ChatApiHandler(
     IPromptHandler handler,
     ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
+    SessionRequestStore? sessionRequestStore = null,
     ToolRegistry? toolRegistry = null,
     AgentRegistry? agentRegistry = null)
 {
@@ -84,11 +85,11 @@ internal sealed class ChatApiHandler(
             Provider: options.Provider,
             Model:    options.Model,
             Verbose:  options.Verbose || body.Verbose == true,
-            OnLlmRequestJson: sessionStore is not null && sessionId is not null
-                ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
+            OnLlmRequestJson: sessionRequestStore is not null && sessionId is not null
+                ? (idx, json) => sessionRequestStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
-            OnLlmResponseJson: sessionStore is not null && sessionId is not null
-                ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
+            OnLlmResponseJson: sessionRequestStore is not null && sessionId is not null
+                ? (idx, json) => sessionRequestStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
             Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
             SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
@@ -144,7 +145,8 @@ internal sealed class ChatApiHandler(
                     },
                 },
             };
-            await sessionStore.SaveRequestAsync(sessionId, reqRecord);
+            if (sessionRequestStore is not null)
+                await sessionRequestStore.SaveRequestAsync(sessionId, reqRecord);
         }
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new

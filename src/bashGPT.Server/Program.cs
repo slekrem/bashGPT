@@ -36,8 +36,9 @@ var toolRegistry = new ToolRegistry([
 ]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
+var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
 var agentRegistry = new AgentRegistry([new GenericAgent(), new DevAgent(), new ShellAgent()]);
-var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentRegistry, toolRegistry);
+var serverHost = new ServerHost(serverRunner, configService, sessionStore, sessionRequestStore, agentRegistry, toolRegistry);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {

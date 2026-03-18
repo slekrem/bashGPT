@@ -13,4 +13,11 @@ public static class AppBootstrap
         var sessionsDir = Path.Combine(baseDir, "sessions");
         return new SessionStore(sessionsDir);
     }
+
+    public static SessionRequestStore CreateSessionRequestStore(string? configDir = null)
+    {
+        var baseDir = configDir ?? GetConfigDir();
+        var sessionsDir = Path.Combine(baseDir, "sessions");
+        return new SessionRequestStore(sessionsDir);
+    }
 }
