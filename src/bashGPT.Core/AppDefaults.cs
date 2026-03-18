@@ -12,36 +12,4 @@ public static class AppDefaults
 
     /// <summary>Präfix für automatisch generierte Session-IDs.</summary>
     public const string SessionIdPrefix = "s-";
-
-    /// <summary>Anzahl aufeinanderfolgend identischer Runden, ab der eine Schleife gemeldet wird.</summary>
-    public const int LoopDetectionConsecutiveThreshold = 1;
-
-    /// <summary>Meldung bei echter Tool-Call-Schleife (identische Befehle wiederholen sich).</summary>
-    public const string LoopDetectedMessage =
-        "Tool-Call-Schleife erkannt und beendet. " +
-        "Bitte nutze nicht-interaktive Befehle (z. B. 'ps aux --sort=-%cpu | head' statt 'top').";
-
-    /// <summary>
-    /// Erkennt eine Tool-Call-Schleife: Gibt true zurück, wenn previous und current
-    /// dieselbe Anzahl Tool-Calls mit identischen Namen und ArgumentsJson (positionsbasiert) haben.
-    /// </summary>
-    public static bool DetectLoop(IReadOnlyList<ToolCall>? previous, IReadOnlyList<ToolCall> current)
-    {
-        if (previous is null || previous.Count == 0)
-            return false;
-        if (current.Count == 0)
-            return false;
-        if (previous.Count != current.Count)
-            return false;
-
-        for (var i = 0; i < current.Count; i++)
-        {
-            if (previous[i].Name != current[i].Name)
-                return false;
-            if (previous[i].ArgumentsJson != current[i].ArgumentsJson)
-                return false;
-        }
-
-        return true;
-    }
 }

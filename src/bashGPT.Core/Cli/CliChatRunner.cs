@@ -80,7 +80,6 @@ public class CliChatRunner(
                 execMode,
                 toolChoiceName,
                 AppDefaults.CommandTimeoutSeconds,
-                loopDetectionEnabled: true,
                 ct);
             return 0;
         }
@@ -128,32 +127,13 @@ public class CliChatRunner(
         ExecutionMode execMode,
         string? toolChoiceName,
         int commandTimeoutSeconds,
-        bool loopDetectionEnabled,
         CancellationToken ct)
     {
-        var response                   = initialResponse;
-        var rounds                     = 0;
-        var consecutiveIdenticalRounds = 0;
-        var previousToolCalls          = (IReadOnlyList<ToolCall>?)null;
-        var loopDetected               = false;
+        var response = initialResponse;
+        var rounds   = 0;
 
         while (response.ToolCalls.Count > 0)
         {
-            if (loopDetectionEnabled && AppDefaults.DetectLoop(previousToolCalls, response.ToolCalls))
-            {
-                consecutiveIdenticalRounds++;
-                if (consecutiveIdenticalRounds >= AppDefaults.LoopDetectionConsecutiveThreshold)
-                {
-                    loopDetected = true;
-                    break;
-                }
-            }
-            else
-            {
-                consecutiveIdenticalRounds = 0;
-            }
-
-            previousToolCalls = response.ToolCalls;
             rounds++;
 
             var toolCalls = response.ToolCalls;
@@ -177,9 +157,6 @@ public class CliChatRunner(
             response = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
             Console.WriteLine();
         }
-
-        if (loopDetected)
-            Console.Error.WriteLine(AppDefaults.LoopDetectedMessage);
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(
