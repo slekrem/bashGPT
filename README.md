@@ -126,11 +126,20 @@ dotnet test --collect:"XPlat Code Coverage"
 ./scripts/coverage-report.sh
 ```
 
-Reproduzierbarer Open-Source-Launch-Check:
-- [docs/testing/open-source-launch-checklist.md](docs/testing/open-source-launch-checklist.md)
+Für einen reproduzierbaren Launch-Check auf sauberem Checkout:
+- `dotnet build -m:1 /nodeReuse:false`
+- `dotnet test -m:1 /nodeReuse:false`
+- optional zusätzlich in `src/bashGPT.Web`: `npm test`
 
-Release- und Public-Launch-Runbook:
-- [docs/release/public-launch-runbook.md](docs/release/public-launch-runbook.md)
+Go für einen Public-Release ist erreicht, wenn:
+- Build und Tests ohne manuelle Nacharbeit grün sind
+- README und öffentliche Repo-Metadaten den tatsächlichen Stand widerspiegeln
+- Community-Dateien (`LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) vorhanden sind
+
+Empfohlener erster Public-Release:
+- Tag `v0.1.0`
+- Release Notes mit Kurzüberblick, Setup-Anforderungen und bekannten Einschränkungen
+- vor Public-Schaltung GitHub-Beschreibung, Topics und Sichtbarkeit bewusst prüfen
 
 ## Beispiele (Output-Format)
 bashGPT erwartet, dass Shell-Befehle in Code-Blöcken stehen. Beispielantwort:
