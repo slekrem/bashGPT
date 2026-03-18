@@ -12,7 +12,6 @@ namespace BashGPT.Server;
 
 internal sealed class ChatApiHandler(
     IPromptHandler handler,
-    LegacyHistory legacyHistory,
     ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
     ToolRegistry? toolRegistry = null,
@@ -37,7 +36,7 @@ internal sealed class ChatApiHandler(
         if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
             session = await sessionStore.LoadAsync(body.SessionId);
 
-        // History laden: session-basiert oder globaler Fallback
+        // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
         IReadOnlyList<ChatMessage> historySnapshot;
         if (session is not null)
         {
@@ -52,7 +51,7 @@ internal sealed class ChatApiHandler(
         }
         else
         {
-            historySnapshot = legacyHistory.GetSnapshot();
+            historySnapshot = [];
         }
 
         // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
@@ -104,7 +103,7 @@ internal sealed class ChatApiHandler(
             Cwd  = Environment.CurrentDirectory,
         };
 
-        // Persistieren: session-basiert oder globaler Fallback
+        // Persistieren: nur session-basiert
         if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
         {
             var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
@@ -144,13 +143,6 @@ internal sealed class ChatApiHandler(
                 },
             };
             await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-        }
-        else
-        {
-            // Fallback: globale In-Memory-History (legacy, kein SessionStore)
-            legacyHistory.Append(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
-            foreach (var msg in BuildConversationDelta(result))
-                legacyHistory.Append(msg);
         }
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new

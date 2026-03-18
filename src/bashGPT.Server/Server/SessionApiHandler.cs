@@ -6,7 +6,7 @@ using bashGPT.Core;
 
 namespace BashGPT.Server;
 
-internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistory legacyHistory)
+internal sealed class SessionApiHandler(SessionStore? sessionStore)
 {
     public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
     {
@@ -55,7 +55,6 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
         if (req.HttpMethod == "POST" && path == "/api/sessions/clear")
         {
             await sessionStore.ClearAsync();
-            legacyHistory.Clear();
             await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
             return;
         }

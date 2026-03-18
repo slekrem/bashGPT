@@ -12,7 +12,6 @@ namespace BashGPT.Server;
 
 internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
-    LegacyHistory legacyHistory,
     RunningChatRegistry runningChats,
     ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
@@ -55,7 +54,7 @@ internal sealed class StreamingChatApiHandler(
             if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
                 session = await sessionStore.LoadAsync(body.SessionId);
 
-            // History laden: session-basiert oder globaler Fallback
+            // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
             IReadOnlyList<ChatMessage> historySnapshot;
             if (session is not null)
             {
@@ -70,7 +69,7 @@ internal sealed class StreamingChatApiHandler(
             }
             else
             {
-                historySnapshot = legacyHistory.GetSnapshot();
+                historySnapshot = [];
             }
 
             // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
@@ -209,12 +208,6 @@ internal sealed class StreamingChatApiHandler(
                     },
                 };
                 await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-            }
-            else
-            {
-                legacyHistory.Append(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
-                foreach (var msg in BuildConversationDelta(result))
-                    legacyHistory.Append(msg);
             }
         }
         catch (OperationCanceledException) when (requestCts.IsCancellationRequested && !ct.IsCancellationRequested)

@@ -10,9 +10,6 @@ public static class AppDefaults
     /// <summary>Timeout pro Shell-Befehl in Sekunden (CommandExecutor).</summary>
     public const int CommandTimeoutSeconds = 300;
 
-    /// <summary>Maximale Anzahl beibehaltener Nachrichten im In-Memory-Verlauf (LegacyHistory).</summary>
-    public const int MaxHistoryMessages = 40;
-
     /// <summary>Maximale Anzahl HTTP-Wiederholungen bei 429-Fehlern des LLM-Providers.</summary>
     public const int MaxProviderRetries = 3;
 
