@@ -14,7 +14,6 @@ namespace bashGPT.Core.Storage;
 /// </summary>
 public class SessionStore
 {
-    public const int MaxSessions = 20;
     public const string LiveSessionId = "current";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -79,7 +78,7 @@ public class SessionStore
 
     /// <summary>
     /// Creates or updates a session.
-    /// Sorts by <c>UpdatedAt</c> and enforces <see cref="MaxSessions"/>, including file cleanup.
+    /// Sorts sessions by <c>UpdatedAt</c> after each write.
     /// </summary>
     public async Task UpsertAsync(SessionRecord session)
     {
@@ -118,10 +117,7 @@ public class SessionStore
                 .ThenByDescending(e => e.CreatedAt)
                 .ToList();
 
-            foreach (var removed in sorted.Skip(MaxSessions))
-                TryDeleteSessionDir(removed.Id);
-
-            index.Sessions = [.. sorted.Take(MaxSessions)];
+            index.Sessions = sorted;
             await WriteIndexInternalAsync(index);
         }
         finally

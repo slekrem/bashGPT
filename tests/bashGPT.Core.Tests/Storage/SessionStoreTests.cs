@@ -126,11 +126,12 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task UpsertAsync_ExceedsMaxSessions_TrimsOldestSessions()
+    public async Task UpsertAsync_PersistsAllSessionsWithoutTrimming()
     {
         var store = CreateStore();
+        const int sessionCount = 23;
 
-        for (var i = 0; i < SessionStore.MaxSessions + 3; i++)
+        for (var i = 0; i < sessionCount; i++)
         {
             await store.UpsertAsync(MakeSession(
                 $"s{i:D2}",
@@ -139,10 +140,10 @@ public sealed class SessionStoreTests : IDisposable
 
         var sessions = await store.LoadAllAsync();
 
-        Assert.Equal(SessionStore.MaxSessions, sessions.Count);
-        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s00")));
-        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s01")));
-        Assert.False(Directory.Exists(Path.Combine(SessionsDir, "s02")));
+        Assert.Equal(sessionCount, sessions.Count);
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s00")));
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s01")));
+        Assert.True(Directory.Exists(Path.Combine(SessionsDir, "s02")));
     }
 
     [Fact]
