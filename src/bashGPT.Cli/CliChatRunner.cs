@@ -1,4 +1,5 @@
 using bashGPT.Core;
+using bashGPT.Core.Chat;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
@@ -87,7 +88,6 @@ public class CliChatRunner(
         if (string.IsNullOrWhiteSpace(firstResponse.Content))
             return 0;
 
-        // Fallback: Befehle aus Text-Codebloecken extrahieren
         var commands = BashCommandExtractor.Extract(firstResponse.Content);
         if (opts.Verbose && commands.Count > 0)
             Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codebloecken extrahiert");

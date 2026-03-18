@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net;
 using bashGPT.Core.Storage;
 using BashGPT.Agents;
-using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Tools.Execution;
 

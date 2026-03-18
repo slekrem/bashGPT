@@ -1,23 +1,17 @@
+using System.Text.Json;
+using bashGPT.Core.Chat;
 using BashGPT.Configuration;
 using BashGPT.Providers;
-using System.Text.Json;
 using BashGPT.Shell;
-using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Cli;
+namespace BashGPT.Server;
 
-/// <summary>
-/// Verarbeitet Chat-Anfragen im Server-Modus. Unterst�tzt optionalen Tool-Call-Loop,
-/// wenn der Session Tools zugewiesen sind. Shell-Funktionalit�t wird �ber den
-/// Shell-Agenten oder �ber zugewiesene Session-Tools bereitgestellt.
-/// </summary>
 public class ServerChatRunner(
     ConfigurationService configService,
     ILlmProvider? providerOverride = null,
     ToolRegistry? toolRegistry = null) : IPromptHandler
 {
-
     public async Task<ServerChatResult> RunServerChatAsync(
         ServerChatOptions opts,
         CancellationToken ct = default)
@@ -41,7 +35,7 @@ public class ServerChatRunner(
             catch (InvalidOperationException ex)
             {
                 return new ServerChatResult(
-                    Response: $"Konfigurationsfehler: {ex.Message}",
+                    Response: $"Configuration error: {ex.Message}",
                     Logs: []);
             }
 
@@ -54,19 +48,18 @@ public class ServerChatRunner(
             catch (Exception ex)
             {
                 return new ServerChatResult(
-                    Response: $"Provider-Fehler: {ex.Message}",
+                    Response: $"Provider error: {ex.Message}",
                     Logs: []);
             }
         }
 
         if (opts.Verbose)
-            logs.Add($"Provider: {provider.Name}, Modell: {provider.Model}");
+            logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
 
         var messages = new List<ChatMessage>();
         void RefreshSystemMessages()
         {
             if (opts.SystemPrompt is null) return;
-            // System-Messages sind immer am Anfang; beim Refresh alte entfernen und neu einfügen.
             var firstNonSystem = messages.FindIndex(m => m.Role != ChatRole.System);
             var removeCount    = firstNonSystem >= 0 ? firstNonSystem : messages.Count;
             if (removeCount > 0) messages.RemoveRange(0, removeCount);
@@ -121,7 +114,6 @@ public class ServerChatRunner(
             totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
             totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
 
-            // Tool-Call-Loop: nur wenn Tools vorhanden und ToolRegistry verf�gbar
             if (tools.Count > 0 && toolRegistry is not null)
             {
                 var round = 0;
@@ -155,7 +147,7 @@ public class ServerChatRunner(
                             try
                             {
                                 var r = await iTool.ExecuteAsync(
-                                    new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
+                                    new BashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
 
                                 toolResult = r.Content;
                                 commandResult = BuildCommandResult(call.Name, commandLabel, r.Content, r.Success);
@@ -166,13 +158,13 @@ public class ServerChatRunner(
                             }
                             catch (Exception ex)
                             {
-                                toolResult = $"Fehler: {ex.Message}";
+                                toolResult = $"Error: {ex.Message}";
                                 commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
                             }
                         }
                         else
                         {
-                            toolResult = $"Fehler: Unbekanntes Tool '{call.Name}'.";
+                            toolResult = $"Error: Unknown tool '{call.Name}'.";
                             commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
                         }
 
@@ -201,7 +193,7 @@ public class ServerChatRunner(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            var cancelledText = "Vom Nutzer abgebrochen.";
+            var cancelledText = "Cancelled by user.";
             var cancelledAssistant = new ChatMessage(ChatRole.Assistant, cancelledText);
             conversationDelta.Add(cancelledAssistant);
 
@@ -262,54 +254,16 @@ public class ServerChatRunner(
         }
     }
 
-    private static CommandResult BuildCommandResult(string toolName, string command, string toolResult, bool success)
+    private static CommandResult BuildCommandResult(string toolName, string commandLabel, string content, bool success)
     {
-        if (string.Equals(toolName, "shell_exec", StringComparison.OrdinalIgnoreCase))
-        {
-            if (TryParseShellExecOutput(toolResult, out var output, out var exitCode))
-            {
-                return new CommandResult(command, exitCode, output, WasExecuted: true);
-            }
-
-            return new CommandResult(command, success ? 0 : 1, toolResult, WasExecuted: success);
-        }
-
-        return new CommandResult(command, success ? 0 : 1, toolResult, WasExecuted: success);
-    }
-
-    private static bool TryParseShellExecOutput(string content, out string output, out int exitCode)
-    {
-        output = content;
-        exitCode = 1;
-        try
-        {
-            using var doc = JsonDocument.Parse(content);
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("exitCode", out var exitCodeEl)) return false;
-
-            var stdout = root.TryGetProperty("stdout", out var stdoutEl) ? (stdoutEl.GetString() ?? string.Empty) : string.Empty;
-            var stderr = root.TryGetProperty("stderr", out var stderrEl) ? (stderrEl.GetString() ?? string.Empty) : string.Empty;
-            exitCode = exitCodeEl.GetInt32();
-            output = string.IsNullOrWhiteSpace(stderr) ? stdout : $"{stdout}\n{stderr}".Trim();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        var exitCode = success ? 0 : 1;
+        return new CommandResult($"{toolName}: {commandLabel}", exitCode, content, WasExecuted: success);
     }
 
     private static string ClassifyCommandStatus(CommandResult result)
-    {
-        if (!result.WasExecuted) return "skipped";
-
-        var output = result.Output ?? string.Empty;
-        if (output.Contains("\"timedOut\":true", StringComparison.OrdinalIgnoreCase) ||
-            output.Contains("timed out", StringComparison.OrdinalIgnoreCase))
-        {
-            return "timeout";
-        }
-
-        return result.ExitCode == 0 ? "success" : "error";
-    }
+        => result.Output.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            ? "timeout"
+            : result.WasExecuted
+                ? "executed"
+                : "failed";
 }

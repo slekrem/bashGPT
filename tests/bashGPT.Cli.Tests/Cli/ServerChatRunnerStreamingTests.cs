@@ -1,6 +1,7 @@
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Providers;
+using BashGPT.Server;
 
 namespace BashGPT.Cli.Tests;
 

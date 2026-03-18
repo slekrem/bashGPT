@@ -2,7 +2,7 @@ using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace BashGPT.Server;
 
 public record ServerChatOptions(
     string Prompt,
@@ -21,9 +21,6 @@ public record ServerChatOptions(
     string? SessionPath = null
 );
 
-/// <summary>
-/// Rohes Request/Response-Paar eines einzelnen LLM-Aufrufs.
-/// </summary>
 public record LlmExchangeRecord(string? RequestJson, string? ResponseJson);
 
 public record ServerChatResult(

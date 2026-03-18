@@ -1,10 +1,10 @@
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
-using BashGPT.Cli;
 using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;

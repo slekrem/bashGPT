@@ -2,6 +2,7 @@
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Tools.Execution;
+using BashGPT.Server;
 using System.Reflection;
 
 namespace BashGPT.Cli.Tests;
@@ -52,7 +53,7 @@ public sealed class ServerChatRunnerTests
 
         var result = await sut.RunServerChatAsync(Opts());
 
-        Assert.Contains("Fehler:", result.Response);
+        Assert.Contains("Error:", result.Response);
         Assert.Contains("API-Fehler", result.Response);
     }
 
@@ -65,7 +66,7 @@ public sealed class ServerChatRunnerTests
 
         var result = await sut.RunServerChatAsync(Opts());
 
-        Assert.Equal("Abgebrochen.", result.Response);
+        Assert.Equal("Cancelled.", result.Response);
     }
 
     [Fact]
@@ -143,7 +144,7 @@ public sealed class ServerChatRunnerTests
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.Contains("Configuration error:", result.Response);
         }
         finally
         {
@@ -164,7 +165,7 @@ public sealed class ServerChatRunnerTests
 
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.Contains("Configuration error:", result.Response);
         }
         finally
         {
@@ -189,7 +190,7 @@ public sealed class ServerChatRunnerTests
 
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Provider-Fehler:", result.Response);
+            Assert.Contains("Provider error:", result.Response);
         }
         finally
         {

@@ -2,21 +2,18 @@ using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Core.Chat;
 
-internal sealed record ParsedToolCommand(ToolCall ToolCall, ExtractedCommand Command);
-internal sealed record ToolCallError(ToolCall ToolCall, string Error);
+public sealed record ParsedToolCommand(ToolCall ToolCall, ExtractedCommand Command);
+public sealed record ToolCallError(ToolCall ToolCall, string Error);
 
 /// <summary>
-/// Gemeinsame, ausgabe-agnostische Chat-Hilfslogik: Tool-Call-Parsing,
-/// Befehlsausführung, Message-Aufbau und Provider-Aufruf ohne Console-Abhängigkeit.
+/// Shared chat orchestration helpers for provider calls, tool-call parsing,
+/// and tool execution without any UI-specific dependencies.
 /// </summary>
-internal static class ChatOrchestrator
+public static class ChatOrchestrator
 {
-    /// <summary>
-    /// Überschreibt das Modell in der Config, wenn <paramref name="modelOverride"/> gesetzt ist.
-    /// </summary>
-    internal static void ApplyModelOverride(
+    public static void ApplyModelOverride(
         AppConfig config,
         ProviderType? providerOverride,
         string? modelOverride)
@@ -26,10 +23,7 @@ internal static class ChatOrchestrator
         config.Ollama.Model = modelOverride;
     }
 
-    /// <summary>
-    /// Ruft den Provider einmalig auf (ohne Console-Ausgabe) und gibt Antwort oder Fehlermeldung zurück.
-    /// </summary>
-    internal static async Task<(LlmChatResponse Response, string? Error)> ChatOnceAsync(
+    public static async Task<(LlmChatResponse Response, string? Error)> ChatOnceAsync(
         ILlmProvider provider,
         List<ChatMessage> messages,
         IReadOnlyList<ToolDefinition> tools,
@@ -74,18 +68,15 @@ internal static class ChatOrchestrator
         }
         catch (LlmProviderException ex)
         {
-            return (new LlmChatResponse("", []), $"Fehler: {ex.Message}");
+            return (new LlmChatResponse("", []), $"Error: {ex.Message}");
         }
         catch (OperationCanceledException)
         {
-            return (new LlmChatResponse("", []), "Abgebrochen.");
+            return (new LlmChatResponse("", []), "Cancelled.");
         }
     }
 
-    /// <summary>
-    /// Parst Tool-Calls aus der LLM-Antwort in ausführbare Befehle und Fehler.
-    /// </summary>
-    internal static (List<ParsedToolCommand> Commands, List<ToolCallError> Errors) ParseToolCalls(
+    public static (List<ParsedToolCommand> Commands, List<ToolCallError> Errors) ParseToolCalls(
         IReadOnlyList<ToolCall> toolCalls)
     {
         var commands = new List<ParsedToolCommand>();
@@ -95,7 +86,7 @@ internal static class ChatOrchestrator
         {
             if (!ToolCallParsing.TryGetCommand(call, out var command, out var error))
             {
-                errors.Add(new ToolCallError(call, error ?? "Unbekannter Fehler."));
+                errors.Add(new ToolCallError(call, error ?? "Unknown error."));
                 continue;
             }
 
@@ -106,11 +97,7 @@ internal static class ChatOrchestrator
         return (commands, errors);
     }
 
-    /// <summary>
-    /// Führt eine Tool-Call-Runde aus: Befehle ausführen und Assistant- sowie Tool-Result-Nachrichten
-    /// an <paramref name="messages"/> anhängen.
-    /// </summary>
-    internal static async Task<IReadOnlyList<CommandResult>> ExecuteToolCallRoundAsync(
+    public static async Task<IReadOnlyList<CommandResult>> ExecuteToolCallRoundAsync(
         IReadOnlyList<ToolCall> toolCalls,
         IReadOnlyList<ParsedToolCommand> commands,
         IReadOnlyList<ToolCallError> errors,
@@ -145,7 +132,7 @@ internal static class ChatOrchestrator
             var call   = commands[i].ToolCall;
             var result = i < commandResults.Count
                 ? commandResults[i]
-                : new CommandResult(commands[i].Command.Command, -1, "Keine Ausführung.", false);
+                : new CommandResult(commands[i].Command.Command, -1, "Not executed.", false);
 
             messages.Add(ChatMessage.ToolResult(
                 FormatToolResult(result),
@@ -156,7 +143,7 @@ internal static class ChatOrchestrator
         foreach (var err in errors)
         {
             messages.Add(ChatMessage.ToolResult(
-                $"Fehler: {err.Error}",
+                $"Error: {err.Error}",
                 toolCallId: err.ToolCall.Id,
                 toolName:   err.ToolCall.Name));
         }
@@ -167,12 +154,12 @@ internal static class ChatOrchestrator
     private static string FormatToolResult(CommandResult result)
     {
         var output = string.IsNullOrWhiteSpace(result.Output)
-            ? "(keine Ausgabe)"
+            ? "(no output)"
             : result.Output;
 
         var status = result.WasExecuted
-            ? $"Exit-Code: {result.ExitCode}"
-            : "Nicht ausgeführt";
+            ? $"Exit code: {result.ExitCode}"
+            : "Not executed";
 
         return $"{status}\n{output}";
     }

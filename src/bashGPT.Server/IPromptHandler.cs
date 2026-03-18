@@ -1,4 +1,4 @@
-namespace BashGPT.Cli;
+namespace BashGPT.Server;
 
 public interface IPromptHandler
 {
