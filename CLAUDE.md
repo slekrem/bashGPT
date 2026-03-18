@@ -101,7 +101,7 @@ POST /api/chat or /api/chat/stream
 
 Server-side settings are intentionally simpler than before:
 - only Ollama is supported
-- settings API persists provider/model/base URL plus default exec-mode and force-tools
+- settings API persists only provider/model/base URL for the Ollama-backed server UI
 - command timeout, loop detection and max tool-call rounds now come from `AppDefaults`
 - there is no configurable rate limiter anymore
 
@@ -221,7 +221,11 @@ Environment overrides:
 - `BASHGPT_FORCE_TOOLS`
 - `BASHGPT_SERVER_ALLOWED_TOOLS`
 
-No longer configurable:
+Not configurable through the server settings UI:
+- `execMode`
+- `forceTools`
+
+No longer configurable as runtime server defaults:
 - `commandTimeoutSeconds`
 - `loopDetectionEnabled`
 - `maxToolCallRounds`

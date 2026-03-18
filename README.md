@@ -100,7 +100,7 @@ dotnet run --project src/bashGPT.Server -- --provider ollama --model llama3.2 --
 Verfügbare Server-Flags: `--provider`, `--model`, `--port`, `--no-browser`, `--verbose`.
 
 Hinweise:
-- Die UI bietet Chat-Verlauf, Session-Verwaltung, Exec-Mode-Auswahl (`ask`, `dry-run`, `auto-exec`, `no-exec`) und Anzeige ausgeführter Befehle.
+- Die UI bietet Chat-Verlauf, Session-Verwaltung, Agent-Auswahl, manuell wählbare Tools und Anzeige ausgeführter Tool-Ergebnisse.
 - Im Server-Modus wird der Exec-Mode vom Backend nicht ausgewertet — das Verhalten der Tools ist fest definiert (kein interaktives Terminal-Prompt möglich).
 - Sessions werden unter `~/.config/bashgpt/sessions/` gespeichert (max. 20 Sessions).
 - Verfügbare API-Endpunkte umfassen u. a. `/api/sessions/*`, `/api/agents`, `/api/agents/<id>/info-panel`, `/api/tools`, `/api/chat/stream` und `/api/chat/cancel`.
