@@ -1,9 +1,9 @@
 using System.CommandLine;
 using bashGPT.Core;
+using bashGPT.Core.Versioning;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Shell;
-using BashGPT.Versioning;
 
 if (args is ["--version"])
 {

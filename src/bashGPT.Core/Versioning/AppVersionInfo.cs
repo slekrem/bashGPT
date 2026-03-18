@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace BashGPT.Versioning;
+namespace bashGPT.Core.Versioning;
 
 public sealed record AppVersionInfo(
     string Application,
