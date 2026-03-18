@@ -1,4 +1,4 @@
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Models.Storage;
 
 /// <summary>
 /// Compact session metadata entry stored in sessions/index.json.

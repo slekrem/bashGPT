@@ -1,4 +1,4 @@
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Models.Storage;
 
 /// <summary>
 /// Records a single POST request stored under

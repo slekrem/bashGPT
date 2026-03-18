@@ -1,4 +1,4 @@
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Models.Storage;
 
 public sealed class SessionTokenUsage
 {

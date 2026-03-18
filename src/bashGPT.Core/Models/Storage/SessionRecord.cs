@@ -1,4 +1,4 @@
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Models.Storage;
 
 /// <summary>
 /// Represents a single chat session with metadata and messages.

@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using BashGPT.Storage;
+using bashGPT.Core.Models.Storage;
 
 namespace bashGPT.Core.Storage;
 

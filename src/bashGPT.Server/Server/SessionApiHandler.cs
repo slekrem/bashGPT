@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using BashGPT.Providers;
-using BashGPT.Storage;
 using bashGPT.Core;
 using bashGPT.Core.Storage;
+using bashGPT.Core.Models.Storage;
 
 namespace BashGPT.Server;
 
