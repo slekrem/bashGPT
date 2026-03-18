@@ -1,3 +1,4 @@
+using bashGPT.Core.Storage;
 using BashGPT.Storage;
 
 namespace BashGPT.Core.Tests.Storage;

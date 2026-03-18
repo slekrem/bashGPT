@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Cli;

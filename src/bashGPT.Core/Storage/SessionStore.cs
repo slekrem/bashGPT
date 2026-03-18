@@ -1,8 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using BashGPT.Storage;
 
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Storage;
 
 /// <summary>
 /// Verwaltet Session-Daten im zwei-Schichten-Layout:

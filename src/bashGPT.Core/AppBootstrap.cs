@@ -1,4 +1,4 @@
-using BashGPT.Storage;
+using bashGPT.Core.Storage;
 
 namespace bashGPT.Core;
 
