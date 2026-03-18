@@ -390,7 +390,10 @@ export class ChatView extends LitElement {
   /** Öffentlich: Session zurücksetzen */
   async reset() {
     try {
-      await resetHistory()
+      // Only use the legacy history reset when no explicit session is active.
+      // In session mode, the parent component manages session lifecycle itself.
+      if (!this.sessionId)
+        await resetHistory()
       this._chat = {
         ...this._chat,
         messages:   [],

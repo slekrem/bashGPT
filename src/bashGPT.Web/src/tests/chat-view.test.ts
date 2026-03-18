@@ -1,5 +1,16 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CommandResult, TokenUsage } from '../types'
+
+const resetHistoryMock = vi.fn()
+
+vi.mock('../api', () => ({
+  resetHistory: resetHistoryMock,
+  streamChat: vi.fn(),
+  loadHistory: vi.fn().mockResolvedValue([]),
+  getTools: vi.fn().mockResolvedValue([]),
+  cancelChat: vi.fn(),
+  getAgentInfoPanel: vi.fn().mockResolvedValue(''),
+}))
 
 type TestMessage = {
   id: number
@@ -12,6 +23,8 @@ type TestMessage = {
 type ChatViewUnderTest = {
   _chat: { messages: TestMessage[] }
   _sumTokenUsage: (messages: TestMessage[]) => TokenUsage
+  reset: () => Promise<void>
+  sessionId: string
 }
 
 let el: ChatViewUnderTest
@@ -20,6 +33,10 @@ describe('ChatView – private logic', () => {
   beforeAll(async () => {
     const mod = await import('../components/chat-view')
     el = new mod.ChatView() as unknown as ChatViewUnderTest
+  })
+
+  beforeEach(() => {
+    resetHistoryMock.mockReset()
   })
 
   // ── _sumTokenUsage method ────────────────────────────────────────────────
@@ -36,5 +53,11 @@ describe('ChatView – private logic', () => {
     expect(result.outputTokens).toBe(35)
     expect(result.totalTokens).toBe(50)
     expect(result.cachedInputTokens).toBe(3)
+  })
+
+  it('reset does not call legacy resetHistory when a sessionId is active', async () => {
+    el.sessionId = 's-123'
+    await el.reset()
+    expect(resetHistoryMock).not.toHaveBeenCalled()
   })
 })
