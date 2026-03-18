@@ -10,9 +10,7 @@ public static class AppBootstrap
     public static SessionStore CreateSessionStore(string? configDir = null)
     {
         var baseDir = configDir ?? GetConfigDir();
-        var historyFile = Path.Combine(baseDir, "history.json");
-        var legacySessionsFile = Path.Combine(baseDir, "sessions.json");
         var sessionsDir = Path.Combine(baseDir, "sessions");
-        return new SessionStore(sessionsDir, legacyHistoryFile: historyFile, legacySessionsFile: legacySessionsFile);
+        return new SessionStore(sessionsDir);
     }
 }
