@@ -10,11 +10,9 @@ public class CommandExecutorTests
         string userInput = "")
     {
         var output = new StringWriter();
-        var input  = new StringReader(userInput);
+        var input = new StringReader(userInput);
         return (new CommandExecutor(mode, output, input), output);
     }
-
-    // ── DryRun ───────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task ProcessAsync_DryRun_ShowsCommandButDoesNotExecute()
@@ -30,8 +28,6 @@ public class CommandExecutorTests
         Assert.Contains("dry-run", outWriter.ToString());
     }
 
-    // ── NoExec ───────────────────────────────────────────────────────────────
-
     [Fact]
     public async Task ProcessAsync_NoExec_ReturnsEmpty()
     {
@@ -41,8 +37,6 @@ public class CommandExecutorTests
         var results = await exec.ProcessAsync(cmds);
         Assert.Empty(results);
     }
-
-    // ── Ask: Ablehnen ────────────────────────────────────────────────────────
 
     [Theory]
     [InlineData("n")]
@@ -60,8 +54,6 @@ public class CommandExecutorTests
         Assert.False(results[0].WasExecuted);
     }
 
-    // ── Ask: Bestätigen ──────────────────────────────────────────────────────
-
     [Theory]
     [InlineData("j")]
     [InlineData("J")]
@@ -70,7 +62,7 @@ public class CommandExecutorTests
     [InlineData("yes")]
     public async Task ProcessAsync_Ask_UserConfirms_CommandExecuted(string answer)
     {
-        var (exec, outWriter) = CreateExecutor(ExecutionMode.Ask, answer);
+        var (exec, _) = CreateExecutor(ExecutionMode.Ask, answer);
         var cmds = new[] { new ExtractedCommand("echo hallo", false, null) };
 
         var results = await exec.ProcessAsync(cmds);
@@ -80,8 +72,6 @@ public class CommandExecutorTests
         Assert.Equal(0, results[0].ExitCode);
         Assert.Contains("hallo", results[0].Output);
     }
-
-    // ── AutoExec ─────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task ProcessAsync_AutoExec_ExecutesWithoutAsking()
@@ -97,8 +87,6 @@ public class CommandExecutorTests
         Assert.DoesNotContain("[j/N]", outWriter.ToString());
     }
 
-    // ── Gefährliche Befehle ──────────────────────────────────────────────────
-
     [Fact]
     public async Task ProcessAsync_DangerousCommand_ShowsWarning()
     {
@@ -108,21 +96,17 @@ public class CommandExecutorTests
         await exec.ProcessAsync(cmds);
 
         var text = outWriter.ToString();
-        Assert.Contains("GEFÄHRLICHER", text);
+        Assert.Contains("GEFaeHRLICHER", text);
         Assert.Contains("rm mit -r oder -f", text);
     }
-
-    // ── ANSI-Strip ───────────────────────────────────────────────────────────
 
     [Fact]
     public async Task ProcessAsync_StripsAnsiEscapeCodes()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return; // awk-basierter Test läuft nur auf Unix
+            return;
 
         var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
-        // awk %c wandelt 27 in das ESC-Zeichen um – keine Backslashes nötig,
-        // damit EscapeForUnixShell die Sequenz nicht zerstört.
         var cmds = new[] { new ExtractedCommand(
             @"awk 'BEGIN{printf ""%c[31mhello%c[0m\n"", 27, 27}'",
             false, null) };
@@ -135,22 +119,6 @@ public class CommandExecutorTests
         Assert.DoesNotContain("\x1b[", results[0].Output);
     }
 
-    // ── Output-Kürzung ───────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task ProcessAsync_AutoExec_TruncatesLongOutput()
-    {
-        // maxOutputChars = 50 → kleines Limit zum Testen
-        var output = new StringWriter();
-        var exec = new CommandExecutor(ExecutionMode.AutoExec, output, Console.In, maxOutputChars: 50);
-
-        // Produziert deutlich mehr als 50 Zeichen
-        var cmds = new[] { new ExtractedCommand("echo 12345678901234567890123456789012345678901234567890EXTRA", false, null) };
-        var results = await exec.ProcessAsync(cmds);
-
-        Assert.Contains("gekürzt", results[0].Output);
-    }
-
     [Fact]
     public async Task ProcessAsync_AutoExec_TimesOutLongRunningCommand()
     {
@@ -159,7 +127,6 @@ public class CommandExecutorTests
             ExecutionMode.AutoExec,
             output,
             Console.In,
-            maxOutputChars: 10_000,
             commandTimeoutSeconds: 1);
 
         var sleepCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -192,7 +159,7 @@ public class CommandExecutorTests
     public async Task ProcessAsync_AutoExec_AllowsTopOneShotMode()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return; // top nicht verfügbar auf Windows
+            return;
 
         var (exec, _) = CreateExecutor(ExecutionMode.AutoExec);
         var cmds = new[] { new ExtractedCommand("top -l 1 | head -n 5", false, null) };
@@ -203,8 +170,6 @@ public class CommandExecutorTests
         Assert.True(results[0].WasExecuted);
     }
 
-    // ── Kein Befehl ──────────────────────────────────────────────────────────
-
     [Fact]
     public async Task ProcessAsync_EmptyList_ReturnsEmpty()
     {
@@ -212,8 +177,6 @@ public class CommandExecutorTests
         var results = await exec.ProcessAsync([]);
         Assert.Empty(results);
     }
-
-    // ── Follow-Up-Kontext ────────────────────────────────────────────────────
 
     [Fact]
     public void BuildFollowUpContext_EmptyResults_ReturnsEmpty()
@@ -230,7 +193,7 @@ public class CommandExecutorTests
         };
 
         var ctx = CommandExecutor.BuildFollowUpContext(results);
-        Assert.Contains("ls -la",  ctx);
+        Assert.Contains("ls -la", ctx);
         Assert.Contains("total 42", ctx);
         Assert.Contains("Exit-Code: 0", ctx);
     }
@@ -240,6 +203,6 @@ public class CommandExecutorTests
     {
         var results = new[] { new CommandResult("sudo rm -rf /", -1, "", WasExecuted: false) };
         var ctx = CommandExecutor.BuildFollowUpContext(results);
-        Assert.Contains("nicht ausgeführt", ctx);
+        Assert.Contains("nicht ausgefuehrt", ctx);
     }
 }

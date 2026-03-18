@@ -12,7 +12,6 @@ public class CommandExecutor(
     ExecutionMode mode = ExecutionMode.Ask,
     TextWriter? output = null,
     TextReader? input = null,
-    int maxOutputChars = AppDefaults.MaxCommandOutputChars,
     int commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds)
 {
     private static readonly Regex AnsiEscapeRegex =
@@ -34,12 +33,12 @@ public class CommandExecutor(
         @"^\s*ping\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private readonly TextWriter _out   = output ?? Console.Out;
-    private readonly TextReader _in    = input  ?? Console.In;
+    private readonly TextWriter _out = output ?? Console.Out;
+    private readonly TextReader _in = input ?? Console.In;
 
     /// <summary>
-    /// Verarbeitet alle extrahierten Befehle: anzeigen, bestätigen, ausführen.
-    /// Gibt die Ergebnisse zurück – auch nicht ausgeführte, für den LLM-Kontext.
+    /// Verarbeitet alle extrahierten Befehle: anzeigen, bestaetigen, ausfuehren.
+    /// Gibt die Ergebnisse zurueck, auch nicht ausgefuehrte, fuer den LLM-Kontext.
     /// </summary>
     public async Task<IReadOnlyList<CommandResult>> ProcessAsync(
         IReadOnlyList<ExtractedCommand> commands,
@@ -61,22 +60,23 @@ public class CommandExecutor(
     }
 
     /// <summary>
-    /// Formatiert die Ergebnisse als Follow-up-Kontext für das LLM.
+    /// Formatiert die Ergebnisse als Follow-up-Kontext fuer das LLM.
     /// </summary>
     public static string BuildFollowUpContext(IReadOnlyList<CommandResult> results)
     {
         if (results.Count == 0) return string.Empty;
 
         var sb = new StringBuilder();
-        sb.AppendLine("## Ausgeführte Befehle und Ergebnisse");
+        sb.AppendLine("## Ausgefuehrte Befehle und Ergebnisse");
 
         foreach (var r in results)
         {
             if (!r.WasExecuted)
             {
-                sb.AppendLine($"- `{r.Command}` → nicht ausgeführt");
+                sb.AppendLine($"- `{r.Command}` -> nicht ausgefuehrt");
                 continue;
             }
+
             sb.AppendLine($"### `{r.Command}` (Exit-Code: {r.ExitCode})");
             if (!string.IsNullOrWhiteSpace(r.Output))
             {
@@ -93,31 +93,28 @@ public class CommandExecutor(
         return sb.ToString();
     }
 
-    // ── Intern ──────────────────────────────────────────────────────────────
-
     private async Task<CommandResult> ProcessOneAsync(ExtractedCommand cmd, CancellationToken ct)
     {
-        // Befehl anzeigen
         _out.WriteLine();
         if (cmd.IsDangerous)
         {
-            _out.WriteLine($"  ⚠  GEFÄHRLICHER BEFEHL: {cmd.DangerReason}");
-            _out.WriteLine($"  →  {cmd.Command}");
+            _out.WriteLine($"  WARNING: GEFaeHRLICHER BEFEHL: {cmd.DangerReason}");
+            _out.WriteLine($"  ->  {cmd.Command}");
         }
         else
         {
-            _out.WriteLine($"  →  {cmd.Command}");
+            _out.WriteLine($"  ->  {cmd.Command}");
         }
 
         if (mode == ExecutionMode.DryRun)
         {
-            _out.WriteLine("     (--dry-run: nicht ausgeführt)");
+            _out.WriteLine("     (--dry-run: nicht ausgefuehrt)");
             return new CommandResult(cmd.Command, -1, string.Empty, WasExecuted: false);
         }
 
         if (TryGetInteractiveReason(cmd.Command, out var interactiveReason))
         {
-            _out.WriteLine($"     Übersprungen: {interactiveReason}");
+            _out.WriteLine($"     Uebersprungen: {interactiveReason}");
             return new CommandResult(
                 cmd.Command,
                 -1,
@@ -125,24 +122,22 @@ public class CommandExecutor(
                 WasExecuted: false);
         }
 
-        // Bestätigung einholen (außer bei AutoExec)
         if (mode == ExecutionMode.Ask)
         {
             var prompt = cmd.IsDangerous
-                ? "     Trotzdem ausführen? [j/N] "
-                : "     Ausführen? [j/N] ";
+                ? "     Trotzdem ausfuehren? [j/N] "
+                : "     Ausfuehren? [j/N] ";
 
             _out.Write(prompt);
             var answer = _in.ReadLine()?.Trim().ToLowerInvariant();
 
             if (answer is not ("j" or "ja" or "y" or "yes"))
             {
-                _out.WriteLine("     Übersprungen.");
+                _out.WriteLine("     Uebersprungen.");
                 return new CommandResult(cmd.Command, -1, string.Empty, WasExecuted: false);
             }
         }
 
-        // Ausführen
         var (exitCode, cmdOutput) = await RunAsync(cmd.Command, ct);
         _out.WriteLine(cmdOutput);
         return new CommandResult(cmd.Command, exitCode, cmdOutput, WasExecuted: true);
@@ -156,19 +151,19 @@ public class CommandExecutor(
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName               = fileName,
-                Arguments              = arguments,
+                FileName = fileName,
+                Arguments = arguments,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                WorkingDirectory       = Directory.GetCurrentDirectory()
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Directory.GetCurrentDirectory()
             }
         };
 
         var sb = new StringBuilder();
         process.OutputDataReceived += (_, e) => { if (e.Data is not null) sb.AppendLine(e.Data); };
-        process.ErrorDataReceived  += (_, e) => { if (e.Data is not null) sb.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) sb.AppendLine(e.Data); };
 
         process.Start();
         process.BeginOutputReadLine();
@@ -190,29 +185,26 @@ public class CommandExecutor(
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                // Ignorieren; Prozess bereits beendet oder Kill nicht möglich – Timeout-Fehler wird trotzdem zurückgegeben.
+                // Ignore: the process already exited or could not be killed.
             }
 
             return (-1, $"ERROR: Befehl nach {commandTimeoutSeconds}s abgebrochen.");
         }
 
         var raw = AnsiEscapeRegex.Replace(sb.ToString(), string.Empty);
-        var truncated = raw.Length > maxOutputChars
-            ? raw[..maxOutputChars] + $"\n… (auf {maxOutputChars} Zeichen gekürzt)"
-            : raw;
-
-        return (process.ExitCode, truncated.TrimEnd());
+        return (process.ExitCode, raw.TrimEnd());
     }
 
     private static (string FileName, string Arguments) GetShellArgs(string command)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            var shell = Environment.GetEnvironmentVariable("SHELL"); // Git Bash / WSL
+            var shell = Environment.GetEnvironmentVariable("SHELL");
             if (shell is not null)
                 return (shell, $"-c \"{EscapeForUnixShell(command)}\"");
             return ("cmd.exe", $"/c \"{EscapeForWindowsCmd(command)}\"");
         }
+
         var unixShell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh";
         return (unixShell, $"-c \"{EscapeForUnixShell(command)}\"");
     }
@@ -241,7 +233,7 @@ public class CommandExecutor(
 
         if (TailFollowPattern.IsMatch(trimmed))
         {
-            reason = "Fortlaufender 'tail -f/--follow'-Aufruf erkannt. Bitte ohne Follow-Option ausführen.";
+            reason = "Fortlaufender 'tail -f/--follow'-Aufruf erkannt. Bitte ohne Follow-Option ausfuehren.";
             return true;
         }
 
@@ -249,7 +241,7 @@ public class CommandExecutor(
                         || trimmed.Contains(" -n ", StringComparison.OrdinalIgnoreCase);
         if (PingPattern.IsMatch(trimmed) && !hasPingLimit)
         {
-            reason = "Dauerlauf bei 'ping' erkannt. Bitte mit Paketlimit ausführen, z. B. 'ping -c 4 <host>' (Linux/macOS) oder 'ping -n 4 <host>' (Windows).";
+            reason = "Dauerlauf bei 'ping' erkannt. Bitte mit Paketlimit ausfuehren, z. B. 'ping -c 4 <host>' (Linux/macOS) oder 'ping -n 4 <host>' (Windows).";
             return true;
         }
 
@@ -259,8 +251,6 @@ public class CommandExecutor(
 
     private static bool IsTopOneShot(string command)
     {
-        // macOS: top -l 1
-        // Linux: top -b -n 1
         return Regex.IsMatch(command, @"(^|\s)-l(\s*\d+)?(\s|$)", RegexOptions.IgnoreCase)
             || Regex.IsMatch(command, @"(^|\s)-b(\s|$)", RegexOptions.IgnoreCase)
             || Regex.IsMatch(command, @"(^|\s)-n(\s*\d+)?(\s|$)", RegexOptions.IgnoreCase);
