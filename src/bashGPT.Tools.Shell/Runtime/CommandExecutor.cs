@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using bashGPT.Core;
 
 namespace BashGPT.Shell;
 
@@ -12,8 +11,10 @@ public class CommandExecutor(
     ExecutionMode mode = ExecutionMode.Ask,
     TextWriter? output = null,
     TextReader? input = null,
-    int commandTimeoutSeconds = AppDefaults.CommandTimeoutSeconds)
+    int commandTimeoutSeconds = 300)
 {
+    public const int DefaultCommandTimeoutSeconds = 300;
+
     private static readonly Regex AnsiEscapeRegex =
         new(@"\x1b\[[0-9;]*[mGKHJABCDfnsu]", RegexOptions.Compiled);
 
