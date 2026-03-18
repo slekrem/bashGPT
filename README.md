@@ -139,7 +139,10 @@ Go für einen Public-Release ist erreicht, wenn:
 Empfohlener erster Public-Release:
 - Tag `v0.1.0`
 - Release Notes mit Kurzüberblick, Setup-Anforderungen und bekannten Einschränkungen
-- vor Public-Schaltung GitHub-Beschreibung, Topics und Sichtbarkeit bewusst prüfen
+- vor Public-Schaltung GitHub-Beschreibung, Topics, Homepage-Entscheidung und Sichtbarkeit bewusst prüfen
+- empfohlene GitHub-Beschreibung: `Local AI assistant for shell workflows with a .NET CLI, browser UI, agents, tools, and Ollama integration.`
+- empfohlene Topics: `dotnet`, `cli`, `ollama`, `agent`, `tool-calling`
+- den Visibility-Switch von `Private` auf `Public` erst als letzten Maintainer-Schritt nach erfolgreichem Launch-Check durchführen
 
 ## Beispiele (Output-Format)
 bashGPT erwartet, dass Shell-Befehle in Code-Blöcken stehen. Beispielantwort:
