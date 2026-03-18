@@ -1,36 +1,18 @@
-using BashGPT.Configuration;
-using BashGPT.Shell;
 using BashGPT.Storage;
 
-namespace BashGPT;
+namespace bashGPT.Core;
 
 public static class AppBootstrap
 {
-    public static string GetConfigDir() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".config", "bashgpt");
-
-    public static ProviderType? ParseProviderOrThrow(string? providerStr) => providerStr?.ToLowerInvariant() switch
-    {
-        "ollama" => ProviderType.Ollama,
-        null => null,
-        var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama")
-    };
-
-    public static ExecutionMode? ResolveExecutionMode(bool noExec, bool dryRun, bool autoExec) => (noExec, dryRun, autoExec) switch
-    {
-        (true, _, _) => ExecutionMode.NoExec,
-        (_, true, _) => ExecutionMode.DryRun,
-        (_, _, true) => ExecutionMode.AutoExec,
-        _ => null,
-    };
+    private static string GetConfigDir() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "bashgpt");
 
     public static SessionStore CreateSessionStore(string? configDir = null)
     {
-        var baseDir            = configDir ?? GetConfigDir();
-        var historyFile        = Path.Combine(baseDir, "history.json");
+        var baseDir = configDir ?? GetConfigDir();
+        var historyFile = Path.Combine(baseDir, "history.json");
         var legacySessionsFile = Path.Combine(baseDir, "sessions.json");
-        var sessionsDir        = Path.Combine(baseDir, "sessions");
+        var sessionsDir = Path.Combine(baseDir, "sessions");
         return new SessionStore(sessionsDir, legacyHistoryFile: historyFile, legacySessionsFile: legacySessionsFile);
     }
 }

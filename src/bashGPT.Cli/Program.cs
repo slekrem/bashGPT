@@ -1,5 +1,5 @@
 using System.CommandLine;
-using BashGPT;
+using bashGPT.Core;
 using BashGPT.Cli;
 using BashGPT.Configuration;
 using BashGPT.Shell;
@@ -17,11 +17,6 @@ if (args is ["--version"])
 var configService = new ConfigurationService();
 var contextCollector = new ShellContextCollector();
 var cliRunner = new CliChatRunner(configService, contextCollector);
-
-var providerOpt = new Option<string?>("--provider", "-p")
-{
-    Description = "LLM-Provider: 'ollama' (überschreibt Config)"
-};
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
@@ -69,10 +64,9 @@ var promptArg = new Argument<string[]>("prompt")
     Arity = ArgumentArity.ZeroOrMore
 };
 
-var rootCommand = new RootCommand("bashGPT – KI-gestützter Shell-Assistent");
+var rootCommand = new RootCommand("bashGPT - KI-gestützter Shell-Assistent");
 
 rootCommand.Arguments.Add(promptArg);
-rootCommand.Options.Add(providerOpt);
 rootCommand.Options.Add(modelOpt);
 rootCommand.Options.Add(noContextOpt);
 rootCommand.Options.Add(includeDirOpt);
@@ -94,15 +88,20 @@ rootCommand.SetAction(async (parseResult, ct) =>
         return;
     }
 
-    var providerOverride = AppBootstrap.ParseProviderOrThrow(parseResult.GetValue(providerOpt));
-    var execMode = AppBootstrap.ResolveExecutionMode(
+    ExecutionMode? execMode = (
         noExec: parseResult.GetValue(noExecOpt),
         dryRun: parseResult.GetValue(dryRunOpt),
-        autoExec: parseResult.GetValue(autoExecOpt));
+        autoExec: parseResult.GetValue(autoExecOpt)) switch
+    {
+        (true, _, _) => ExecutionMode.NoExec,
+        (_, true, _) => ExecutionMode.DryRun,
+        (_, _, true) => ExecutionMode.AutoExec,
+        _ => null,
+    };
 
     var opts = new CliOptions(
         Prompt: prompt,
-        Provider: providerOverride,
+        Provider: null,
         Model: parseResult.GetValue(modelOpt),
         NoContext: parseResult.GetValue(noContextOpt),
         IncludeDir: parseResult.GetValue(includeDirOpt),
