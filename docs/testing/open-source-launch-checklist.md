@@ -1,6 +1,6 @@
 # Open-Source Launch Checklist
 
-Last validated: March 16, 2026
+Last validated: March 18, 2026
 
 ## Goal
 Provide a minimal, reproducible launch check for an external developer on a clean machine.
@@ -41,16 +41,18 @@ npm test
   - Clean build/test requires undocumented manual fixes.
   - Server build and CI use materially different frontend install flows.
   - Public-facing docs still describe removed providers or dead setup paths.
-  - Open-source baseline files like license/community docs are still missing.
+  - Public launch metadata or release readiness is not documented well enough to execute the go-live cleanly.
 
 ## Current Status
-- Verified on March 16, 2026:
+- Verified on March 18, 2026:
   - `dotnet build -m:1 /nodeReuse:false`: passed
   - `dotnet test -m:1 /nodeReuse:false`: passed
   - `src/bashGPT.Web` build path is reproducible via stamp-based `npm ci`
   - README matches the Ollama-only setup and current server flags
   - Release baseline is pinned to `.NET SDK 9.0.301` and `Node.js 20.19.0`
+  - License and community-health files are present in the repository root
+  - Launch/release process documentation exists for maintainers
 
-## Known Launch Blockers Outside This Check
-- License and community-health files are still tracked separately in `#154`.
-- GitHub/release preparation is still tracked separately in `#152`.
+## Remaining Follow-Up
+- No external launch blockers are currently tracked outside this checklist.
+- Re-run this checklist before the public launch date and update the validation date with the latest results.
