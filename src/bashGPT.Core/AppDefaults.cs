@@ -1,15 +1,13 @@
-using BashGPT.Providers;
-
 namespace bashGPT.Core;
 
 /// <summary>
-/// Zentrale Sammlung aller applikationsweiten Standardwerte und Magic Numbers.
+/// Central collection of application-wide default values and magic numbers.
 /// </summary>
 public static class AppDefaults
 {
-    /// <summary>Timeout pro Shell-Befehl in Sekunden (CommandExecutor).</summary>
+    /// <summary>Timeout per shell command in seconds (CommandExecutor).</summary>
     public const int CommandTimeoutSeconds = 300;
 
-    /// <summary>Präfix für automatisch generierte Session-IDs.</summary>
+    /// <summary>Prefix for automatically generated session IDs.</summary>
     public const string SessionIdPrefix = "s-";
 }
