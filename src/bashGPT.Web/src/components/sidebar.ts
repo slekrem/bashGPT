@@ -135,7 +135,7 @@ export class Sidebar extends LitElement {
 
   private _formatDate(iso: string) {
     try {
-      return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' })
+      return new Date(iso).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })
     } catch {
       return ''
     }
@@ -147,14 +147,14 @@ export class Sidebar extends LitElement {
         class="new-chat-btn"
         @click=${() => this._dispatch('new-chat')}
       >
-        + Neuer Chat
+        + New chat
       </button>
 
-      <div class="section-label">Verlauf</div>
+      <div class="section-label">History</div>
 
       <div class="session-list">
         ${this.sessions.length === 0
-          ? html`<div class="empty-sessions">Noch keine Sessions</div>`
+          ? html`<div class="empty-sessions">No sessions yet</div>`
           : repeat(
               this.sessions,
               s => s.id,
@@ -177,14 +177,14 @@ export class Sidebar extends LitElement {
         class="nav-btn ${this.view === 'agents' ? 'active' : ''}"
         @click=${() => this._dispatch('view-change', { view: 'agents' })}
       >
-        <span class="icon">⎇</span> Agenten
+        <span class="icon">AI</span> Agents
       </button>
 
       <button
         class="nav-btn ${this.view === 'tools' ? 'active' : ''}"
         @click=${() => this._dispatch('view-change', { view: 'tools' })}
       >
-        <span class="icon">⚒</span> Tools
+        <span class="icon">T</span> Tools
       </button>
 
       <button
@@ -192,7 +192,7 @@ export class Sidebar extends LitElement {
         @click=${() => this._dispatch('view-change', { view: 'settings' })}
         style="margin-bottom: 12px;"
       >
-        <span class="icon">⚙</span> Einstellungen
+        <span class="icon">S</span> Settings
       </button>
     `
   }

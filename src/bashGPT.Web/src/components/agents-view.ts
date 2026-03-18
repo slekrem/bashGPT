@@ -79,22 +79,6 @@ export class AgentsView extends LitElement {
       text-overflow: ellipsis;
     }
 
-    .agent-tools {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 6px;
-    }
-
-    .tool-badge {
-      font-size: 10px;
-      background: #0f2d1a;
-      border: 1px solid #166534;
-      color: #86efac;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
     .agent-actions {
       display: flex;
       gap: 6px;
@@ -151,15 +135,15 @@ export class AgentsView extends LitElement {
 
   render() {
     return html`
-      <h2>Agenten</h2>
-      <div class="subtitle">Vordefinierte KI-Assistenten – wähle einen aus und starte einen Chat</div>
+      <h2>Agents</h2>
+      <div class="subtitle">Predefined AI assistants. Pick one to start a focused chat.</div>
 
       ${this._error ? html`<div class="error-msg">${this._error}</div>` : ''}
 
       ${this._loading
-        ? html`<div class="empty">Lade Agenten…</div>`
+        ? html`<div class="empty">Loading agents...</div>`
         : this._agents.length === 0
-          ? html`<div class="empty">Keine Agenten verfügbar.</div>`
+          ? html`<div class="empty">No agents available.</div>`
           : html`
             <div class="agent-list">
               ${repeat(this._agents, a => a.id, a => this._renderAgent(a))}
@@ -171,13 +155,13 @@ export class AgentsView extends LitElement {
   private _renderAgent(a: Agent) {
     return html`
       <div class="agent-card">
-        <div class="agent-icon">🤖</div>
+        <div class="agent-icon">AI</div>
         <div class="agent-body">
           <div class="agent-name">${a.name}</div>
           <div class="agent-meta">${a.id}</div>
         </div>
         <div class="agent-actions">
-          <button class="btn-chat" @click=${() => this._startChat(a)}>Chat starten</button>
+          <button class="btn-chat" @click=${() => this._startChat(a)}>Start chat</button>
         </div>
       </div>
     `

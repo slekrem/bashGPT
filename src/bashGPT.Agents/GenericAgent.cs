@@ -1,14 +1,14 @@
 namespace BashGPT.Agents;
 
 /// <summary>
-/// Standard-Agent für den generischen Chat ohne agentenspezifischen Kontext.
-/// Wird im Info-Panel angezeigt, wenn kein spezialisierter Agent ausgewählt ist.
+/// Default agent for general chat without agent-specific context.
+/// Displayed in the info panel when no specialized agent is selected.
 /// </summary>
 public sealed class GenericAgent : AgentBase
 {
     public override string Id => "generic";
 
-    public override string Name => "Generischer Chat";
+    public override string Name => "Generic Chat";
 
     public override IReadOnlyList<string> EnabledTools => [];
 
@@ -19,17 +19,17 @@ public sealed class GenericAgent : AgentBase
     );
 
     public override IReadOnlyList<string> SystemPrompt =>
-        ["Du bist ein hilfreicher Assistent. Beantworte Fragen klar und praezise."];
+        ["You are a helpful assistant. Answer clearly and concisely."];
 
     protected override string GetAgentMarkdown() => """
-        # Generischer Chat
+        # Generic Chat
 
-        Standardmodus ohne spezialisierte Tools oder agentenspezifischen System-Prompt.
+        Default mode without specialized tools or an agent-specific system prompt.
 
-        ## Hinweise
+        ## Notes
 
-        - Kein agentenspezifischer System-Prompt aktiv
-        - Tools können manuell über den Tool-Picker aktiviert werden
-        - Für spezialisierte Workflows einen Agenten aus der Agenten-Übersicht auswählen
+        - No agent-specific system prompt is active
+        - Tools can be enabled manually through the tool picker
+        - Choose a specialized agent from the agents view for focused workflows
         """;
 }

@@ -10,16 +10,16 @@ interface UseCase {
 }
 
 const USE_CASES: UseCase[] = [
-  { category: 'System', title: 'Prozesse', hint: 'Alle laufenden Prozesse auflisten', risk: 'safe', prompt: 'Zeige alle laufenden Prozesse und ihre Ressourcennutzung.' },
-  { category: 'System', title: 'Speicher & Disk', hint: 'Festplatten- und RAM-Nutzung anzeigen', risk: 'safe', prompt: 'Zeige die aktuelle Festplatten- und RAM-Nutzung.' },
-  { category: 'System', title: 'Uptime & Load', hint: 'Systemlaufzeit und Last prüfen', risk: 'safe', prompt: 'Wie lange läuft das System schon? Zeige Uptime und Load Average.' },
-  { category: 'System', title: 'Logs', hint: 'Aktuelle Systemlogs anzeigen', risk: 'safe', prompt: 'Zeige die neuesten Systemlogs (letzte 50 Zeilen).' },
-  { category: 'Git', title: 'Status', hint: 'Aktuellen Branch und Änderungen anzeigen', risk: 'safe', prompt: 'Zeige den git-Status des aktuellen Verzeichnisses.' },
-  { category: 'Git', title: 'Log', hint: 'Letzte 10 Commits anzeigen', risk: 'safe', prompt: 'Zeige die letzten 10 git-Commits mit Autor und Datum.' },
-  { category: 'Dateien', title: 'Verzeichnis', hint: 'Dateien im aktuellen Ordner auflisten', risk: 'safe', prompt: 'Liste alle Dateien im aktuellen Verzeichnis mit Details auf.' },
-  { category: 'Dateien', title: 'Datei suchen', hint: 'Datei nach Name suchen', risk: 'safe', prompt: 'Suche nach einer bestimmten Datei – welchen Namen soll ich suchen?' },
-  { category: 'Netzwerk', title: 'IP-Adressen', hint: 'Netzwerk-Interfaces anzeigen', risk: 'safe', prompt: 'Zeige alle aktuellen Netzwerk-Interfaces und IP-Adressen.' },
-  { category: 'Netzwerk', title: 'Offene Ports', hint: 'Aktive Dienste und Ports auflisten', risk: 'medium', prompt: 'Welche Ports sind aktuell offen und welche Dienste lauschen?' },
+  { category: 'System', title: 'Processes', hint: 'List all running processes', risk: 'safe', prompt: 'Show all running processes and their resource usage.' },
+  { category: 'System', title: 'Memory & Disk', hint: 'Show disk and memory usage', risk: 'safe', prompt: 'Show the current disk and memory usage.' },
+  { category: 'System', title: 'Uptime & Load', hint: 'Check system uptime and load', risk: 'safe', prompt: 'How long has the system been running? Show uptime and load average.' },
+  { category: 'System', title: 'Logs', hint: 'Show recent system logs', risk: 'safe', prompt: 'Show the latest system logs (last 50 lines).' },
+  { category: 'Git', title: 'Status', hint: 'Show the current branch and changes', risk: 'safe', prompt: 'Show the git status of the current directory.' },
+  { category: 'Git', title: 'Log', hint: 'Show the last 10 commits', risk: 'safe', prompt: 'Show the last 10 git commits with author and date.' },
+  { category: 'Files', title: 'Directory', hint: 'List files in the current folder', risk: 'safe', prompt: 'List all files in the current directory with details.' },
+  { category: 'Files', title: 'Find File', hint: 'Search for a file by name', risk: 'safe', prompt: 'Search for a specific file. Which filename should I look for?' },
+  { category: 'Network', title: 'IP Addresses', hint: 'Show network interfaces', risk: 'safe', prompt: 'Show all current network interfaces and IP addresses.' },
+  { category: 'Network', title: 'Open Ports', hint: 'List active services and ports', risk: 'medium', prompt: 'Which ports are currently open and which services are listening?' },
 ]
 
 const RECENT_KEY = 'bashgpt_recent_prompts'
@@ -165,8 +165,8 @@ export class Dashboard extends LitElement {
       padding: 2px 7px;
       border-radius: 999px;
     }
-    .risk-safe     { background: #14532d; color: #86efac; }
-    .risk-medium   { background: #78350f; color: #fcd34d; }
+    .risk-safe { background: #14532d; color: #86efac; }
+    .risk-medium { background: #78350f; color: #fcd34d; }
 
     .card-actions {
       display: flex;
@@ -218,7 +218,7 @@ export class Dashboard extends LitElement {
       const updated = [prompt, ...this._recent.filter(r => r !== prompt)].slice(0, MAX_RECENT)
       localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
       this._recent = updated
-    } catch { /* ignore */ }
+    } catch {}
     this.dispatchEvent(new CustomEvent('prompt-selected', { detail: { prompt }, bubbles: true, composed: true }))
   }
 
@@ -237,25 +237,25 @@ export class Dashboard extends LitElement {
   }
 
   private _riskLabel(risk: UseCase['risk']) {
-    return risk === 'safe' ? '✓ Sicher' : '⚠ Mittel'
+    return risk === 'safe' ? 'Safe' : 'Medium'
   }
 
   render() {
     return html`
-      <div class="greeting">Hallo! Ich bin bashGPT.</div>
-      <div class="subtitle">Was möchtest du heute erledigen?</div>
+      <div class="greeting">Hello! I am bashGPT.</div>
+      <div class="subtitle">What would you like to get done today?</div>
 
       <input
         class="search"
         type="search"
-        placeholder="Use-Cases durchsuchen…"
-        aria-label="Use-Cases durchsuchen"
+        placeholder="Search use cases..."
+        aria-label="Search use cases"
         .value=${this._search}
         @input=${(e: InputEvent) => { this._search = (e.target as HTMLInputElement).value }}
       />
 
       ${this._recent.length > 0 ? html`
-        <div class="section-label">Zuletzt genutzt</div>
+        <div class="section-label">Recently used</div>
         <div class="recent-row">
           ${this._recent.map(p => html`
             <button class="recent-chip" title=${p} @click=${() => this._dispatch(p)}>${p}</button>
@@ -264,7 +264,7 @@ export class Dashboard extends LitElement {
       ` : ''}
 
       ${this._filtered.length === 0 ? html`
-        <div class="empty-search">Keine Use-Cases gefunden für „${this._search}".</div>
+        <div class="empty-search">No use cases found for "${this._search}".</div>
       ` : ''}
 
       ${this._categories.map(cat => html`
@@ -277,8 +277,8 @@ export class Dashboard extends LitElement {
                 <div class="card-hint">${u.hint}</div>
                 <span class="risk-badge risk-${u.risk}">${this._riskLabel(u.risk)}</span>
                 <div class="card-actions">
-                  <button class="run" @click=${() => this._dispatch(u.prompt)}>Ausführen</button>
-                  <button @click=${() => this.dispatchEvent(new CustomEvent('prompt-edit', { detail: { prompt: u.prompt }, bubbles: true, composed: true }))}>Anpassen</button>
+                  <button class="run" @click=${() => this._dispatch(u.prompt)}>Run</button>
+                  <button @click=${() => this.dispatchEvent(new CustomEvent('prompt-edit', { detail: { prompt: u.prompt }, bubbles: true, composed: true }))}>Edit</button>
                 </div>
               </div>
             `)}

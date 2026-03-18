@@ -6,7 +6,7 @@ using BashGPT.Providers;
 namespace BashGPT.Agents.Dev;
 
 /// <summary>
-/// Spezialisierter Entwicklungsagent mit Zugriff auf Filesystem, Git, Build und Test-Tools.
+/// Specialized development agent with access to filesystem, git, build, and test tools.
 /// </summary>
 public sealed class DevAgent : AgentBase
 {
@@ -36,45 +36,44 @@ public sealed class DevAgent : AgentBase
     ];
 
     public override AgentLlmConfig LlmConfig => new(
-        Temperature:       0.1,    // deterministisch – Code ist kein kreativer Output
+        Temperature:       0.1,    // deterministic: code is not creative output
         TopP:              0.95,
-        NumCtx:            65536,  // 64k Kontext für Dateien, Diffs und Logs
-        MaxTokens:         8192,   // Output: genug für komplexe Code-Antworten
-        ReasoningEffort:   "high", // komplexe Aufgaben brauchen gutes Reasoning
-        FrequencyPenalty:  0.1,    // repetitive Tool-Call-Schleifen dämpfen
-        ParallelToolCalls: false,  // sequenziell – sicherer bei Dateimutationen
+        NumCtx:            65536,  // 64k context for files, diffs, and logs
+        MaxTokens:         8192,   // enough output room for complex coding tasks
+        ReasoningEffort:   "high", // complex tasks benefit from strong reasoning
+        FrequencyPenalty:  0.1,    // dampen repetitive tool-call loops
+        ParallelToolCalls: false,  // sequential is safer for file mutations
         Stream:            true
     );
 
     public override IReadOnlyList<string> SystemPrompt =>
     [
         """
-        Du bist ein erfahrener Software-Entwickler. Loese Aufgaben durch gezielten Tool-Einsatz.
-        Bevor du eine Aufgabe bearbeitest, lade relevante Quelldateien mit 'context_load_files' in den Kontext.
+        You are an experienced software engineer. Solve tasks through focused tool usage.
+        Before working on a task, load relevant source files into context with 'context_load_files'.
         """,
         """
-        Tool-Call-Regeln:
-        - Halte dich strikt an das Schema: richtige Typen, alle Pflichtfelder, gueltige Werte.
-        - Schlaegt ein Tool mit "missing_required_field" fehl: fuege genau dieses Feld hinzu und wiederhole.
-        - Schlaegt ein Tool mit "invalid_type" oder "invalid_value" fehl: korrigiere nur das benannte Feld.
-        - Schlaegt ein Tool mit "invalid_json" fehl: sende gueltiges JSON und wiederhole.
-        - Fehlende optionale Pfade: setze "path": "." als Default.
+        Tool call rules:
+        - Follow the schema strictly: correct types, all required fields, valid values.
+        - If a tool fails with "missing_required_field", add exactly that field and retry.
+        - If a tool fails with "invalid_type" or "invalid_value", correct only the named field.
+        - If a tool fails with "invalid_json", send valid JSON and retry.
+        - For missing optional paths, use "path": "." as the default.
         """,
         BuildProjectContext(),
         BuildLoadedFilesContext(),
     ];
 
     /// <summary>
-    /// Generiert zur Laufzeit einen Projektkontext: Git-Infos und alle getrackten Dateien.
-    /// Ignorierte Dateien (.gitignore) werden ausgelassen. Wird bei jedem Chat-Request frisch aufgebaut.
+    /// Builds project context at runtime: git info plus all tracked files.
+    /// Ignored files (.gitignore) are omitted. Rebuilt fresh for every chat request.
     /// </summary>
     private static string BuildProjectContext()
     {
         var cwd = Directory.GetCurrentDirectory();
-        var sb  = new StringBuilder("# Projektkontext\n\n");
+        var sb  = new StringBuilder("# Project Context\n\n");
 
-        // Arbeitsverzeichnis + Git
-        sb.AppendLine($"**Verzeichnis:** `{cwd}`\n");
+        sb.AppendLine($"**Directory:** `{cwd}`\n");
         var branch     = Git("rev-parse --abbrev-ref HEAD");
         var lastCommit = Git("log -1 --oneline");
         if (branch is not null)
@@ -82,12 +81,10 @@ public sealed class DevAgent : AgentBase
             sb.AppendLine("**Git:**");
             sb.AppendLine($"- Branch: `{branch}`");
             if (lastCommit is not null)
-                sb.AppendLine($"- Letzter Commit: `{lastCommit}`");
+                sb.AppendLine($"- Last commit: `{lastCommit}`");
             sb.AppendLine();
         }
 
-        // Alle getrackten Dateien via git ls-files (respektiert .gitignore),
-        // gruppiert nach Top-Level-Verzeichnis
         var files = Git("ls-files");
         if (files is not null)
         {
@@ -96,7 +93,7 @@ public sealed class DevAgent : AgentBase
                 .GroupBy(f => f.Contains('/') ? f[..f.IndexOf('/')] : ".")
                 .OrderBy(g => g.Key);
 
-            sb.AppendLine("**Dateien (gittracked):**");
+            sb.AppendLine("**Files (git tracked):**");
             foreach (var group in grouped)
             {
                 sb.AppendLine($"\n`{group.Key}/`");
@@ -110,15 +107,15 @@ public sealed class DevAgent : AgentBase
     }
 
     /// <summary>
-    /// Lädt alle im Cache gespeicherten Dateien und gibt deren Inhalt als formatierten String zurück.
-    /// Leere Strings werden von ServerChatRunner automatisch gefiltert.
+    /// Loads all files stored in the cache and returns their content as formatted text.
+    /// Empty strings are filtered automatically by ServerChatRunner.
     /// </summary>
     private static string BuildLoadedFilesContext()
     {
         var paths = ContextFileCache.ReadFiles();
         if (paths.Count == 0) return string.Empty;
 
-        var sb = new StringBuilder("# Geladene Dateien\n\n");
+        var sb = new StringBuilder("# Loaded Files\n\n");
         foreach (var path in paths)
         {
             if (!File.Exists(path)) continue;
@@ -127,16 +124,18 @@ public sealed class DevAgent : AgentBase
                 var info = new FileInfo(path);
                 if (info.Length > 131_072)
                 {
-                    sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
+                    sb.AppendLine($"## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.\n");
                     continue;
                 }
+
                 sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
             }
             catch (Exception ex)
             {
-                sb.AppendLine($"## `{path}`\n\n> Fehler beim Lesen: {ex.Message}\n");
+                sb.AppendLine($"## `{path}`\n\n> Read error: {ex.Message}\n");
             }
         }
+
         return sb.ToString().TrimEnd();
     }
 
@@ -154,43 +153,46 @@ public sealed class DevAgent : AgentBase
             proc?.WaitForExit();
             return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
     protected override string GetAgentMarkdown() => """
         # Dev-Agent
 
-        Spezialisierter Software-Entwicklungsagent mit vollständigem Zugriff auf Dateisystem, Git, Build- und Test-Tools.
+        Specialized software development agent with full access to filesystem, git, build, and testing tools.
 
-        ## Fähigkeiten
+        ## Capabilities
 
-        - Dateien lesen, schreiben und durchsuchen
-        - Git-Operationen (Status, Diff, Log, Branch, Commit, Checkout)
-        - Builds ausführen und Testergebnisse auswerten
-        - Shell-Befehle ausführen
-        - Web-Inhalte abrufen (fetch)
+        - Read, write, and search files
+        - Git operations (status, diff, log, branch, commit, checkout)
+        - Run builds and evaluate test results
+        - Execute shell commands
+        - Fetch web content
 
-        ## Aktive Tools
+        ## Enabled Tools
 
-        | Tool | Beschreibung |
+        | Tool | Description |
         |---|---|
-        | `fetch` | Web-Inhalte abrufen |
-        | `filesystem_read` | Dateien und Verzeichnisse lesen |
-        | `filesystem_write` | Dateien erstellen und bearbeiten |
-        | `filesystem_search` | Dateien nach Muster durchsuchen |
-        | `git_status` | Git-Status anzeigen |
-        | `git_diff` | Änderungen vergleichen |
-        | `git_log` | Commit-Historie einsehen |
-        | `git_branch` | Branches verwalten |
-        | `git_add` | Änderungen stagen |
-        | `git_commit` | Commits erstellen |
-        | `git_checkout` | Branches wechseln |
-        | `test_run` | Tests ausführen |
-        | `build_run` | Build starten |
-        | `shell_exec` | Shell-Befehle ausführen |
+        | `fetch` | Fetch web content |
+        | `filesystem_read` | Read files and directories |
+        | `filesystem_write` | Create and edit files |
+        | `filesystem_search` | Search files by pattern |
+        | `git_status` | Show git status |
+        | `git_diff` | Compare changes |
+        | `git_log` | Inspect commit history |
+        | `git_branch` | Manage branches |
+        | `git_add` | Stage changes |
+        | `git_commit` | Create commits |
+        | `git_checkout` | Switch branches |
+        | `test_run` | Run tests |
+        | `build_run` | Start a build |
+        | `shell_exec` | Execute shell commands |
 
-        ## Hinweise
+        ## Notes
 
-        Dieser Agent folgt strengen Regeln für Tool-Calls und wiederholt fehlerhafte Aufrufe automatisch mit korrigierten Argumenten.
+        This agent follows strict tool-call rules and automatically retries invalid calls with corrected arguments.
         """;
 }
