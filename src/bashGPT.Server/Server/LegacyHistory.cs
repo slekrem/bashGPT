@@ -1,5 +1,5 @@
 using BashGPT.Providers;
-using BashGPT;
+using bashGPT.Core;
 
 namespace BashGPT.Server;
 

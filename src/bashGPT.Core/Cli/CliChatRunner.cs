@@ -1,3 +1,4 @@
+using bashGPT.Core;
 using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Shell;
@@ -6,7 +7,7 @@ namespace BashGPT.Cli;
 
 /// <summary>
 /// Verarbeitet Chat-Anfragen im CLI-Modus: streamt Tokens direkt auf die Console
-/// und führt Shell-Befehle interaktiv oder automatisch aus.
+/// und fuehrt Shell-Befehle interaktiv oder automatisch aus.
 /// </summary>
 public class CliChatRunner(
     ConfigurationService configService,
@@ -27,7 +28,7 @@ public class CliChatRunner(
 
         ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
-        var execMode   = opts.ExecMode   ?? config.DefaultExecMode;
+        var execMode   = opts.ExecMode ?? config.DefaultExecMode;
         var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         ILlmProvider provider;
@@ -69,17 +70,28 @@ public class CliChatRunner(
         {
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
-            await HandleToolCallsAsync(provider, messages, firstResponse, tools, opts, execMode, toolChoiceName, AppDefaults.CommandTimeoutSeconds, loopDetectionEnabled: true, AppDefaults.MaxToolCallRounds, ct);
+
+            await HandleToolCallsAsync(
+                provider,
+                messages,
+                firstResponse,
+                tools,
+                opts,
+                execMode,
+                toolChoiceName,
+                AppDefaults.CommandTimeoutSeconds,
+                loopDetectionEnabled: true,
+                ct);
             return 0;
         }
 
         if (string.IsNullOrWhiteSpace(firstResponse.Content))
             return 0;
 
-        // Fallback: Befehle aus Text-Codeblöcken extrahieren
+        // Fallback: Befehle aus Text-Codebloecken extrahieren
         var commands = BashCommandExtractor.Extract(firstResponse.Content);
         if (opts.Verbose && commands.Count > 0)
-            Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codeblöcken extrahiert");
+            Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codebloecken extrahiert");
         if (commands.Count == 0 || execMode == ExecutionMode.NoExec)
             return 0;
 
@@ -117,7 +129,6 @@ public class CliChatRunner(
         string? toolChoiceName,
         int commandTimeoutSeconds,
         bool loopDetectionEnabled,
-        int maxToolCallRounds,
         CancellationToken ct)
     {
         var response                   = initialResponse;
@@ -126,7 +137,7 @@ public class CliChatRunner(
         var previousToolCalls          = (IReadOnlyList<ToolCall>?)null;
         var loopDetected               = false;
 
-        while (response.ToolCalls.Count > 0 && (!loopDetectionEnabled || rounds < maxToolCallRounds))
+        while (response.ToolCalls.Count > 0)
         {
             if (loopDetectionEnabled && AppDefaults.DetectLoop(previousToolCalls, response.ToolCalls))
             {
@@ -141,6 +152,7 @@ public class CliChatRunner(
             {
                 consecutiveIdenticalRounds = 0;
             }
+
             previousToolCalls = response.ToolCalls;
             rounds++;
 
@@ -168,9 +180,6 @@ public class CliChatRunner(
 
         if (loopDetected)
             Console.Error.WriteLine(AppDefaults.LoopDetectedMessage);
-        else if (response.ToolCalls.Count > 0)
-            Console.Error.WriteLine($"Maximale Anzahl Tool-Call-Runden ({maxToolCallRounds}) erreicht. " +
-                "Die Aufgabe wurde möglicherweise nicht vollständig abgeschlossen.");
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(
@@ -186,11 +195,11 @@ public class CliChatRunner(
         {
             response = await provider.ChatAsync(
                 new LlmChatRequest(
-                    Messages:       messages,
-                    Tools:          tools,
-                    ToolChoiceName: toolChoiceName,
+                    Messages:          messages,
+                    Tools:             tools,
+                    ToolChoiceName:    toolChoiceName,
                     ParallelToolCalls: false,
-                    Stream:         true,
+                    Stream:            true,
                     OnToken: token =>
                     {
                         Console.Write(token);
@@ -206,6 +215,7 @@ public class CliChatRunner(
         {
             Console.Error.WriteLine("\nAbgebrochen.");
         }
+
         return response with { Content = string.IsNullOrEmpty(response.Content) ? sb.ToString() : response.Content };
     }
 }

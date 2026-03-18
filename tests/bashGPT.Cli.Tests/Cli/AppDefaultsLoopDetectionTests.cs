@@ -1,3 +1,4 @@
+using bashGPT.Core;
 using BashGPT.Providers;
 
 namespace BashGPT.Cli.Tests;

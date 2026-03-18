@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using BashGPT;
+using bashGPT.Core;
 
 namespace BashGPT.Shell;
 
