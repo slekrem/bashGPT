@@ -10,9 +10,6 @@ public static class AppDefaults
     /// <summary>Timeout pro Shell-Befehl in Sekunden (CommandExecutor).</summary>
     public const int CommandTimeoutSeconds = 300;
 
-    /// <summary>Maximale Anzahl HTTP-Wiederholungen bei 429-Fehlern des LLM-Providers.</summary>
-    public const int MaxProviderRetries = 3;
-
     /// <summary>Präfix für automatisch generierte Session-IDs.</summary>
     public const string SessionIdPrefix = "s-";
 

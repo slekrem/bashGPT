@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using bashGPT.Core;
 using BashGPT.Configuration;
 
 namespace BashGPT.Providers;
@@ -103,124 +102,87 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             return new LlmChatResponse(content, toolCalls, nonStreamUsage);
         }
 
-        var aggregateRaw = new StringBuilder();
-        string? incompleteRaw = null;
-        for (var attempt = 0; attempt <= AppDefaults.MaxProviderRetries; attempt++)
+        var contentBuilder = new StringBuilder();
+        var toolBuilder = new Dictionary<int, ToolCallBuilder>();
+        var rawLines = new StringBuilder();
+        OpenAiUsage? streamUsage = null;
+        var streamCompleted = false;
+
+        await using (var stream = await response.Content.ReadAsStreamAsync(ct))
+        using (var reader = new System.IO.StreamReader(stream))
         {
-            var contentBuilder = new StringBuilder();
-            var toolBuilder = new Dictionary<int, ToolCallBuilder>();
-            var rawLines = new StringBuilder();
-            OpenAiUsage? streamUsage = null;
-            var streamCompleted = false;
-
-            await using (var stream = await response.Content.ReadAsStreamAsync(ct))
-            using (var reader = new System.IO.StreamReader(stream))
+            while (!reader.EndOfStream && !ct.IsCancellationRequested)
             {
-                while (!reader.EndOfStream && !ct.IsCancellationRequested)
+                var line = await reader.ReadLineAsync(ct);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+
+                rawLines.AppendLine(line);
+
+                var json = line["data:".Length..].Trim();
+                if (json == "[DONE]")
                 {
-                    var line = await reader.ReadLineAsync(ct);
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-
-                    if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
-
-                    rawLines.AppendLine(line);
-
-                    var json = line["data:".Length..].Trim();
-                    if (json == "[DONE]")
-                    {
-                        streamCompleted = true;
-                        break;
-                    }
-
-                    OpenAiStreamChunk? chunk;
-                    try
-                    {
-                        chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
-                    }
-                    catch (JsonException)
-                    {
-                        continue;
-                    }
-
-                    var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
-
-                    var reasoning = delta?.ReasoningContent;
-                    if (!string.IsNullOrEmpty(reasoning))
-                        request.OnReasoningToken?.Invoke(reasoning);
-
-                    var content = delta?.Content;
-                    if (!string.IsNullOrEmpty(content))
-                    {
-                        request.OnToken?.Invoke(content);
-                        contentBuilder.Append(content);
-                    }
-
-                    if (delta?.ToolCalls is { Count: > 0 })
-                    {
-                        foreach (var toolDelta in delta.ToolCalls)
-                            ApplyToolDelta(toolBuilder, toolDelta);
-                    }
-
-                    if (chunk?.Usage is not null)
-                        streamUsage = chunk.Usage;
+                    streamCompleted = true;
+                    break;
                 }
-            }
 
-            if (aggregateRaw.Length > 0)
-                aggregateRaw.AppendLine();
-            aggregateRaw.AppendLine($"# attempt {attempt + 1}");
-            aggregateRaw.Append(rawLines.ToString());
+                OpenAiStreamChunk? chunk;
+                try
+                {
+                    chunk = JsonSerializer.Deserialize<OpenAiStreamChunk>(json, JsonDefaults.Options);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
 
-            if (streamCompleted)
-            {
-                if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
+                var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
 
-                var toolCallsFinal = toolBuilder
-                    .OrderBy(kvp => kvp.Key)
-                    .Select(kvp => kvp.Value.ToToolCall())
-                    .ToList();
+                var reasoning = delta?.ReasoningContent;
+                if (!string.IsNullOrEmpty(reasoning))
+                    request.OnReasoningToken?.Invoke(reasoning);
 
-                var usage = streamUsage is not null
-                    ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
-                    : null;
+                var content = delta?.Content;
+                if (!string.IsNullOrEmpty(content))
+                {
+                    request.OnToken?.Invoke(content);
+                    contentBuilder.Append(content);
+                }
 
-                return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
-            }
+                if (delta?.ToolCalls is { Count: > 0 })
+                {
+                    foreach (var toolDelta in delta.ToolCalls)
+                        ApplyToolDelta(toolBuilder, toolDelta);
+                }
 
-            incompleteRaw = rawLines.ToString();
-            if (attempt >= AppDefaults.MaxProviderRetries || ct.IsCancellationRequested)
-                break;
-
-            response.Dispose();
-            using var retryRequest = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = new StringContent(serialized, Encoding.UTF8, "application/json")
-            };
-            try
-            {
-                response = await Http.SendAsync(retryRequest, HttpCompletionOption.ResponseHeadersRead, ct);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw WrapHttpException(ex, config.BaseUrl);
-            }
-            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
-            {
-                throw WrapTimeoutException(ex, $"Ollama ({config.BaseUrl})");
-            }
-            if (!response.IsSuccessStatusCode)
-            {
-                var body = await response.Content.ReadAsStringAsync(ct);
-                if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
-                throw new LlmProviderException(
-                    $"Ollama antwortete mit HTTP {(int)response.StatusCode}: {body}");
+                if (chunk?.Usage is not null)
+                    streamUsage = chunk.Usage;
             }
         }
 
-        if (request.OnResponseJson is not null) await request.OnResponseJson(aggregateRaw.ToString());
+        var rawResponse = rawLines.ToString();
+
+        if (streamCompleted)
+        {
+            if (request.OnResponseJson is not null) await request.OnResponseJson(rawResponse);
+
+            var toolCallsFinal = toolBuilder
+                .OrderBy(kvp => kvp.Key)
+                .Select(kvp => kvp.Value.ToToolCall())
+                .ToList();
+
+            var usage = streamUsage is not null
+                ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
+                : null;
+
+            return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
+        }
+
+        if (request.OnResponseJson is not null) await request.OnResponseJson(rawResponse);
         throw new LlmProviderException(
-            $"Ollama stream ended before [DONE] after {AppDefaults.MaxProviderRetries + 1} attempts." +
-            (string.IsNullOrWhiteSpace(incompleteRaw) ? "" : $"\nLast stream chunk:\n{incompleteRaw}"));
+            "Ollama stream ended before [DONE]." +
+            (string.IsNullOrWhiteSpace(rawResponse) ? "" : $"\nLast stream chunk:\n{rawResponse}"));
     }
 
     public override async IAsyncEnumerable<string> StreamAsync(

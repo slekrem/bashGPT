@@ -130,7 +130,9 @@ public class CommandExecutorTests
             commandTimeoutSeconds: 1);
 
         var sleepCmd = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? "ping -n 3 127.0.0.1 > nul"
+            ? Environment.GetEnvironmentVariable("SHELL") is not null
+                ? "sleep 5"
+                : "ping -n 10 127.0.0.1 > nul"
             : "sleep 2";
         var cmds = new[] { new ExtractedCommand(sleepCmd, false, null) };
         var results = await exec.ProcessAsync(cmds);

@@ -26,6 +26,8 @@ internal sealed class ChatApiHandler(
             return;
         }
 
+        var sessionId = ResolveSessionId(body.SessionId);
+
         // Agent laden (optional)
         AgentBase? agent = null;
         if (agentRegistry is not null && !string.IsNullOrWhiteSpace(body.AgentId))
@@ -33,8 +35,8 @@ internal sealed class ChatApiHandler(
 
         // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
         SessionRecord? session = null;
-        if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
-            session = await sessionStore.LoadAsync(body.SessionId);
+        if (sessionStore is not null && sessionId is not null)
+            session = await sessionStore.LoadAsync(sessionId);
 
         // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
         IReadOnlyList<ChatMessage> historySnapshot;
@@ -45,7 +47,7 @@ internal sealed class ChatApiHandler(
                 .OfType<ChatMessage>()
                 .ToList();
         }
-        else if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+        else if (sessionStore is not null && sessionId is not null)
         {
             historySnapshot = [];
         }
@@ -69,10 +71,9 @@ internal sealed class ChatApiHandler(
 
         var now        = DateTime.UtcNow.ToString("o");
         var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
-        var sessionId  = body.SessionId;
 
         // Session-Pfad setzen, bevor agent.SystemPrompt ausgewertet wird.
-        ContextFileCache.CurrentSessionPath = sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+        ContextFileCache.CurrentSessionPath = sessionStore is not null && sessionId is not null
             ? sessionStore.GetSessionDir(sessionId)
             : null;
 
@@ -82,15 +83,15 @@ internal sealed class ChatApiHandler(
             Provider: options.Provider,
             Model:    options.Model,
             Verbose:  options.Verbose || body.Verbose == true,
-            OnLlmRequestJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+            OnLlmRequestJson: sessionStore is not null && sessionId is not null
                 ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
-            OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+            OnLlmResponseJson: sessionStore is not null && sessionId is not null
                 ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
             Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
             SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
-            SessionPath:  sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+            SessionPath:  sessionStore is not null && sessionId is not null
                 ? sessionStore.GetSessionDir(sessionId)
                 : null);
 
@@ -104,7 +105,7 @@ internal sealed class ChatApiHandler(
         };
 
         // Persistieren: nur session-basiert
-        if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+        if (sessionStore is not null && sessionId is not null)
         {
             var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
@@ -115,7 +116,7 @@ internal sealed class ChatApiHandler(
 
             await sessionStore.UpsertAsync(new SessionRecord
             {
-                Id           = body.SessionId,
+                Id           = sessionId,
                 Title        = title,
                 CreatedAt    = session?.CreatedAt ?? now,
                 UpdatedAt    = now,
@@ -142,7 +143,7 @@ internal sealed class ChatApiHandler(
                     },
                 },
             };
-            await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
+            await sessionStore.SaveRequestAsync(sessionId, reqRecord);
         }
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new
@@ -162,6 +163,13 @@ internal sealed class ChatApiHandler(
             },
         });
     }
+
+    private string? ResolveSessionId(string? requestedSessionId) =>
+        sessionStore is null
+            ? null
+            : string.IsNullOrWhiteSpace(requestedSessionId)
+                ? SessionStore.LiveSessionId
+                : requestedSessionId;
 
     private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
         => commands is not { Count: > 0 }

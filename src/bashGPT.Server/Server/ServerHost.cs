@@ -223,8 +223,11 @@ public class ServerHost
 
         var session = await _sessionStore.LoadAsync(latest.Id);
         var history = session?.Messages
-            .Where(m => (m.Role == "user" || m.Role == "assistant" || m.Role == "tool") && !string.IsNullOrEmpty(m.Content))
-            .Select(m => new { role = m.Role, content = m.Content })
+            .Where(m =>
+                m.Role == "user"
+                || m.Role == "tool"
+                || (m.Role == "assistant" && (!string.IsNullOrEmpty(m.Content) || m.ToolCalls is { Count: > 0 })))
+            .Select(m => new { role = m.Role, content = m.Content ?? string.Empty })
             .ToList()
             ?? [];
 

@@ -172,27 +172,22 @@ public class OllamaProviderTests
     }
 
     [Fact]
-    public async Task ChatAsync_Stream_IncompleteStream_RetriesMandatory_AndSucceeds()
+    public async Task ChatAsync_Stream_IncompleteStream_ThrowsWithoutRetry()
     {
         var firstIncomplete = """
             data: {"choices":[{"delta":{"reasoning":"plan"}}]}
             """;
-        var secondComplete = """
-            data: {"choices":[{"delta":{"content":"ok"}}]}
-            data: [DONE]
-            """;
         var handler = new SequentialHttpMessageHandler(
-            SequentialHttpMessageHandler.Ok(firstIncomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(secondComplete, "text/event-stream"));
+            SequentialHttpMessageHandler.Ok(firstIncomplete, "text/event-stream"));
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
             new HttpClient(handler));
 
-        var result = await provider.ChatAsync(
-            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: true));
+        await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(
+                new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: true)));
 
-        Assert.Equal(2, handler.CallCount);
-        Assert.Equal("ok", result.Content);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact]
@@ -202,9 +197,6 @@ public class OllamaProviderTests
             data: {"choices":[{"delta":{"reasoning":"plan"}}]}
             """;
         var handler = new SequentialHttpMessageHandler(
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
             SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"));
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
@@ -223,7 +215,7 @@ public class OllamaProviderTests
                 })));
 
         Assert.NotNull(capturedResponseJson);
-        Assert.Contains("# attempt 1", capturedResponseJson, StringComparison.Ordinal);
+        Assert.Contains("data: {\"choices\":[{\"delta\":{\"reasoning\":\"plan\"}}]}", capturedResponseJson, StringComparison.Ordinal);
     }
 
     [Fact]

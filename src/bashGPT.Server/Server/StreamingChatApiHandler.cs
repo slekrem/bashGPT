@@ -30,6 +30,7 @@ internal sealed class StreamingChatApiHandler(
         var requestId = string.IsNullOrWhiteSpace(body.RequestId)
             ? Guid.NewGuid().ToString("N")
             : body.RequestId.Trim();
+        var sessionId = ResolveSessionId(body.SessionId);
 
         using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         runningChats.Register(requestId, requestCts);
@@ -51,8 +52,8 @@ internal sealed class StreamingChatApiHandler(
 
             // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
             SessionRecord? session = null;
-            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
-                session = await sessionStore.LoadAsync(body.SessionId);
+            if (sessionStore is not null && sessionId is not null)
+                session = await sessionStore.LoadAsync(sessionId);
 
             // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
             IReadOnlyList<ChatMessage> historySnapshot;
@@ -63,7 +64,7 @@ internal sealed class StreamingChatApiHandler(
                     .OfType<ChatMessage>()
                     .ToList();
             }
-            else if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            else if (sessionStore is not null && sessionId is not null)
             {
                 historySnapshot = [];
             }
@@ -87,11 +88,10 @@ internal sealed class StreamingChatApiHandler(
 
             var now        = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
-            var sessionId  = body.SessionId;
 
             // Session-Pfad setzen, bevor agent.SystemPrompt ausgewertet wird,
             // damit Dev-Agent-Kontext-Cache session-spezifisch geladen werden kann.
-            ContextFileCache.CurrentSessionPath = sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+            ContextFileCache.CurrentSessionPath = sessionStore is not null && sessionId is not null
                 ? sessionStore.GetSessionDir(sessionId)
                 : null;
 
@@ -122,16 +122,16 @@ internal sealed class StreamingChatApiHandler(
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
                 },
-                OnLlmRequestJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                OnLlmRequestJson: sessionStore is not null && sessionId is not null
                     ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
-                OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                OnLlmResponseJson: sessionStore is not null && sessionId is not null
                     ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
                 SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
                 LlmConfig:    agent?.LlmConfig,
-                SessionPath:  sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                SessionPath:  sessionStore is not null && sessionId is not null
                     ? sessionStore.GetSessionDir(sessionId)
                     : null);
 
@@ -169,7 +169,7 @@ internal sealed class StreamingChatApiHandler(
             ApiResponse.WriteSseEvent(stream, "[DONE]");
 
             // Session persistieren
-            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            if (sessionStore is not null && sessionId is not null)
             {
                 var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
@@ -180,7 +180,7 @@ internal sealed class StreamingChatApiHandler(
 
                 await sessionStore.UpsertAsync(new SessionRecord
                 {
-                    Id           = body.SessionId,
+                    Id           = sessionId,
                     Title        = title,
                     CreatedAt    = session?.CreatedAt ?? now,
                     UpdatedAt    = now,
@@ -207,7 +207,7 @@ internal sealed class StreamingChatApiHandler(
                         },
                     },
                 };
-                await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
+                await sessionStore.SaveRequestAsync(sessionId, reqRecord);
             }
         }
         catch (OperationCanceledException) when (requestCts.IsCancellationRequested && !ct.IsCancellationRequested)
@@ -252,6 +252,13 @@ internal sealed class StreamingChatApiHandler(
             ctx.Response.Close();
         }
     }
+
+    private string? ResolveSessionId(string? requestedSessionId) =>
+        sessionStore is null
+            ? null
+            : string.IsNullOrWhiteSpace(requestedSessionId)
+                ? SessionStore.LiveSessionId
+                : requestedSessionId;
 
     private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
         => commands is not { Count: > 0 }
