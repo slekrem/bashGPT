@@ -1,4 +1,4 @@
-using bashGPT.Core.Providers;
+using bashGPT.Core.Models.Providers;
 using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;

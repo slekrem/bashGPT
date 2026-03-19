@@ -1,3 +1,5 @@
+using bashGPT.Core.Models.Providers;
+
 namespace bashGPT.Core.Providers;
 
 /// <summary>

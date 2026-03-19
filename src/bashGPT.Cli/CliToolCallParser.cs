@@ -1,5 +1,5 @@
 using System.Text.Json;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Models.Providers;
 
 namespace BashGPT.Cli;
 

@@ -1,5 +1,4 @@
 using System.Text;
-using bashGPT.Core.Providers;
 
 namespace bashGPT.Core.Models.Providers.Ollama;
 

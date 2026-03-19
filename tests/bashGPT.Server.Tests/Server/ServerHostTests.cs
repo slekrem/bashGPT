@@ -6,6 +6,7 @@ using BashGPT.Configuration;
 using BashGPT.Server;
 using bashGPT.Core.Storage;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Models.Providers;
 
 namespace BashGPT.Server.Tests;
 

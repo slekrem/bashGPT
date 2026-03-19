@@ -1,3 +1,4 @@
+using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
 using BashGPT.Cli;
 using BashGPT.Configuration;

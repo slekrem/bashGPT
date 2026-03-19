@@ -2,6 +2,7 @@
 using BashGPT.Tools.Execution;
 using BashGPT.Server;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Models.Providers;
 
 namespace BashGPT.Cli.Tests;
 
@@ -23,8 +24,6 @@ public sealed class ServerChatRunnerTests
             History:  history ?? [],
             Model:    null,
             Verbose:  verbose);
-
-    // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_SimpleText_ReturnsContent()

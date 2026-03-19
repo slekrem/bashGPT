@@ -1,4 +1,6 @@
-namespace bashGPT.Core.Providers;
+using bashGPT.Core.Providers;
+
+namespace bashGPT.Core.Models.Providers;
 
 public record LlmChatRequest(
     IReadOnlyList<ChatMessage> Messages,

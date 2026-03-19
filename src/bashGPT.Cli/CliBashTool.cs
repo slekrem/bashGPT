@@ -1,8 +1,10 @@
+using bashGPT.Core.Models.Providers;
+
 namespace BashGPT.Cli;
 
 internal static class CliBashTool
 {
-    public static readonly bashGPT.Core.Providers.ToolDefinition Definition = new(
+    public static readonly ToolDefinition Definition = new(
         Name: "bash",
         Description: "Executes a shell command",
         Parameters: new

@@ -1,5 +1,6 @@
 using bashGPT.Core;
 using bashGPT.Core.Chat;
+using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
 using BashGPT.Configuration;
 using BashGPT.Shell;
