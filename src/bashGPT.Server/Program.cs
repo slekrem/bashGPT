@@ -1,43 +1,10 @@
 using System.CommandLine;
-using bashGPT.Core;
 using bashGPT.Core.Configuration;
-using BashGPT.Agents;
-using BashGPT.Agents.Dev;
-using BashGPT.Agents.Shell;
 using BashGPT.Server;
-using BashGPT.Tools.Build;
-using BashGPT.Tools.Execution;
-using BashGPT.Tools.Fetch;
-using BashGPT.Tools.Filesystem;
-using BashGPT.Tools.Git;
-using BashGPT.Tools.Shell;
-using BashGPT.Tools.Testing;
 
-var configService = new ConfigurationService();
-var toolRegistry = new ToolRegistry([
-    new ShellExecTool(),
-    new FetchTool(),
-    new FilesystemReadTool(),
-    new FilesystemWriteTool(),
-    new FilesystemSearchTool(),
-    new GitStatusTool(),
-    new GitDiffTool(),
-    new GitLogTool(),
-    new GitBranchTool(),
-    new GitAddTool(),
-    new GitCommitTool(),
-    new GitCheckoutTool(),
-    new TestRunTool(),
-    new BuildRunTool(),
-    new ContextLoadFilesTool(),
-    new ContextUnloadFilesTool(),
-    new ContextClearFilesTool(),
-]);
-var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
-var sessionStore = AppBootstrap.CreateSessionStore();
-var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
-var agentRegistry = new AgentRegistry([new GenericAgent(), new DevAgent(), new ShellAgent()]);
-var serverHost = new ServerHost(serverRunner, configService, sessionStore, sessionRequestStore, agentRegistry, toolRegistry);
+var configService = ServerApplication.CreateConfigurationService();
+var toolRegistry = ServerApplication.CreateToolRegistry();
+var serverHost = ServerApplication.CreateServerHost(configService, toolRegistry);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {

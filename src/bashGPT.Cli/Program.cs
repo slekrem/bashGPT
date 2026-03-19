@@ -13,8 +13,8 @@ if (args is ["--version"])
     return 0;
 }
 
-var configService = new ConfigurationService();
-var cliRunner = new CliChatRunner(configService);
+var configService = CliApplication.CreateConfigurationService();
+var cliRunner = CliApplication.CreateChatRunner(configService);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
