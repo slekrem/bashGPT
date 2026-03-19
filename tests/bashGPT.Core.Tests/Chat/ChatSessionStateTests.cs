@@ -91,6 +91,36 @@ public sealed class ChatSessionStateTests
         Assert.Null(outcome.LlmExchanges);
     }
 
+    [Fact]
+    public async Task RunToolCallLoopAsync_RunsRoundsAndCallsBeforeNextCall()
+    {
+        var provider = new FakeSessionProvider();
+        provider.Enqueue(new LlmChatResponse("After tool", []));
+        var session = new ChatSessionState(provider, []);
+        session.InitializeMessages([], "Hello");
+
+        var initial = new LlmChatResponse("Tool round", [new ToolCall("call-1", "bash", """{"command":"pwd"}""")]);
+        var rounds = new List<int>();
+        var beforeNextCallCount = 0;
+
+        var result = await session.RunToolCallLoopAsync(
+            initial,
+            (round, response) =>
+            {
+                rounds.Add(round);
+                Assert.Single(response.ToolCalls);
+                return Task.CompletedTask;
+            },
+            () => beforeNextCallCount++,
+            CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.Equal(1, result.Rounds);
+        Assert.Equal("After tool", result.Response.Content);
+        Assert.Equal([1], rounds);
+        Assert.Equal(1, beforeNextCallCount);
+    }
+
     private sealed class FakeSessionProvider : ILlmProvider
     {
         private readonly Queue<LlmChatResponse> _responses = new();

@@ -90,6 +90,33 @@ public sealed class ChatSessionState(
         return result;
     }
 
+    public async Task<(LlmChatResponse Response, string? Error, int Rounds)> RunToolCallLoopAsync(
+        LlmChatResponse initialResponse,
+        Func<int, LlmChatResponse, Task> executeRoundAsync,
+        Action? beforeNextCall,
+        CancellationToken ct)
+    {
+        var response = initialResponse;
+        var rounds = 0;
+
+        while (response.ToolCalls.Count > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            rounds++;
+
+            await executeRoundAsync(rounds, response);
+            beforeNextCall?.Invoke();
+
+            var next = await CallOnceAsync(null, ct);
+            if (next.Error is not null)
+                return (next.Response, next.Error, rounds);
+
+            response = next.Response;
+        }
+
+        return (response, null, rounds);
+    }
+
     public TokenUsage? BuildUsage() =>
         TotalInputTokens > 0 || TotalOutputTokens > 0
             ? new TokenUsage(TotalInputTokens, TotalOutputTokens)

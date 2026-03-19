@@ -98,41 +98,43 @@ public class CliChatRunner(ConfigurationService configService)
         int commandTimeoutSeconds,
         CancellationToken ct)
     {
-        var response = initialResponse;
-        var rounds = 0;
-
-        while (response.ToolCalls.Count > 0)
-        {
-            rounds++;
-
-            var toolCalls = response.ToolCalls;
-            if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Tool call round {rounds}: {toolCalls.Count} call(s)");
-
-            var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
-            if (opts.Verbose)
+        var loopResult = await chatSession.RunToolCallLoopAsync(
+            initialResponse,
+            async (round, response) =>
             {
-                foreach (var command in commands)
-                    Console.Error.WriteLine($"[verbose] Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
+                var toolCalls = response.ToolCalls;
+                if (opts.Verbose)
+                    Console.Error.WriteLine($"[verbose] Tool call round {round}: {toolCalls.Count} call(s)");
 
-                foreach (var err in errors)
-                    Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
-            }
+                var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
+                if (opts.Verbose)
+                {
+                    foreach (var command in commands)
+                        Console.Error.WriteLine($"[verbose] Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
 
-            var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
-            await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
-                toolCalls,
-                commands,
-                errors,
-                response.Content,
-                chatSession.Messages,
-                executor,
-                ct);
+                    foreach (var err in errors)
+                        Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
+                }
 
-            Console.WriteLine();
-            response = await StreamAndCollectAsync(chatSession, ct);
-            Console.WriteLine();
-        }
+                var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
+                await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
+                    toolCalls,
+                    commands,
+                    errors,
+                    response.Content,
+                    chatSession.Messages,
+                    executor,
+                    ct);
+
+                Console.WriteLine();
+            },
+            beforeNextCall: null,
+            ct);
+
+        if (loopResult.Error is not null)
+            Console.Error.WriteLine($"\n{loopResult.Error}");
+
+        Console.WriteLine();
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(

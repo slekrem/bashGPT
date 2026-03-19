@@ -62,29 +62,24 @@ public class ServerChatRunner(
 
             if (tools.Count > 0 && toolRegistry is not null)
             {
-                var round = 0;
-                while (!ct.IsCancellationRequested)
-                {
-                    ct.ThrowIfCancellationRequested();
-                    if (response.Response.ToolCalls.Count == 0) break;
-                    usedToolCalls = true;
-
-                    round++;
-                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
-                    commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
-                        response.Response.ToolCalls,
-                        response.Response.Content,
-                        chatSession.Messages,
-                        conversationDelta,
-                        toolRegistry,
-                        opts.SessionPath,
-                        opts.OnEvent,
-                        ct));
-
-                    chatSession.RefreshSystemMessages();
-                    response = await chatSession.CallOnceAsync(null, ct);
-                    if (response.Error is not null) break;
-                }
+                var loopResult = await chatSession.RunToolCallLoopAsync(
+                    response.Response,
+                    async (round, currentResponse) =>
+                    {
+                        usedToolCalls = true;
+                        opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
+                        commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
+                            currentResponse.ToolCalls,
+                            currentResponse.Content,
+                            chatSession.Messages,
+                            conversationDelta,
+                            toolRegistry,
+                            opts.SessionPath,
+                            opts.OnEvent,
+                            ct));
+                    },
+                    beforeNextCall: chatSession.RefreshSystemMessages,
+                    ct);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
