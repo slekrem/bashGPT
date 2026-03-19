@@ -1,7 +1,7 @@
 using System.Text.Json;
 using bashGPT.Core.Models.Providers;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 internal static class CliToolCallParser
 {

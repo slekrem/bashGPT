@@ -1,7 +1,7 @@
 using System.Net;
 using bashGPT.Core.Versioning;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class VersionApiHandler
 {

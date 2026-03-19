@@ -7,7 +7,7 @@ using bashGPT.Core.Configuration;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 public class ServerChatRunner(
     ConfigurationService configService,

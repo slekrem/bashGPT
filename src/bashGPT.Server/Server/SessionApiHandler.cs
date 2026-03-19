@@ -5,7 +5,7 @@ using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class SessionApiHandler(SessionStore? sessionStore)
 {

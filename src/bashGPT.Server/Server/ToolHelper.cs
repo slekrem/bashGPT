@@ -1,7 +1,7 @@
 using bashGPT.Core.Models.Providers;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 /// <summary>
 /// Helper methods for resolving tool names to LLM tool definitions.

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class RunningChatRegistry
 {

@@ -4,7 +4,7 @@ using bashGPT.Core.Providers.Abstractions;
 using BashGPT.Cli;
 using BashGPT.Server;
 
-namespace BashGPT.Cli.Tests;
+namespace bashGPT.Cli.Tests;
 
 /// <summary>
 /// Tests SSE token callbacks in <see cref="ServerChatRunner"/>.

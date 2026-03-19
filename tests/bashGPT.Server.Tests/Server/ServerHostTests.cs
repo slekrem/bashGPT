@@ -7,7 +7,7 @@ using BashGPT.Server;
 using bashGPT.Core.Storage;
 using bashGPT.Core.Models.Providers;
 
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 /// <summary>
 /// Integration-Tests für ServerHost: starten den echten HTTP-Listener auf einem

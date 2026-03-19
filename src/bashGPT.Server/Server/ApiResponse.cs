@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal static class ApiResponse
 {

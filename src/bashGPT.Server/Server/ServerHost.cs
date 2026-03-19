@@ -5,7 +5,7 @@ using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 public class ServerHost
 {

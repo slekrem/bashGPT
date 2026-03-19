@@ -1,7 +1,7 @@
 using System.Net;
 using bashGPT.Core.Storage;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
 {

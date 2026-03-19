@@ -6,7 +6,7 @@ using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 /// <summary>
 /// Processes chat requests in CLI mode by streaming tokens to the console

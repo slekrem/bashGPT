@@ -6,7 +6,7 @@ using bashGPT.Core.Configuration;
 using BashGPT.Server;
 using BashGPT.Shell;
 
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 /// <summary>
 /// Integration-Tests für die /api/settings-Endpunkte des ServerHost.

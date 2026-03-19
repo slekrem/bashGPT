@@ -11,7 +11,7 @@ using BashGPT.Agents.Dev;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class ChatApiHandler(
     IChatHandler handler,

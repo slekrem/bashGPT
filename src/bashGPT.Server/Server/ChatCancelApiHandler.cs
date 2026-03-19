@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class ChatCancelApiHandler(RunningChatRegistry runningChats)
 {

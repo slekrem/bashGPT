@@ -2,7 +2,7 @@ using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using System.Runtime.CompilerServices;
 
-namespace BashGPT.Cli.Tests;
+namespace bashGPT.Cli.Tests;
 
 /// <summary>
 /// Test-Stub für ILlmProvider – gibt konfigurierbare LlmChatResponse-Objekte zurück,

@@ -1,6 +1,6 @@
 using bashGPT.Core.Configuration;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 internal static class CliApplication
 {

@@ -6,7 +6,7 @@ using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
 using BashGPT.Server;
 
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 /// <summary>
 /// Integration-Tests für GET /api/agents und GET /api/agents/:id/info-panel.

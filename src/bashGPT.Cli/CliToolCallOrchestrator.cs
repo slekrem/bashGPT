@@ -1,7 +1,7 @@
 using bashGPT.Core.Models.Providers;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 public sealed record ParsedToolCommand(ToolCall ToolCall, ExtractedCommand Command);
 public sealed record ToolCallError(ToolCall ToolCall, string Error);

@@ -11,7 +11,7 @@ using BashGPT.Tools.Git;
 using BashGPT.Tools.Shell;
 using BashGPT.Tools.Testing;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal static class ServerApplication
 {

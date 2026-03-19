@@ -1,4 +1,4 @@
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal static class ApiErrors
 {

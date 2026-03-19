@@ -8,7 +8,7 @@ using bashGPT.Core.Providers.Ollama;
 using bashGPT.Core.Serialization;
 using BashGPT.Shell;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class SettingsApiHandler(ConfigurationService? configService)
 {

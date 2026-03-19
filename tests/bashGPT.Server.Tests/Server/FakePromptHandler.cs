@@ -1,4 +1,4 @@
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 /// <summary>
 /// Test stub for <see cref="IChatHandler"/> that returns configurable dummy responses

@@ -8,7 +8,7 @@ using BashGPT.Tools.Fetch;
 using BashGPT.Tools.Filesystem;
 using BashGPT.Tools.Shell;
 
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 public sealed class ServerToolSelectionTests
 {

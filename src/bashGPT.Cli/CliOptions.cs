@@ -1,4 +1,4 @@
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 /// <summary>Geparste CLI-Optionen fÃ¼r den Hauptbefehl.</summary>
 public record CliOptions(
