@@ -3,7 +3,7 @@ using bashGPT.Core.Chat;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Core.Providers.Ollama;
+using bashGPT.Core.Providers;
 using BashGPT.Shell;
 
 namespace BashGPT.Cli;
@@ -16,31 +16,16 @@ public class CliChatRunner(ConfigurationService configService)
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
-        AppConfig config;
-        try
+        var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
+        if (bootstrap.Error is not null || bootstrap.Config is null || bootstrap.Provider is null)
         {
-            config = await configService.LoadAsync();
-        }
-        catch (InvalidOperationException ex)
-        {
-            Console.Error.WriteLine($"Configuration error: {ex.Message}");
+            Console.Error.WriteLine(bootstrap.Error ?? "Failed to initialize provider.");
             return 1;
         }
 
-        ChatOrchestrator.ApplyModelOverride(config, opts.Model);
-
+        var config = bootstrap.Config;
+        var provider = bootstrap.Provider;
         var forceTools = opts.ForceTools ?? config.DefaultForceTools;
-
-        ILlmProvider provider;
-        try
-        {
-            provider = new OllamaProvider(config.Ollama);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Provider error: {ex.Message}");
-            return 1;
-        }
 
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, model: {provider.Model}");

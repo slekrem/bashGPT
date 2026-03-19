@@ -16,7 +16,7 @@ public class ServerHost
     private readonly SessionApiHandler _sessionHandler;
     private readonly AgentApiHandler _agentHandler;
     private readonly ToolApiHandler _toolHandler;
-    private readonly SessionStore? _sessionStore;
+    private readonly LegacyHistoryApiHandler _legacyHistoryHandler;
     private readonly RunningChatRegistry _runningChats;
     private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
 
@@ -29,7 +29,6 @@ public class ServerHost
         ToolRegistry? toolRegistry = null,
         ServerToolSelectionPolicy? toolSelectionPolicy = null)
     {
-        _sessionStore = sessionStore;
         _toolSelectionPolicy = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats = new RunningChatRegistry();
         _settingsHandler = new SettingsApiHandler(configService);
@@ -39,6 +38,7 @@ public class ServerHost
         _sessionHandler = new SessionApiHandler(sessionStore);
         _agentHandler = new AgentApiHandler(agentRegistry, configService);
         _toolHandler = new ToolApiHandler(toolRegistry, _toolSelectionPolicy);
+        _legacyHistoryHandler = new LegacyHistoryApiHandler(sessionStore);
     }
 
     public async Task<int> RunAsync(ServerOptions options, CancellationToken ct = default)
@@ -121,13 +121,13 @@ public class ServerHost
 
             if (req.HttpMethod == "GET" && path == "/api/history")
             {
-                await WriteLegacyHistoryAsync(ctx.Response, ct);
+                await _legacyHistoryHandler.HandleHistoryAsync(ctx.Response, ct);
                 return;
             }
 
             if (req.HttpMethod == "POST" && path == "/api/reset")
             {
-                await ResetLegacyHistoryAsync(ctx.Response, ct);
+                await _legacyHistoryHandler.HandleResetAsync(ctx.Response, ct);
                 return;
             }
 
@@ -186,46 +186,6 @@ public class ServerHost
             Console.Error.WriteLine($"[server] Unhandled request error: {ex}");
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = ApiErrors.GenericServerError }, statusCode: 500);
         }
-    }
-
-    private async Task WriteLegacyHistoryAsync(HttpListenerResponse response, CancellationToken ct)
-    {
-        if (_sessionStore is null)
-        {
-            await ApiResponse.WriteJsonAsync(response, new { history = Array.Empty<object>() });
-            return;
-        }
-
-        var sessions = await _sessionStore.LoadAllAsync();
-        var latest = sessions
-            .OrderByDescending(s => s.UpdatedAt)
-            .FirstOrDefault();
-
-        if (latest is null)
-        {
-            await ApiResponse.WriteJsonAsync(response, new { history = Array.Empty<object>() });
-            return;
-        }
-
-        var session = await _sessionStore.LoadAsync(latest.Id);
-        var history = session?.Messages
-            .Where(m =>
-                m.Role == "user"
-                || m.Role == "tool"
-                || (m.Role == "assistant" && (!string.IsNullOrEmpty(m.Content) || m.ToolCalls is { Count: > 0 })))
-            .Select(m => new { role = m.Role, content = m.Content ?? string.Empty })
-            .ToList()
-            ?? [];
-
-        await ApiResponse.WriteJsonAsync(response, new { history });
-    }
-
-    private async Task ResetLegacyHistoryAsync(HttpListenerResponse response, CancellationToken ct)
-    {
-        if (_sessionStore is not null)
-            await _sessionStore.ClearAsync();
-
-        await ApiResponse.WriteJsonAsync(response, new { ok = true });
     }
 
     private static void TryOpenBrowser(string url)

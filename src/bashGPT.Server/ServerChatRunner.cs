@@ -1,8 +1,8 @@
 using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Core.Providers.Ollama;
 using bashGPT.Core.Configuration;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
@@ -29,30 +29,15 @@ public class ServerChatRunner(
         }
         else
         {
-            AppConfig config;
-            try
-            {
-                config = await configService.LoadAsync();
-            }
-            catch (InvalidOperationException ex)
+            var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
+            if (bootstrap.Error is not null || bootstrap.Provider is null)
             {
                 return new ServerChatResult(
-                    Response: $"Configuration error: {ex.Message}",
+                    Response: bootstrap.Error ?? "Failed to initialize provider.",
                     Logs: []);
             }
 
-            ChatOrchestrator.ApplyModelOverride(config, opts.Model);
-
-            try
-            {
-                provider = new OllamaProvider(config.Ollama);
-            }
-            catch (Exception ex)
-            {
-                return new ServerChatResult(
-                    Response: $"Provider error: {ex.Message}",
-                    Logs: []);
-            }
+            provider = bootstrap.Provider;
         }
 
         if (opts.Verbose)
