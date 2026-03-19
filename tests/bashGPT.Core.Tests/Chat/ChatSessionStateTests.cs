@@ -60,6 +60,37 @@ public sealed class ChatSessionStateTests
         Assert.Equal("Hello", session.Messages[1].Content);
     }
 
+    [Fact]
+    public async Task CreateCompletedOutcome_UsesLastResponseAndUsage()
+    {
+        var provider = new FakeSessionProvider();
+        provider.Enqueue(new LlmChatResponse("Done", [], new TokenUsage(4, 2)));
+        var session = new ChatSessionState(provider, []);
+        session.InitializeMessages([], "Hello");
+
+        await session.CallOnceAsync(null, CancellationToken.None);
+        var outcome = session.CreateCompletedOutcome("timeout");
+
+        Assert.Equal("Done", outcome.Response);
+        Assert.Equal("timeout", outcome.FinalStatus);
+        Assert.NotNull(outcome.Usage);
+        Assert.Single(outcome.LlmExchanges!);
+    }
+
+    [Fact]
+    public void CreateCancelledOutcome_UsesProvidedStatusAndCurrentUsage()
+    {
+        var provider = new FakeSessionProvider();
+        var session = new ChatSessionState(provider, []);
+
+        var outcome = session.CreateCancelledOutcome();
+
+        Assert.Equal("Cancelled by user.", outcome.Response);
+        Assert.Equal("user_cancelled", outcome.FinalStatus);
+        Assert.Null(outcome.Usage);
+        Assert.Null(outcome.LlmExchanges);
+    }
+
     private sealed class FakeSessionProvider : ILlmProvider
     {
         private readonly Queue<LlmChatResponse> _responses = new();

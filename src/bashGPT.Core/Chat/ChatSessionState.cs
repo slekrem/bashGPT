@@ -94,4 +94,20 @@ public sealed class ChatSessionState(
         TotalInputTokens > 0 || TotalOutputTokens > 0
             ? new TokenUsage(TotalInputTokens, TotalOutputTokens)
             : null;
+
+    public ChatSessionOutcome CreateCompletedOutcome(string finalStatus = "completed") =>
+        new(
+            Response: LastResponse?.Content ?? string.Empty,
+            Usage: BuildUsage(),
+            LlmExchanges: LlmExchanges.Count > 0 ? LlmExchanges : null,
+            FinalStatus: finalStatus);
+
+    public ChatSessionOutcome CreateCancelledOutcome(
+        string response = "Cancelled by user.",
+        string finalStatus = "user_cancelled") =>
+        new(
+            Response: response,
+            Usage: BuildUsage(),
+            LlmExchanges: LlmExchanges.Count > 0 ? LlmExchanges : null,
+            FinalStatus: finalStatus);
 }

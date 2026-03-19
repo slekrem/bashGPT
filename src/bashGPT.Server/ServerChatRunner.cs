@@ -89,38 +89,37 @@ public class ServerChatRunner(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            var cancelledText = "Cancelled by user.";
-            var cancelledAssistant = new ChatMessage(ChatRole.Assistant, cancelledText);
+            var outcome = chatSession.CreateCancelledOutcome();
+            var cancelledAssistant = new ChatMessage(ChatRole.Assistant, outcome.Response);
             conversationDelta.Add(cancelledAssistant);
 
             return new ServerChatResult(
-                Response: cancelledText,
+                Response: outcome.Response,
                 Logs: logs,
-                Usage: chatSession.BuildUsage(),
-                LlmExchanges: chatSession.LlmExchanges.Count > 0 ? chatSession.LlmExchanges : null,
+                Usage: outcome.Usage,
+                LlmExchanges: outcome.LlmExchanges,
                 Commands: commandResults.Count > 0 ? commandResults : null,
                 UsedToolCalls: usedToolCalls,
                 ConversationDelta: conversationDelta,
-                FinalStatus: "user_cancelled");
+                FinalStatus: outcome.FinalStatus);
         }
-
-        var finalResponse = chatSession.LastResponse?.Content ?? string.Empty;
-        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, finalResponse);
-        conversationDelta.Add(finalAssistantMessage);
 
         var finalStatus = commandResults.Any(r => string.Equals(ClassifyCommandStatus(r), "timeout", StringComparison.Ordinal))
             ? "timeout"
             : "completed";
+        var completedOutcome = chatSession.CreateCompletedOutcome(finalStatus);
+        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, completedOutcome.Response);
+        conversationDelta.Add(finalAssistantMessage);
 
         return new ServerChatResult(
-            Response: finalResponse,
+            Response: completedOutcome.Response,
             Logs: logs,
-            Usage: chatSession.BuildUsage(),
-            LlmExchanges: chatSession.LlmExchanges.Count > 0 ? chatSession.LlmExchanges : null,
+            Usage: completedOutcome.Usage,
+            LlmExchanges: completedOutcome.LlmExchanges,
             Commands: commandResults.Count > 0 ? commandResults : null,
             UsedToolCalls: usedToolCalls,
             ConversationDelta: conversationDelta,
-            FinalStatus: finalStatus);
+            FinalStatus: completedOutcome.FinalStatus);
     }
 
     private static string ClassifyCommandStatus(CommandResult result)
