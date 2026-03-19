@@ -140,7 +140,7 @@ public class CliChatRunner(
             if (opts.Verbose)
                 Console.Error.WriteLine($"[verbose] Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
 
-            var (commands, errors) = ChatOrchestrator.ParseToolCalls(toolCalls);
+            var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
             if (opts.Verbose)
             {
                 foreach (var command in commands)
@@ -150,7 +150,7 @@ public class CliChatRunner(
             }
 
             var executor = new CommandExecutor(execMode, commandTimeoutSeconds: commandTimeoutSeconds);
-            await ChatOrchestrator.ExecuteToolCallRoundAsync(
+            await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
                 toolCalls, commands, errors, response.Content, messages, executor, ct);
 
             Console.WriteLine();
