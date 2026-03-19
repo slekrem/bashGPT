@@ -1,4 +1,4 @@
-import type { Agent, ChatResponse, CommandResult, FullShellContext, HistoryMessage, Session, Settings, ShellContext, ToolInfo } from './types'
+import type { Agent, ChatResponse, CommandResult, HistoryMessage, Session, Settings, ToolInfo } from './types'
 import type { SnapshotMessage } from './session-history'
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -28,7 +28,6 @@ type StreamHandlers = {
 
 interface SessionPayload {
   messages: SnapshotMessage[]
-  shellContext?: ShellContext | null
   enabledTools?: string[]
   agentId?: string | null
 }
@@ -36,7 +35,6 @@ interface SessionPayload {
 interface PutSessionPayload {
   title?: string
   messages: SnapshotMessage[]
-  shellContext?: ShellContext | null
   createdAt?: string
 }
 
@@ -59,7 +57,6 @@ interface StreamPayload {
     event?: string
     response: string
     finalStatus?: ChatResponse['finalStatus']
-    shellContext?: ShellContext
     commands?: CommandResult[]
   }
 }
@@ -135,10 +132,9 @@ export async function streamChat(
             ? { inputTokens: parsed.usage.promptTokens, outputTokens: parsed.usage.completionTokens }
             : undefined
           chatResponse = {
-            response:     bg.response,
-            finalStatus:  bg.finalStatus,
-            shellContext: bg.shellContext,
-            commands:     bg.commands ?? [],
+            response: bg.response,
+            finalStatus: bg.finalStatus,
+            commands: bg.commands ?? [],
             usage,
           }
         }
@@ -176,8 +172,6 @@ export async function resetHistory(): Promise<void> {
   const res = await fetch('/api/reset', { method: 'POST' })
   await assertOk(res)
 }
-
-// ── Sessions API ─────────────────────────────────────────────────────────────
 
 export async function getSessions(): Promise<Session[] | null> {
   try {
@@ -219,7 +213,7 @@ export async function putSession(
       body: JSON.stringify({ ...data, id }),
     })
   } catch {
-    // ignore – localStorage bleibt als Fallback
+    // ignore - localStorage remains as a fallback
   }
 }
 
@@ -238,18 +232,6 @@ export async function clearSessions(): Promise<void> {
     // ignore
   }
 }
-
-// ── Context API ───────────────────────────────────────────────────────────────
-
-export async function getContext(): Promise<FullShellContext | null> {
-  try {
-    const res = await fetch('/api/context')
-    if (!res.ok) return null
-    return res.json()
-  } catch { return null }
-}
-
-// ── Settings (v2 API – graceful fallback if not yet implemented) ────────────
 
 export async function getSettings(): Promise<Settings | null> {
   try {
@@ -280,8 +262,6 @@ export async function testConnection(): Promise<{ ok: boolean; latencyMs?: numbe
   }
 }
 
-// ── Agents API ────────────────────────────────────────────────────────────────
-
 export async function getAgents(): Promise<Agent[]> {
   try {
     const res = await fetch('/api/agents')
@@ -299,8 +279,6 @@ export async function getAgentInfoPanel(id: string): Promise<string> {
     return typeof data.markdown === 'string' ? data.markdown : ''
   } catch { return '' }
 }
-
-// ── Tools API ─────────────────────────────────────────────────────────────────
 
 export async function getTools(): Promise<ToolInfo[]> {
   try {

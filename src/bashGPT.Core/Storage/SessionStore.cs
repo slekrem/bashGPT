@@ -1,66 +1,38 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
+using bashGPT.Core.Models.Storage;
 
-namespace BashGPT.Storage;
+namespace bashGPT.Core.Storage;
 
 /// <summary>
-/// Verwaltet Session-Daten im zwei-Schichten-Layout:
-///   sessions/index.json      – Metadaten aller Sessions
-///   sessions/&lt;id&gt;.json      – Inhalt einer einzelnen Session
+/// Manages session data in a two-layer layout:
+///   sessions/index.json          - metadata for all sessions
+///   sessions/&lt;id&gt;/content.json - content for a single session
 ///
-/// Thread-safe via SemaphoreSlim, atomisches Schreiben via Temp-Datei.
-/// Einmalige Migration von alter sessions.json beim ersten Zugriff.
+/// Thread-safe via <see cref="SemaphoreSlim"/> and atomic writes via temp files.
 /// </summary>
 public class SessionStore
 {
-    public const int MaxSessions = 20;
     public const string LiveSessionId = "current";
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
-
-    private readonly string  _sessionsDir;
-    private readonly string  _indexFile;
-    private readonly string? _legacyHistoryFile;
-    private readonly string? _legacySessionsFile;
+    private readonly string _sessionsDir;
+    private readonly SessionIndexStore _indexStore;
+    private readonly SessionContentStore _contentStore;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public SessionStore(
-        string  sessionsDir,
-        string? legacyHistoryFile  = null,
-        string? legacySessionsFile = null)
+    public SessionStore(string sessionsDir)
     {
-        _sessionsDir        = sessionsDir;
-        _indexFile          = Path.Combine(sessionsDir, "index.json");
-        _legacyHistoryFile  = legacyHistoryFile;
-        _legacySessionsFile = legacySessionsFile;
+        _sessionsDir = sessionsDir;
+        _indexStore = new SessionIndexStore(sessionsDir);
+        _contentStore = new SessionContentStore(sessionsDir);
     }
 
-    // ── Öffentliche API ───────────────────────────────────────────────────────
-
-    /// <summary>Gibt alle Sessions ohne Messages zurück (für Sidebar).</summary>
-    public async Task<List<SessionRecord>> LoadAllAsync()
+    /// <summary>Returns all sessions without messages, suitable for sidebar summaries.</summary>
+    public async Task<List<SessionSummary>> LoadAllAsync()
     {
         var index = await ReadIndexAsync();
-        return index.Sessions
-            .Select(e => new SessionRecord
-            {
-                Id        = e.Id,
-                Title     = e.Title,
-                CreatedAt = e.CreatedAt,
-                UpdatedAt = e.UpdatedAt,
-                Messages  = [],
-            })
-            .ToList();
+        return index.Sessions.Select(ToSummary).ToList();
     }
 
-    /// <summary>Lädt eine einzelne Session mit allen Messages.</summary>
+    /// <summary>Loads a single session including its messages.</summary>
     public async Task<SessionRecord?> LoadAsync(string id)
     {
         ValidateSessionId(id);
@@ -68,365 +40,131 @@ public class SessionStore
         var entry = index.Sessions.FirstOrDefault(e => e.Id == id);
         if (entry is null) return null;
 
-        var content = await ReadContentAsync(id);
+        var content = await _contentStore.ReadAsync(id);
         if (content is null) return null;
 
-        return new SessionRecord
-        {
-            Id           = entry.Id,
-            Title        = entry.Title,
-            CreatedAt    = entry.CreatedAt,
-            UpdatedAt    = entry.UpdatedAt,
-            Messages     = content.Messages,
-            ShellContext = content.ShellContext,
-            EnabledTools = content.EnabledTools,
-            AgentId      = content.AgentId,
-        };
+        return ToSessionRecord(entry, content);
     }
 
     /// <summary>
-    /// Legt eine neue Session an oder aktualisiert eine bestehende (Upsert).
-    /// Sortiert nach UpdatedAt, kappt bei MaxSessions inkl. Dateibereinigung.
+    /// Creates or updates a session.
+    /// Sorts sessions by <c>UpdatedAt</c> after each write.
     /// </summary>
     public async Task UpsertAsync(SessionRecord session)
     {
         ValidateSessionId(session.Id);
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
             Directory.CreateDirectory(_sessionsDir);
 
-            // 1. Einzeldatei zuerst schreiben (Crash-safe: Datei ohne Index-Eintrag ist harmlos)
-            var content = new SessionContent
-            {
-                Messages     = session.Messages,
-                ShellContext = session.ShellContext,
-                EnabledTools = session.EnabledTools,
-                AgentId      = session.AgentId,
-            };
-            await WriteContentInternalAsync(session.Id, content);
+            var content = ToSessionContent(session);
+            await _contentStore.WriteAsync(session.Id, content);
 
-            // 2. Index aktualisieren
-            var index    = await ReadIndexInternalAsync();
-            var existing = index.Sessions.FirstOrDefault(e => e.Id == session.Id);
-            var newEntry = new SessionIndexEntry
-            {
-                Id        = session.Id,
-                Title     = session.Title,
-                CreatedAt = session.CreatedAt,
-                UpdatedAt = session.UpdatedAt,
-            };
-
-            if (existing is not null)
-                index.Sessions[index.Sessions.IndexOf(existing)] = newEntry;
-            else
-                index.Sessions.Insert(0, newEntry);
-
-            // Sortieren + auf MaxSessions kürzen
-            var sorted = index.Sessions
-                .OrderByDescending(e => e.UpdatedAt)
-                .ThenByDescending(e => e.CreatedAt)
-                .ToList();
-
-            // Überzählige Einzeldateien löschen
-            foreach (var removed in sorted.Skip(MaxSessions))
-                TryDeleteSessionDir(removed.Id);
-
-            index.Sessions = [.. sorted.Take(MaxSessions)];
-            await WriteIndexInternalAsync(index);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            var index = await _indexStore.ReadAsync();
+            UpsertIndexEntry(index, ToIndexEntry(session));
+            await _indexStore.WriteAsync(index);
+        });
     }
 
-    /// <summary>Löscht eine Session anhand ihrer ID.</summary>
+    /// <summary>Deletes a session by ID.</summary>
     public async Task DeleteAsync(string id)
     {
         ValidateSessionId(id);
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
             TryDeleteSessionDir(id);
 
-            var index = await ReadIndexInternalAsync();
+            var index = await _indexStore.ReadAsync();
             index.Sessions.RemoveAll(e => e.Id == id);
-            await WriteIndexInternalAsync(index);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            await _indexStore.WriteAsync(index);
+        });
     }
 
-    /// <summary>Löscht alle Sessions.</summary>
+    /// <summary>Deletes all sessions.</summary>
     public async Task ClearAsync()
     {
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
-            var index = await ReadIndexInternalAsync();
+            var index = await _indexStore.ReadAsync();
             foreach (var entry in index.Sessions)
                 TryDeleteSessionDir(entry.Id);
 
-            await WriteIndexInternalAsync(new SessionIndex());
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            await _indexStore.WriteAsync(new SessionIndex());
+        });
     }
-
-    /// <summary>
-    /// Speichert eine Request-Dokumentation unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;.json.
-    /// Kein globaler Lock nötig – jeder Request bekommt einen eindeutigen Zeitstempel.
-    /// </summary>
-    public async Task SaveRequestAsync(string sessionId, SessionRequestRecord record)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        // Zeitstempel als Dateiname: ISO 8601, Doppelpunkte ersetzt durch Bindestriche
-        var safeName = record.Timestamp.Replace(":", "-").Replace("+", "+");
-        var path     = Path.Combine(dir, safeName + ".json");
-        var tmp      = path + ".tmp";
-        var json     = JsonSerializer.Serialize(record, JsonOptions);
-
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    /// <summary>
-    /// Speichert den rohen LLM-Request-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-request.json.
-    /// Der Inhalt ist das JSON, das tatsächlich an den Provider gesendet wurde.
-    /// </summary>
-    public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
-        var path     = Path.Combine(dir, safeName + "-llm-request.json");
-        var tmp      = path + ".tmp";
-
-        await File.WriteAllTextAsync(tmp, llmRequestJson);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    /// <summary>
-    /// Speichert den rohen LLM-Response-Body unter sessions/&lt;id&gt;/requests/&lt;timestamp&gt;-llm-response.json.
-    /// Der Inhalt ist das JSON (bzw. SSE-Zeilen), das der Provider zurückgeliefert hat.
-    /// </summary>
-    public async Task SaveLlmResponseAsync(string sessionId, string timestamp, string llmResponseJson)
-    {
-        ValidateSessionId(sessionId);
-        var dir = Path.Combine(SessionDir(sessionId), "requests");
-        Directory.CreateDirectory(dir);
-
-        var safeName = timestamp.Replace(":", "-").Replace("+", "+");
-        var path     = Path.Combine(dir, safeName + "-llm-response.json");
-        var tmp      = path + ".tmp";
-
-        await File.WriteAllTextAsync(tmp, llmResponseJson);
-        File.Move(tmp, path, overwrite: true);
-    }
-
-    // ── Interne Hilfsmethoden ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// Wirft ArgumentException, wenn <paramref name="id"/> nicht der erlaubten
-    /// Zeichen-Whitelist entspricht oder außerhalb von <see cref="_sessionsDir"/> liegen würde.
-    /// Erlaubt: Buchstaben, Ziffern, Bindestrich, Unterstrich (1–128 Zeichen).
-    /// </summary>
-    private static readonly Regex ValidIdPattern = new(@"^[a-zA-Z0-9_-]{1,128}$", RegexOptions.Compiled);
 
     private void ValidateSessionId(string id)
-    {
-        if (!ValidIdPattern.IsMatch(id))
-            throw new ArgumentException($"Ungültige Session-ID: '{id}'.", nameof(id));
+        => SessionStoragePaths.ValidateSessionId(_sessionsDir, id);
 
-        var root    = Path.GetFullPath(_sessionsDir) + Path.DirectorySeparatorChar;
-        var target  = Path.GetFullPath(Path.Combine(_sessionsDir, id)) + Path.DirectorySeparatorChar;
-        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Session-ID '{id}' führt außerhalb des erlaubten Verzeichnisses.", nameof(id));
-    }
-
-    public  string GetSessionDir(string id)       => Path.Combine(_sessionsDir, id);
-    private string SessionDir(string id)         => GetSessionDir(id);
-    private string ContentFilePath(string id)    => Path.Combine(_sessionsDir, id, "content.json");
-
-    private async Task<SessionIndex> ReadIndexAsync()
-    {
-        await _lock.WaitAsync();
-        try { return await ReadIndexInternalAsync(); }
-        finally { _lock.Release(); }
-    }
-
-    /// <summary>Liest index.json ohne Lock. Löst bei Bedarf Migration aus.</summary>
-    private async Task<SessionIndex> ReadIndexInternalAsync()
-    {
-        if (File.Exists(_indexFile))
-        {
-            try
-            {
-                var json = await File.ReadAllTextAsync(_indexFile);
-                return JsonSerializer.Deserialize<SessionIndex>(json, JsonOptions) ?? new SessionIndex();
-            }
-            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-            {
-                return new SessionIndex();
-            }
-        }
-
-        // Migration von alter sessions.json
-        if (_legacySessionsFile is not null && File.Exists(_legacySessionsFile))
-            return await MigrateFromLegacySessionsFileAsync();
-
-        // Migration von alter history.json
-        if (_legacyHistoryFile is not null && File.Exists(_legacyHistoryFile))
-            return await MigrateFromHistoryAsync();
-
-        return new SessionIndex();
-    }
-
-    private async Task<SessionContent?> ReadContentAsync(string id)
-    {
-        var path = ContentFilePath(id);
-        if (!File.Exists(path)) return null;
-        try
-        {
-            var json = await File.ReadAllTextAsync(path);
-            return JsonSerializer.Deserialize<SessionContent>(json, JsonOptions);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    private async Task WriteIndexInternalAsync(SessionIndex index)
-    {
-        Directory.CreateDirectory(_sessionsDir);
-        var tmp  = _indexFile + ".tmp";
-        var json = JsonSerializer.Serialize(index, JsonOptions);
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, _indexFile, overwrite: true);
-    }
-
-    private async Task WriteContentInternalAsync(string id, SessionContent content)
-    {
-        var dir  = SessionDir(id);
-        Directory.CreateDirectory(dir);
-        var path = ContentFilePath(id);
-        var tmp  = path + ".tmp";
-        var json = JsonSerializer.Serialize(content, JsonOptions);
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, path, overwrite: true);
-    }
+    public string GetSessionDir(string id) => SessionStoragePaths.GetSessionDir(_sessionsDir, id);
+    private string SessionDir(string id) => GetSessionDir(id);
+    private Task<SessionIndex> ReadIndexAsync() => WithLockAsync(() => _indexStore.ReadAsync());
 
     private void TryDeleteSessionDir(string id)
     {
         try { Directory.Delete(SessionDir(id), recursive: true); }
-        catch { /* ignorieren – Ordner evtl. nicht vorhanden */ }
+        catch { }
     }
 
-    // ── Migration ─────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Einmalige Migration von alter sessions.json ins neue zwei-Schichten-Layout.
-    /// Idempotent: index.json wird zuerst geschrieben, danach alte Datei umbenannt.
-    /// </summary>
-    private async Task<SessionIndex> MigrateFromLegacySessionsFileAsync()
+    private static SessionSummary ToSummary(SessionIndexEntry entry) => new()
     {
-        try
-        {
-            var json    = await File.ReadAllTextAsync(_legacySessionsFile!);
-            var oldFile = JsonSerializer.Deserialize<SessionsFile>(json, JsonOptions) ?? new SessionsFile();
+        Id = entry.Id,
+        Title = entry.Title,
+        CreatedAt = entry.CreatedAt,
+        UpdatedAt = entry.UpdatedAt,
+    };
 
-            Directory.CreateDirectory(_sessionsDir);
-
-            var indexEntries = new List<SessionIndexEntry>();
-            foreach (var session in oldFile.Sessions)
-            {
-                var content = new SessionContent
-                {
-                    Messages     = session.Messages,
-                    ShellContext = session.ShellContext,
-                    EnabledTools = session.EnabledTools,
-                    AgentId      = session.AgentId,
-                };
-                await WriteContentInternalAsync(session.Id, content);
-                indexEntries.Add(new SessionIndexEntry
-                {
-                    Id        = session.Id,
-                    Title     = session.Title,
-                    CreatedAt = session.CreatedAt,
-                    UpdatedAt = session.UpdatedAt,
-                });
-            }
-
-            var index = new SessionIndex { Sessions = indexEntries };
-
-            // Index zuerst schreiben, dann alte Datei umbenennen (Idempotenz)
-            await WriteIndexInternalAsync(index);
-            File.Move(_legacySessionsFile!, _legacySessionsFile + ".migrated", overwrite: true);
-
-            return index;
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return new SessionIndex();
-        }
-    }
-
-    /// <summary>
-    /// Einmalige Migration von history.json → eine Live-Session im neuen Layout.
-    /// </summary>
-    private async Task<SessionIndex> MigrateFromHistoryAsync()
+    private static SessionRecord ToSessionRecord(SessionIndexEntry entry, SessionContent content) => new()
     {
-        try
-        {
-            var legacyOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var json  = await File.ReadAllTextAsync(_legacyHistoryFile!);
-            var items = JsonSerializer.Deserialize<List<LegacyHistoryItem>>(json, legacyOptions) ?? [];
+        Id = entry.Id,
+        Title = entry.Title,
+        CreatedAt = entry.CreatedAt,
+        UpdatedAt = entry.UpdatedAt,
+        Messages = content.Messages,
+        EnabledTools = content.EnabledTools,
+        AgentId = content.AgentId,
+    };
 
-            if (items.Count == 0)
-                return new SessionIndex();
+    private static SessionContent ToSessionContent(SessionRecord session) => new()
+    {
+        Messages = session.Messages,
+        EnabledTools = session.EnabledTools,
+        AgentId = session.AgentId,
+    };
 
-            var messages = items
-                .Where(i => i.Role is "user" or "assistant")
-                .Select(i => new SessionMessage { Role = i.Role, Content = i.Content })
-                .ToList();
+    private static SessionIndexEntry ToIndexEntry(SessionRecord session) => new()
+    {
+        Id = session.Id,
+        Title = session.Title,
+        CreatedAt = session.CreatedAt,
+        UpdatedAt = session.UpdatedAt,
+    };
 
-            var title = messages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Importierter Verlauf";
-            if (title.Length > 40) title = title[..40] + "…";
+    private static void UpsertIndexEntry(SessionIndex index, SessionIndexEntry entry)
+    {
+        var existing = index.Sessions.FindIndex(e => e.Id == entry.Id);
+        if (existing >= 0)
+            index.Sessions[existing] = entry;
+        else
+            index.Sessions.Insert(0, entry);
 
-            var now = DateTime.UtcNow.ToString("o");
-            var content = new SessionContent { Messages = messages };
-
-            Directory.CreateDirectory(_sessionsDir);
-            await WriteContentInternalAsync(LiveSessionId, content);
-
-            var entry = new SessionIndexEntry
-            {
-                Id        = LiveSessionId,
-                Title     = title,
-                CreatedAt = now,
-                UpdatedAt = now,
-            };
-            var index = new SessionIndex { Sessions = [entry] };
-            await WriteIndexInternalAsync(index);
-
-            return index;
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return new SessionIndex();
-        }
+        index.Sessions = index.Sessions
+            .OrderByDescending(e => e.UpdatedAt)
+            .ThenByDescending(e => e.CreatedAt)
+            .ToList();
     }
 
-    private sealed record LegacyHistoryItem(string Role, string Content);
+    private async Task WithLockAsync(Func<Task> action)
+    {
+        await _lock.WaitAsync();
+        try { await action(); }
+        finally { _lock.Release(); }
+    }
+
+    private async Task<T> WithLockAsync<T>(Func<Task<T>> action)
+    {
+        await _lock.WaitAsync();
+        try { return await action(); }
+        finally { _lock.Release(); }
+    }
 }

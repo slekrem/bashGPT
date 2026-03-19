@@ -7,14 +7,14 @@ import './agents-view'
 import './tools-view'
 import './chat-view'
 import { resetHistory } from '../api'
-import type { AppView, Session, ShellContext } from '../types'
+import type { AppView, Session } from '../types'
 import { LIVE_SESSION_ID, type SnapshotMessage } from '../session-history'
 import { SessionManager } from '../session-manager'
 import { chatAppStyles } from './chat-app.styles'
 
 interface ChatViewElement extends HTMLElement {
   beforeSend?: () => Promise<void>
-  loadSnapshot?: (messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) => void
+  loadSnapshot?: (messages: SnapshotMessage[], hint?: string, enabledTools?: string[]) => void
   scrollToBottom?: () => void
   getSnapshot?: () => SnapshotMessage[]
   reset: () => Promise<void>
@@ -42,8 +42,6 @@ export class ChatApp extends LitElement {
     if (activeId) await this._loadSessionIntoView(activeId)
   }
 
-  // ── Session helpers ───────────────────────────────────────────────────────
-
   private async _loadSessionIntoView(id: string) {
     const data = await this._sm.loadSession(id)
     if (!data) return
@@ -55,13 +53,16 @@ export class ChatApp extends LitElement {
         chatView.beforeSend = undefined
         await this._doActivateArchived(archivedId)
       }
-      chatView.loadSnapshot?.(data.messages, data.shellContext,
-        'Archivierte Session – Nachricht senden, um fortzufahren', data.enabledTools)
+      chatView.loadSnapshot?.(
+        data.messages,
+        'Archivierte Session – Nachricht senden, um fortzufahren',
+        data.enabledTools,
+      )
       chatView.scrollToBottom?.()
     } else {
       chatView.beforeSend = undefined
       this._activeAgentId = data.agentId ?? ''
-      chatView.loadSnapshot?.(data.messages, data.shellContext, undefined, data.enabledTools)
+      chatView.loadSnapshot?.(data.messages, undefined, data.enabledTools)
       chatView.scrollToBottom?.()
     }
   }
@@ -81,14 +82,11 @@ export class ChatApp extends LitElement {
     }
   }
 
-  // ── Event handlers ────────────────────────────────────────────────────────
-
   private async _onNewChat() {
     const chatView = this.shadowRoot?.querySelector('bashgpt-chat-view') as ChatViewElement | null
     if (chatView) chatView.beforeSend = undefined
     const snapshot = chatView?.getSnapshot?.() ?? []
-    const liveCtx = this._sm.localSessions.find(s => s.id === LIVE_SESSION_ID)?.shellContext
-    const { sessions, activeId } = await this._sm.prepareNewChat(snapshot, this._activeSessionId, liveCtx)
+    const { sessions, activeId } = await this._sm.prepareNewChat(snapshot, this._activeSessionId)
     this._sessions = sessions
     this._activeSessionId = activeId
     if (chatView) await chatView.reset()
@@ -155,10 +153,10 @@ export class ChatApp extends LitElement {
     this._mobileMenuOpen = false
   }
 
-  private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[], shellContext?: ShellContext | null }>) {
+  private async _onMessagesChanged(e: CustomEvent<{ messages: SnapshotMessage[] }>) {
     const id = this._activeSessionId ?? LIVE_SESSION_ID
     if (!this._activeSessionId) this._activeSessionId = id
-    this._sessions = await this._sm.persistMessages(id, e.detail.messages, e.detail.shellContext)
+    this._sessions = await this._sm.persistMessages(id, e.detail.messages)
   }
 
   render() {

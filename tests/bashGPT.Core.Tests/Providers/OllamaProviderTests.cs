@@ -1,12 +1,31 @@
 using System.Net;
 using System.Text.Json;
-using BashGPT.Configuration;
-using BashGPT.Providers;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Core.Providers.Ollama;
+using bashGPT.Core.Configuration;
 
 namespace BashGPT.Core.Tests.Providers;
 
 public class OllamaProviderTests
 {
+    private static readonly ToolDefinition BashTool = new(
+        "bash",
+        "Executes a shell command",
+        new
+        {
+            type = "object",
+            properties = new
+            {
+                command = new
+                {
+                    type = "string",
+                    description = "Shell command"
+                }
+            },
+            required = new[] { "command" }
+        });
+
     private static OllamaProvider CreateProvider(string responseBody, HttpStatusCode status = HttpStatusCode.OK)
     {
         var handler = new TestHttpMessageHandler(responseBody, status);
@@ -143,7 +162,7 @@ public class OllamaProviderTests
 
         var result = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
-                Tools: [ToolDefinitions.Bash], Stream: false));
+                Tools: [BashTool], Stream: false));
 
         Assert.Single(result.ToolCalls);
         Assert.Equal("bash", result.ToolCalls[0].Name);
@@ -172,27 +191,22 @@ public class OllamaProviderTests
     }
 
     [Fact]
-    public async Task ChatAsync_Stream_IncompleteStream_RetriesMandatory_AndSucceeds()
+    public async Task ChatAsync_Stream_IncompleteStream_ThrowsWithoutRetry()
     {
         var firstIncomplete = """
             data: {"choices":[{"delta":{"reasoning":"plan"}}]}
             """;
-        var secondComplete = """
-            data: {"choices":[{"delta":{"content":"ok"}}]}
-            data: [DONE]
-            """;
         var handler = new SequentialHttpMessageHandler(
-            SequentialHttpMessageHandler.Ok(firstIncomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(secondComplete, "text/event-stream"));
+            SequentialHttpMessageHandler.Ok(firstIncomplete, "text/event-stream"));
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
             new HttpClient(handler));
 
-        var result = await provider.ChatAsync(
-            new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: true));
+        await Assert.ThrowsAsync<LlmProviderException>(async () =>
+            await provider.ChatAsync(
+                new LlmChatRequest([new ChatMessage(ChatRole.User, "test")], Stream: true)));
 
-        Assert.Equal(2, handler.CallCount);
-        Assert.Equal("ok", result.Content);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact]
@@ -202,9 +216,6 @@ public class OllamaProviderTests
             data: {"choices":[{"delta":{"reasoning":"plan"}}]}
             """;
         var handler = new SequentialHttpMessageHandler(
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
-            SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"),
             SequentialHttpMessageHandler.Ok(incomplete, "text/event-stream"));
         var provider = new OllamaProvider(
             new OllamaConfig { BaseUrl = "http://localhost:11434", Model = "test" },
@@ -223,7 +234,7 @@ public class OllamaProviderTests
                 })));
 
         Assert.NotNull(capturedResponseJson);
-        Assert.Contains("# attempt 1", capturedResponseJson, StringComparison.Ordinal);
+        Assert.Contains("data: {\"choices\":[{\"delta\":{\"reasoning\":\"plan\"}}]}", capturedResponseJson, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -250,7 +261,7 @@ public class OllamaProviderTests
 
         var result = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
-                Tools: [ToolDefinitions.Bash], Stream: false));
+                Tools: [BashTool], Stream: false));
 
         Assert.Single(result.ToolCalls);
         Assert.Equal("bash", result.ToolCalls[0].Name);

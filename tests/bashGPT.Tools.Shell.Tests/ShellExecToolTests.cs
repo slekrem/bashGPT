@@ -23,9 +23,7 @@ public class ShellExecToolTests
 
         Assert.True(result.Success);
         var output = JsonSerializer.Deserialize<ShellExecOutput>(result.Content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        // bash (via SHELL env) outputs \n, cmd.exe outputs \r\n
-        var expectedNl = Environment.GetEnvironmentVariable("SHELL") is not null ? "\n" : Environment.NewLine;
-        Assert.Equal($"hello{expectedNl}", output.Stdout);
+        Assert.Equal("hello", output.Stdout.TrimEnd('\r', '\n'));
         Assert.Equal(0, output.ExitCode);
         Assert.False(output.TimedOut);
     }

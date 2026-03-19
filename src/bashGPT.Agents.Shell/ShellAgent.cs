@@ -1,11 +1,12 @@
 using System.Runtime.InteropServices;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using BashGPT.Agents;
-using BashGPT.Providers;
 
 namespace BashGPT.Agents.Shell;
 
 /// <summary>
-/// Shell-Assistent mit Fokus auf Terminal-Aufgaben und Shell-Befehle.
+/// Shell assistant focused on terminal tasks and shell commands.
 /// </summary>
 public sealed class ShellAgent : AgentBase
 {
@@ -24,28 +25,28 @@ public sealed class ShellAgent : AgentBase
     public override IReadOnlyList<string> SystemPrompt =>
     [
         """
-        Du bist ein Shell-Executor. Fuehre Befehle aus – schweige danach.
+        You are a shell executor. Run commands and stay quiet afterward.
 
-        Ausgabe-Regeln:
-        - Schreibe KEINE Antwort nach einem Tool-Call. Die Ausgabe ist bereits sichtbar.
-        - Erklaere nichts, schlage nichts vor, kommentiere nichts.
-        - Wenn du mehrere Schritte ausfuehrst: fuehre sie direkt nacheinander aus, ohne Text dazwischen.
-        - Nur wenn etwas schieflaeuft oder du eine Entscheidung brauchst: eine Zeile Klartext, kein Mehr.
+        Output rules:
+        - Do NOT write a follow-up response after a tool call. The output is already visible.
+        - Do not explain, suggest, or comment.
+        - If you run multiple steps, execute them back-to-back without extra text between them.
+        - Only if something fails or you need a decision: one plain-text line, nothing more.
 
-        Ausfuehrungs-Regeln:
-        - Nur nicht-interaktive Befehle (kein vim, top, htop, less, tail -f).
-        - Ausgaben begrenzen: head, tail, grep – nie ungefilterte Riesen-Ausgaben.
-        - Bei macOS: /usr/bin/log show statt log, /usr/sbin/system_profiler, etc. – immer Vollpfade.
-        - Destruktive Aktionen (rm -rf, Disk-Formatierung) nur bei expliziter Bestaetigung.
+        Execution rules:
+        - Use only non-interactive commands (no vim, top, htop, less, tail -f).
+        - Keep output short with head, tail, grep, and similar filters. Never dump huge raw output.
+        - On macOS use full paths for system tools, for example /usr/bin/log show or /usr/sbin/system_profiler.
+        - Destructive actions such as rm -rf or disk formatting require explicit confirmation.
         """,
         $"""
-        Systemkontext:
-        - Benutzer:    {Environment.UserName}
-        - Maschine:    {Environment.MachineName}
+        System context:
+        - User:        {Environment.UserName}
+        - Host:        {Environment.MachineName}
         - OS:          {GetOsDescription()}
         - Shell:       {GetShell()}
-        - Verzeichnis: {Directory.GetCurrentDirectory()}
-        - Datum/Zeit:  {DateTime.Now:dd.MM.yyyy HH:mm:ss zzz}
+        - Directory:   {Directory.GetCurrentDirectory()}
+        - Date/Time:   {DateTime.Now:dd.MM.yyyy HH:mm:ss zzz}
         """,
     ];
 
@@ -53,11 +54,11 @@ public sealed class ShellAgent : AgentBase
         $"""
         # Shell-Agent
 
-        Spezialisierter Shell-Assistent für Terminal-Aufgaben.
+        Specialized shell assistant for terminal tasks.
 
-        ## Systemkontext
+        ## System Context
 
-        | Eigenschaft | Wert |
+        | Property | Value |
         |---|---|
         | `user` | `{Environment.UserName}` |
         | `host` | `{Environment.MachineName}` |
@@ -67,31 +68,31 @@ public sealed class ShellAgent : AgentBase
         | `date` | `{DateTime.Now:dd.MM.yyyy}` |
         | `time` | `{DateTime.Now:HH:mm:ss zzz}` |
 
-        ## Aktive Tools
+        ## Enabled Tools
 
-        | Tool | Beschreibung |
+        | Tool | Description |
         |---|---|
-        | `shell_exec` | Shell-Befehle im aktuellen Arbeitsverzeichnis ausführen |
+        | `shell_exec` | Run shell commands in the current working directory |
 
-        ## Regeln
+        ## Rules
 
-        - Nur nicht-interaktive Befehle (kein `vim`, `top`, `less`, `tail -f`)
-        - Ausgaben auf das Wesentliche kürzen (`head`, `grep`, etc.)
-        - Keine destruktiven Aktionen ohne explizite Bestätigung
+        - Use only non-interactive commands (`vim`, `top`, `less`, and `tail -f` are not allowed)
+        - Keep output focused with `head`, `grep`, and similar filters
+        - Do not run destructive actions without explicit confirmation
         """;
 
     private static string GetOsDescription()
     {
         var desc = RuntimeInformation.OSDescription;
         var arch = RuntimeInformation.OSArchitecture;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))    return $"macOS {arch} – {desc}";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))  return $"Linux {arch} – {desc}";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return $"Windows {arch} – {desc}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return $"macOS {arch} - {desc}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return $"Linux {arch} - {desc}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return $"Windows {arch} - {desc}";
         return $"{desc} ({arch})";
     }
 
     private static string GetShell() =>
         Environment.GetEnvironmentVariable("SHELL")
         ?? Environment.GetEnvironmentVariable("ComSpec")
-        ?? "unbekannt";
+        ?? "unknown";
 }

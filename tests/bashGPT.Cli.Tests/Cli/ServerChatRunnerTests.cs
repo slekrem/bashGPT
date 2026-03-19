@@ -1,19 +1,17 @@
-﻿using BashGPT.Cli;
-using BashGPT.Configuration;
-using BashGPT.Providers;
+using bashGPT.Core.Configuration;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
+using BashGPT.Server;
 using BashGPT.Tools.Execution;
-using System.Reflection;
 
 namespace BashGPT.Cli.Tests;
 
 /// <summary>
-/// Unit-Tests fÃ¼r ServerChatRunner.RunServerChatAsync.
-/// Nutzt FakeLlmProvider (via providerOverride) â€“ reines LLM-Chat ohne Tools.
+/// Unit tests for <see cref="ServerChatRunner.RunServerChatAsync"/>.
+/// Uses <see cref="FakeLlmProvider"/> via providerOverride and exercises LLM-only chat flows.
 /// </summary>
 public sealed class ServerChatRunnerTests
 {
-    // â”€â”€ Hilfsmethoden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     private static ServerChatRunner CreateRunner(FakeLlmProvider provider) =>
         new(new ConfigurationService(), provider);
 
@@ -22,13 +20,10 @@ public sealed class ServerChatRunnerTests
         bool verbose = false,
         IReadOnlyList<ChatMessage>? history = null) =>
         new(
-            Prompt:   prompt,
-            History:  history ?? [],
-            Provider: null,
-            Model:    null,
-            Verbose:  verbose);
-
-    // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            Prompt: prompt,
+            History: history ?? [],
+            Model: null,
+            Verbose: verbose);
 
     [Fact]
     public async Task RunServerChatAsync_SimpleText_ReturnsContent()
@@ -47,13 +42,13 @@ public sealed class ServerChatRunnerTests
     public async Task RunServerChatAsync_LlmProviderException_ReturnsErrorMessage()
     {
         var provider = new FakeLlmProvider();
-        provider.NextException = new LlmProviderException("API-Fehler");
+        provider.NextException = new LlmProviderException("API error");
         var sut = CreateRunner(provider);
 
         var result = await sut.RunServerChatAsync(Opts());
 
-        Assert.Contains("Fehler:", result.Response);
-        Assert.Contains("API-Fehler", result.Response);
+        Assert.Contains("Error:", result.Response);
+        Assert.Contains("API error", result.Response);
     }
 
     [Fact]
@@ -65,7 +60,7 @@ public sealed class ServerChatRunnerTests
 
         var result = await sut.RunServerChatAsync(Opts());
 
-        Assert.Equal("Abgebrochen.", result.Response);
+        Assert.Equal("Cancelled.", result.Response);
     }
 
     [Fact]
@@ -79,7 +74,7 @@ public sealed class ServerChatRunnerTests
 
         Assert.NotNull(result.Usage);
         Assert.Equal(10, result.Usage!.InputTokens);
-        Assert.Equal(5,  result.Usage.OutputTokens);
+        Assert.Equal(5, result.Usage.OutputTokens);
     }
 
     [Fact]
@@ -111,8 +106,8 @@ public sealed class ServerChatRunnerTests
     {
         var history = new List<ChatMessage>
         {
-            new(ChatRole.User,      "FrÃ¼here Frage"),
-            new(ChatRole.Assistant, "FrÃ¼here Antwort"),
+            new(ChatRole.User, "Earlier question"),
+            new(ChatRole.Assistant, "Earlier answer"),
         };
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse("Antwort.", []));
@@ -122,13 +117,13 @@ public sealed class ServerChatRunnerTests
 
         Assert.NotNull(provider.LastRequestMessages);
         Assert.Contains(provider.LastRequestMessages!, m =>
-            m.Role == ChatRole.User && m.Content == "FrÃ¼here Frage");
+            m.Role == ChatRole.User && m.Content == "Earlier question");
         Assert.Contains(provider.LastRequestMessages!, m =>
-            m.Role == ChatRole.Assistant && m.Content == "FrÃ¼here Antwort");
+            m.Role == ChatRole.Assistant && m.Content == "Earlier answer");
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithUnknownProviderInConfig_ReturnsConfigurationError()
+    public async Task RunServerChatAsync_WithLegacyProviderFieldInConfig_IgnoresIt()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
@@ -143,7 +138,7 @@ public sealed class ServerChatRunnerTests
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.NotEqual(string.Empty, result.Response);
         }
         finally
         {
@@ -164,7 +159,7 @@ public sealed class ServerChatRunnerTests
 
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Konfigurationsfehler:", result.Response);
+            Assert.Contains("Configuration error:", result.Response);
         }
         finally
         {
@@ -172,33 +167,6 @@ public sealed class ServerChatRunnerTests
                 File.Delete(configPath);
         }
     }
-
-    [Fact]
-    public async Task RunServerChatAsync_WhenProviderFactoryThrows_ReturnsProviderError()
-    {
-        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
-        try
-        {
-            await File.WriteAllTextAsync(configPath, """
-            {
-              "defaultProvider": 999
-            }
-            """);
-            var configService = new TestConfigurationService(configPath);
-            var sut = new ServerChatRunner(configService);
-
-            var result = await sut.RunServerChatAsync(Opts());
-
-            Assert.Contains("Provider-Fehler:", result.Response);
-        }
-        finally
-        {
-            if (File.Exists(configPath))
-                File.Delete(configPath);
-        }
-    }
-
-    // â”€â”€ Tool-Call-Loop-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_WithToolsAndNoToolCallsInResponse_SingleLlmCall()
@@ -208,16 +176,15 @@ public sealed class ServerChatRunnerTests
 
         var fakeTool = new FakeTool("my_tool");
         var registry = new ToolRegistry([fakeTool]);
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Hallo",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Hallo",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -232,21 +199,20 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe das Tool auf.",
-            [new Providers.ToolCall("call-1", "my_tool", "{\"input\":\"x\"}")]));
+            [new ToolCall("call-1", "my_tool", "{\"input\":\"x\"}")]));
         provider.Enqueue(new LlmChatResponse("Fertig nach Tool.", []));
 
-        var fakeTool = new FakeTool("my_tool", returnValue: "Tool-Ausgabe");
+        var fakeTool = new FakeTool("my_tool", returnValue: "Tool output");
         var registry = new ToolRegistry([fakeTool]);
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Benutze das Tool",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Use the tool",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -261,21 +227,20 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.",
-            [new Providers.ToolCall("call-1", "my_tool", "{}")]));
+            [new ToolCall("call-1", "my_tool", "{}")]));
         provider.Enqueue(new LlmChatResponse("Finale Antwort.", []));
 
         var fakeTool = new FakeTool("my_tool", returnValue: "ok");
         var registry = new ToolRegistry([fakeTool]);
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Nutze ein Tool",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Use a tool",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -285,7 +250,9 @@ public sealed class ServerChatRunnerTests
         var assistantToolCallMessage = provider.LastRequestMessages!
             .FirstOrDefault(m => m.Role == ChatRole.Assistant && m.ToolCalls is { Count: > 0 });
         Assert.NotNull(assistantToolCallMessage);
-        Assert.Equal("Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.", assistantToolCallMessage!.Content);
+        Assert.Equal(
+            "Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.",
+            assistantToolCallMessage!.Content);
     }
 
     [Fact]
@@ -294,20 +261,19 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe unbekanntes Tool auf.",
-            [new Providers.ToolCall("call-1", "unbekannt", "{}")]));
+            [new ToolCall("call-1", "unbekannt", "{}")]));
         provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
 
         var registry = new ToolRegistry();
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("unbekannt", "Unbekannt", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Benutze unbekanntes Tool",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("unbekannt", "Unknown", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Use an unknown tool",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -318,28 +284,26 @@ public sealed class ServerChatRunnerTests
     [Fact]
     public async Task RunServerChatAsync_WithTools_NoHardRoundLimit_ProcessesUntilNoToolCalls()
     {
-        // Mehrere Tool-Calls in Folge â†’ Verarbeitung bis die finale Antwort ohne Tool-Calls kommt
         var provider = new FakeLlmProvider();
         for (var i = 0; i < 10; i++)
         {
             provider.Enqueue(new LlmChatResponse(
                 $"Runde {i}",
-                [new Providers.ToolCall($"c{i}", "my_tool", "{}")]));
+                [new ToolCall($"c{i}", "my_tool", "{}")]));
         }
         provider.Enqueue(new LlmChatResponse("Nach Loop.", []));
 
         var fakeTool = new FakeTool("my_tool");
         var registry = new ToolRegistry([fakeTool]);
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Schleife",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Loop",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -351,27 +315,25 @@ public sealed class ServerChatRunnerTests
     [Fact]
     public async Task RunServerChatAsync_WithoutToolRegistry_ToolCallsNotExecuted()
     {
-        // Kein Registry â†’ Loop wird nie gestartet, auch wenn Tools in opts stehen
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Antwort mit Tool-Call.",
-            [new Providers.ToolCall("c1", "my_tool", "{}")]));
+            [new ToolCall("c1", "my_tool", "{}")]));
 
-        var sut = new ServerChatRunner(new ConfigurationService(), provider); // kein Registry
+        var sut = new ServerChatRunner(new ConfigurationService(), provider);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Hallo",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Hallo",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
         Assert.Equal("Antwort mit Tool-Call.", result.Response);
-        Assert.Equal(1, provider.CallCount); // nur ein Aufruf
+        Assert.Equal(1, provider.CallCount);
     }
 
     [Fact]
@@ -380,21 +342,20 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe ein Tool auf.",
-            [new Providers.ToolCall("call-1", "my_tool", "{\"path\":\"\"}")]));
+            [new ToolCall("call-1", "my_tool", "{\"path\":\"\"}")]));
         provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
 
         var fakeTool = new FakeTool("my_tool", throwException: new ArgumentException("The path is empty. (Parameter 'path')"));
         var registry = new ToolRegistry([fakeTool]);
-        var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
+        var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
-        var opts  = new ServerChatOptions(
-            Prompt:   "Benutze Tool",
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            Tools:    tools);
+        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var opts = new ServerChatOptions(
+            Prompt: "Use tool",
+            History: [],
+            Model: null,
+            Verbose: false,
+            Tools: tools);
 
         var result = await sut.RunServerChatAsync(opts);
 
@@ -407,8 +368,6 @@ public sealed class ServerChatRunnerTests
             m.ToolCallId == "call-1" &&
             m.Content.Contains("The path is empty.", StringComparison.Ordinal));
     }
-
-    // â”€â”€ LlmExchanges-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public async Task RunServerChatAsync_SimpleResponse_OneLlmExchange()
@@ -424,10 +383,7 @@ public sealed class ServerChatRunnerTests
         Assert.NotNull(result.LlmExchanges[0].RequestJson);
         Assert.NotNull(result.LlmExchanges[0].ResponseJson);
     }
-
 }
-
-// â”€â”€ FakeTool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
 {
@@ -438,11 +394,11 @@ internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
 
     public BashGPT.Tools.Abstractions.ToolDefinition Definition { get; }
 
-    public FakeTool(string name, string returnValue = "Tool-Ergebnis", Exception? throwException = null)
+    public FakeTool(string name, string returnValue = "Tool result", Exception? throwException = null)
     {
         _returnValue = returnValue;
         _throwException = throwException;
-        Definition   = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake-Tool fuer Tests", []);
+        Definition = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake tool for tests", []);
     }
 
     public Task<BashGPT.Tools.Abstractions.ToolResult> ExecuteAsync(

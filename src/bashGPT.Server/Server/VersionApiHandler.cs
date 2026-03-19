@@ -1,5 +1,5 @@
 using System.Net;
-using BashGPT.Versioning;
+using bashGPT.Core.Versioning;
 
 namespace BashGPT.Server;
 

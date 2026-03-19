@@ -1,11 +1,13 @@
+using bashGPT.Core.Configuration;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using BashGPT.Cli;
-using BashGPT.Configuration;
-using BashGPT.Providers;
+using BashGPT.Server;
 
 namespace BashGPT.Cli.Tests;
 
 /// <summary>
-/// Tests für SSE-Streaming-Callbacks in ServerChatRunner (OnToken).
+/// Tests SSE token callbacks in <see cref="ServerChatRunner"/>.
 /// </summary>
 public sealed class ServerChatRunnerStreamingTests
 {
@@ -16,12 +18,11 @@ public sealed class ServerChatRunnerStreamingTests
         string prompt = "Hallo",
         Action<string>? onToken = null) =>
         new(
-            Prompt:   prompt,
-            History:  [],
-            Provider: null,
-            Model:    null,
-            Verbose:  false,
-            OnToken:  onToken);
+            Prompt: prompt,
+            History: [],
+            Model: null,
+            Verbose: false,
+            OnToken: onToken);
 
     [Fact]
     public async Task OnToken_IsCalled_ForEachProviderToken()

@@ -3,7 +3,7 @@ using System.Net;
 namespace BashGPT.Core.Tests.Providers;
 
 /// <summary>
-/// Gibt bei jedem Aufruf dieselbe Antwort zurück.
+/// Returns the same response for every request.
 /// </summary>
 internal sealed class TestHttpMessageHandler(
     string responseBody,
@@ -20,22 +20,22 @@ internal sealed class TestHttpMessageHandler(
         LastRequestBody = request.Content is not null
             ? await request.Content.ReadAsStringAsync(cancellationToken)
             : null;
-        var response = new HttpResponseMessage(statusCode)
+
+        return new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(responseBody,
-                System.Text.Encoding.UTF8, contentType)
+            Content = new StringContent(responseBody, System.Text.Encoding.UTF8, contentType)
         };
-        return response;
     }
 }
 
 /// <summary>
-/// Gibt eine Sequenz vorgefertigter <see cref="HttpResponseMessage"/>-Objekte zurück.
-/// Nützlich für Retry-Tests: erste Anfrage → 429, zweite → 200 etc.
+/// Returns a queued sequence of <see cref="HttpResponseMessage"/> instances.
+/// Useful for retry tests, for example 429 first and 200 second.
 /// </summary>
 internal sealed class SequentialHttpMessageHandler : HttpMessageHandler
 {
     private readonly Queue<HttpResponseMessage> _responses;
+
     public int CallCount { get; private set; }
 
     public SequentialHttpMessageHandler(params HttpResponseMessage[] responses)
@@ -49,10 +49,12 @@ internal sealed class SequentialHttpMessageHandler : HttpMessageHandler
         CallCount++;
         return _responses.TryDequeue(out var response)
             ? Task.FromResult(response)
-            : throw new InvalidOperationException("Keine weiteren Antworten in der Warteschlange.");
+            : throw new InvalidOperationException("No more responses are queued.");
     }
 
-    /// <summary>Baut eine 429-Antwort mit Retry-After: 0 (kein Warten im Test).</summary>
+    /// <summary>
+    /// Builds a 429 response with Retry-After: 0 to avoid delays in tests.
+    /// </summary>
     public static HttpResponseMessage TooManyRequests(string body = "{}") =>
         TooManyRequestsWithRetryAfter(TimeSpan.Zero, body);
 
@@ -66,7 +68,9 @@ internal sealed class SequentialHttpMessageHandler : HttpMessageHandler
         return msg;
     }
 
-    /// <summary>Baut eine einfache 200-OK-Antwort.</summary>
+    /// <summary>
+    /// Builds a simple 200 OK response.
+    /// </summary>
     public static HttpResponseMessage Ok(string body, string contentType = "application/json") =>
         new(HttpStatusCode.OK)
         {

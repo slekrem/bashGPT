@@ -4,7 +4,6 @@ using System.Text.Json;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using BashGPT.Cli;
 using BashGPT.Server;
 
 namespace BashGPT.Server.Tests;
@@ -28,7 +27,7 @@ public sealed class AgentApiTests : IAsyncLifetime
         _baseUrl = $"http://127.0.0.1:{port}";
         _client.BaseAddress = new Uri(_baseUrl);
 
-        var options = new ServerOptions(Port: port, NoBrowser: true, Provider: null, Model: null, Verbose: false);
+        var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
         _server = new ServerHost(_handler, agentRegistry: _registry);
         _cts = new CancellationTokenSource();
         _serverTask = _server.RunAsync(options, _cts.Token);
@@ -125,7 +124,7 @@ public sealed class AgentApiTests : IAsyncLifetime
         using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
         var serverWithoutRegistry = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var task = serverWithoutRegistry.RunAsync(new ServerOptions(port, true, null, null, false), cts.Token);
+        var task = serverWithoutRegistry.RunAsync(new ServerOptions(port, true, null, false), cts.Token);
 
         await WaitForServerAsync($"http://127.0.0.1:{port}");
 

@@ -1,21 +1,24 @@
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Chat;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Models.Storage;
+using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Core.Serialization;
+using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
-using BashGPT.Cli;
-using BashGPT.Providers;
 using BashGPT.Shell;
-using BashGPT.Storage;
 using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
 
 internal sealed class StreamingChatApiHandler(
     IPromptHandler handler,
-    LegacyHistory legacyHistory,
     RunningChatRegistry runningChats,
     ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
+    SessionRequestStore? sessionRequestStore = null,
     ToolRegistry? toolRegistry = null,
     AgentRegistry? agentRegistry = null)
 {
@@ -31,6 +34,7 @@ internal sealed class StreamingChatApiHandler(
         var requestId = string.IsNullOrWhiteSpace(body.RequestId)
             ? Guid.NewGuid().ToString("N")
             : body.RequestId.Trim();
+        var sessionId = ResolveSessionId(body.SessionId);
 
         using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         runningChats.Register(requestId, requestCts);
@@ -52,10 +56,10 @@ internal sealed class StreamingChatApiHandler(
 
             // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
             SessionRecord? session = null;
-            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
-                session = await sessionStore.LoadAsync(body.SessionId);
+            if (sessionStore is not null && sessionId is not null)
+                session = await sessionStore.LoadAsync(sessionId);
 
-            // History laden: session-basiert oder globaler Fallback
+            // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
             IReadOnlyList<ChatMessage> historySnapshot;
             if (session is not null)
             {
@@ -64,13 +68,13 @@ internal sealed class StreamingChatApiHandler(
                     .OfType<ChatMessage>()
                     .ToList();
             }
-            else if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            else if (sessionStore is not null && sessionId is not null)
             {
                 historySnapshot = [];
             }
             else
             {
-                historySnapshot = legacyHistory.GetSnapshot();
+                historySnapshot = [];
             }
 
             // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
@@ -88,18 +92,16 @@ internal sealed class StreamingChatApiHandler(
 
             var now        = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
-            var sessionId  = body.SessionId;
 
             // Session-Pfad setzen, bevor agent.SystemPrompt ausgewertet wird,
             // damit Dev-Agent-Kontext-Cache session-spezifisch geladen werden kann.
-            ContextFileCache.CurrentSessionPath = sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+            ContextFileCache.CurrentSessionPath = sessionStore is not null && sessionId is not null
                 ? sessionStore.GetSessionDir(sessionId)
                 : null;
 
             var chatOpts = new ServerChatOptions(
                 Prompt:   body.Prompt.Trim(),
                 History:  historySnapshot,
-                Provider: options.Provider,
                 Model:    options.Model,
                 Verbose:  options.Verbose || body.Verbose == true,
                 OnToken: token =>
@@ -123,27 +125,20 @@ internal sealed class StreamingChatApiHandler(
                         JsonDefaults.Options);
                     ApiResponse.WriteSseEvent(stream, json);
                 },
-                OnLlmRequestJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
-                    ? (idx, json) => sessionStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
+                OnLlmRequestJson: sessionRequestStore is not null && sessionId is not null
+                    ? (idx, json) => sessionRequestStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
-                OnLlmResponseJson: sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
-                    ? (idx, json) => sessionStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
+                OnLlmResponseJson: sessionRequestStore is not null && sessionId is not null
+                    ? (idx, json) => sessionRequestStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                     : null,
                 Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
                 SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
                 LlmConfig:    agent?.LlmConfig,
-                SessionPath:  sessionStore is not null && !string.IsNullOrWhiteSpace(sessionId)
+                SessionPath:  sessionStore is not null && sessionId is not null
                     ? sessionStore.GetSessionDir(sessionId)
                     : null);
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
-
-            var shellCtx = new SessionShellContext
-            {
-                User = Environment.UserName,
-                Host = Environment.MachineName,
-                Cwd  = Environment.CurrentDirectory,
-            };
 
             // done-Event senden
             var doneJson = JsonSerializer.Serialize(new
@@ -163,14 +158,13 @@ internal sealed class StreamingChatApiHandler(
                     requestId,
                     logs         = result.Logs,
                     commands     = result.Commands,
-                    shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
                 },
             }, JsonDefaults.Options);
             ApiResponse.WriteSseEvent(stream, doneJson);
             ApiResponse.WriteSseEvent(stream, "[DONE]");
 
             // Session persistieren
-            if (sessionStore is not null && !string.IsNullOrWhiteSpace(body.SessionId))
+            if (sessionStore is not null && sessionId is not null)
             {
                 var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
@@ -181,12 +175,11 @@ internal sealed class StreamingChatApiHandler(
 
                 await sessionStore.UpsertAsync(new SessionRecord
                 {
-                    Id           = body.SessionId,
+                    Id           = sessionId,
                     Title        = title,
                     CreatedAt    = session?.CreatedAt ?? now,
                     UpdatedAt    = now,
                     Messages     = allMessages,
-                    ShellContext = shellCtx,
                     EnabledTools = selectableToolNames?.ToList(),
                     AgentId      = agent?.Id ?? session?.AgentId,
                 });
@@ -208,13 +201,8 @@ internal sealed class StreamingChatApiHandler(
                         },
                     },
                 };
-                await sessionStore.SaveRequestAsync(body.SessionId, reqRecord);
-            }
-            else
-            {
-                legacyHistory.Append(new ChatMessage(ChatRole.User, body.Prompt.Trim()));
-                foreach (var msg in BuildConversationDelta(result))
-                    legacyHistory.Append(msg);
+                if (sessionRequestStore is not null)
+                    await sessionRequestStore.SaveRequestAsync(sessionId, reqRecord);
             }
         }
         catch (OperationCanceledException) when (requestCts.IsCancellationRequested && !ct.IsCancellationRequested)
@@ -259,6 +247,13 @@ internal sealed class StreamingChatApiHandler(
             ctx.Response.Close();
         }
     }
+
+    private string? ResolveSessionId(string? requestedSessionId) =>
+        sessionStore is null
+            ? null
+            : string.IsNullOrWhiteSpace(requestedSessionId)
+                ? SessionStore.LiveSessionId
+                : requestedSessionId;
 
     private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
         => commands is not { Count: > 0 }

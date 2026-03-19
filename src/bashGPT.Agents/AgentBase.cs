@@ -51,7 +51,7 @@ public abstract class AgentBase
         {
             sb.AppendLine();
             sb.AppendLine();
-            sb.AppendLine("## LLM-Konfiguration");
+            sb.AppendLine("## LLM Configuration");
             sb.AppendLine();
             sb.AppendLine("| Parameter | Wert |");
             sb.AppendLine("|---|---|");

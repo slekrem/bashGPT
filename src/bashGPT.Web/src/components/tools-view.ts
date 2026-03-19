@@ -164,14 +164,14 @@ export class ToolsView extends LitElement {
   render() {
     return html`
       <h2>Tools</h2>
-      <div class="subtitle">Registrierte Tools – nutzbar im Chat und von Agenten.</div>
+      <div class="subtitle">Registered tools available in chat sessions and agents.</div>
 
       ${this._error ? html`<div class="error">${this._error}</div>` : ''}
 
       ${this._loading
-        ? html`<div class="loading">Lade Tools…</div>`
+        ? html`<div class="loading">Loading tools...</div>`
         : this._tools.length === 0
-          ? html`<div class="empty">Keine Tools registriert.</div>`
+          ? html`<div class="empty">No tools registered.</div>`
           : html`
             <div class="tool-list">
               ${repeat(this._tools, t => t.name, t => html`
@@ -181,7 +181,7 @@ export class ToolsView extends LitElement {
                   </div>
                   ${t.description ? html`<div class="tool-desc">${t.description}</div>` : ''}
                   ${t.parameters?.length ? html`
-                    <div class="params-label">Parameter</div>
+                    <div class="params-label">Parameters</div>
                     ${t.parameters.map(p => html`
                       <div class="param-row">
                         <span class="param-name">${p.name}</span>

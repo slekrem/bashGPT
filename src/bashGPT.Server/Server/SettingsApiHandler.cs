@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
-using BashGPT.Cli;
-using BashGPT.Configuration;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Core.Providers.Ollama;
+using bashGPT.Core.Serialization;
+using bashGPT.Core.Configuration;
 using BashGPT.Shell;
-using BashGPT.Providers;
 
 namespace BashGPT.Server;
 
@@ -14,10 +16,10 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
     {
         var path = ctx.Request.Url?.AbsolutePath ?? "/";
 
-        if (ctx.Request.HttpMethod == "GET"  && path == "/api/settings")
+        if (ctx.Request.HttpMethod == "GET" && path == "/api/settings")
         { await HandleGetAsync(ctx.Response, ct); return; }
 
-        if (ctx.Request.HttpMethod == "PUT"  && path == "/api/settings")
+        if (ctx.Request.HttpMethod == "PUT" && path == "/api/settings")
         { await HandlePutAsync(ctx, ct); return; }
 
         if (ctx.Request.HttpMethod == "POST" && path == "/api/settings/test")
@@ -26,23 +28,22 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
     }
 
-    // ── GET /api/settings ───────────────────────────────────────────────────
-
     private async Task HandleGetAsync(HttpListenerResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
             return;
         }
+
         var config = await configService.LoadAsync();
         await ApiResponse.WriteJsonAsync(response, new
         {
-            provider          = "ollama",
-            model             = config.Ollama.Model,
+            provider = "ollama",
+            model = config.Ollama.Model,
             contextWindowTokens = (int?)null,
-            ollamaHost        = config.Ollama.BaseUrl,
-            ollama            = new
+            ollamaHost = config.Ollama.BaseUrl,
+            ollama = new
             {
                 model = config.Ollama.Model,
                 host = config.Ollama.BaseUrl,
@@ -50,24 +51,22 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         });
     }
 
-    // ── PUT /api/settings ───────────────────────────────────────────────────
-
     private async Task HandlePutAsync(HttpListenerContext ctx, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
             return;
         }
+
         var body = await JsonSerializer.DeserializeAsync<SettingsRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
         if (body is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Ungültiger Request-Body." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "UngÃ¼ltiger Request-Body." }, statusCode: 400);
             return;
         }
+
         var config = await configService.LoadAsync();
-        var providerType = ParseProviderType(body.Provider);
-        if (providerType is not null) config.DefaultProvider = providerType.Value;
 
         if (body.Ollama is not null)
         {
@@ -77,21 +76,21 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
 
         if (body.Model is not null) config.Ollama.Model = body.Model;
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
+
         await configService.SaveAsync(config);
         await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
     }
-
-    // ── POST /api/settings/test ─────────────────────────────────────────────
 
     private async Task HandleTestAsync(HttpListenerResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfügbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
             return;
         }
+
         var config = await configService.LoadAsync();
-        var provider = ProviderFactory.Create(config);
+        var provider = new OllamaProvider(config.Ollama);
         var sw = Stopwatch.StartNew();
         try
         {
@@ -106,17 +105,9 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         }
     }
 
-    // ── Hilfsmethoden ───────────────────────────────────────────────────────
-
-    private static ProviderType? ParseProviderType(string? provider) =>
-        provider?.ToLowerInvariant() switch
-        {
-            "ollama"   => ProviderType.Ollama,
-            _          => null
-        };
-
     private sealed record SettingsRequest(
-        string? Provider, string? Model,
+        string? Provider,
+        string? Model,
         string? OllamaHost,
         ProviderConfigRequest? Ollama);
 

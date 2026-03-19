@@ -1,5 +1,3 @@
-using BashGPT.Cli;
-
 namespace BashGPT.Server.Tests;
 
 /// <summary>

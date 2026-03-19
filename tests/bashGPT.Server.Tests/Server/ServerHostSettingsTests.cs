@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using BashGPT.Server;
 using BashGPT.Shell;
 
@@ -34,7 +34,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var options = new ServerOptions(
             Port: port,
             NoBrowser: true,
-            Provider: null,
             Model: null,
             Verbose: false);
 
@@ -74,7 +73,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, false);
+        var options = new ServerOptions(port, true, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);
@@ -147,7 +146,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
 
         // Config-Datei prüfen
         var config = await _configService.LoadAsync();
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
         Assert.Equal("test-model", config.Ollama.Model);
     }
 
@@ -175,7 +173,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
 
         var config = await _configService.LoadAsync();
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
         Assert.Equal("ollama-model-y", config.Ollama.Model);
         Assert.Equal("http://ollama.local:11434", config.Ollama.BaseUrl);
     }
@@ -236,7 +233,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, false);
+        var options = new ServerOptions(port, true, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);
@@ -263,7 +260,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var port = GetFreePort();
         var serverNoConfig = new ServerHost(_handler);
         using var cts = new CancellationTokenSource();
-        var options = new ServerOptions(port, true, null, null, false);
+        var options = new ServerOptions(port, true, null, false);
         var task = serverNoConfig.RunAsync(options, cts.Token);
         var url = $"http://127.0.0.1:{port}";
         await WaitForServerAsync(url);

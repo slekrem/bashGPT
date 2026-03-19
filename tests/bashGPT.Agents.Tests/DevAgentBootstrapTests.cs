@@ -48,7 +48,7 @@ public class DevAgentTests
     {
         var md = _agent.GetInfoPanelMarkdown();
 
-        Assert.Contains("## LLM-Konfiguration", md, StringComparison.Ordinal);
+        Assert.Contains("## LLM Configuration", md, StringComparison.Ordinal);
         Assert.Contains("`temperature`", md, StringComparison.Ordinal);
         Assert.Contains("`top_p`", md, StringComparison.Ordinal);
         Assert.Contains("`stream`", md, StringComparison.Ordinal);

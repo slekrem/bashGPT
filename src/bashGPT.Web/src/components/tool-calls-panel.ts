@@ -88,11 +88,11 @@ export class ToolCallsPanel extends LitElement {
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .badge-running  { background: #1e3a5f; color: #60a5fa; }
-    .badge-success  { background: #14532d; color: #86efac; }
-    .badge-error    { background: #7f1d1d; color: #fca5a5; }
-    .badge-skipped  { background: #1e293b; color: #64748b; }
-    .badge-timeout  { background: #78350f; color: #fcd34d; }
+    .badge-running { background: #1e3a5f; color: #60a5fa; }
+    .badge-success { background: #14532d; color: #86efac; }
+    .badge-error { background: #7f1d1d; color: #fca5a5; }
+    .badge-skipped { background: #1e293b; color: #64748b; }
+    .badge-timeout { background: #78350f; color: #fcd34d; }
     .badge-user-cancelled { background: #4c1d95; color: #ddd6fe; }
 
     .entry-body {
@@ -150,7 +150,7 @@ export class ToolCallsPanel extends LitElement {
     if (e.status === 'running') return 'running'
     if (e.status === 'skipped') return 'skipped'
     if (e.status === 'timeout') return 'timeout'
-    if (e.status === 'user_cancelled') return 'abgebrochen'
+    if (e.status === 'user_cancelled') return 'cancelled'
     if (e.status === 'success') return 'ok'
     return `exit ${e.exitCode}`
   }
@@ -172,7 +172,7 @@ export class ToolCallsPanel extends LitElement {
 
       <div class="entries">
         ${!hasEntries
-          ? html`<div class="empty">Noch keine Tool-Calls.</div>`
+          ? html`<div class="empty">No tool calls yet.</div>`
           : ''}
 
         ${repeat(
@@ -194,7 +194,7 @@ export class ToolCallsPanel extends LitElement {
                   : html`
                     <div>
                       <div class="label">Output</div>
-                      <pre class="output ${this._outputClass(e)}">${e.output?.length ? e.output : '(keine Ausgabe)'}</pre>
+                      <pre class="output ${this._outputClass(e)}">${e.output?.length ? e.output : '(no output)'}</pre>
                     </div>
                   `}
               </div>

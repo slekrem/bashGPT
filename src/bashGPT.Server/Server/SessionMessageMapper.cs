@@ -1,5 +1,5 @@
-using BashGPT.Providers;
-using BashGPT.Storage;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Models.Storage;
 
 namespace BashGPT.Server;
 

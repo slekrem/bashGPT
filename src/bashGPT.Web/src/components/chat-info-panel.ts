@@ -69,7 +69,6 @@ export class ChatInfoPanel extends LitElement {
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Markdown-Rendering */
     .md h1 {
       font-size: 14px;
       font-weight: 700;
@@ -132,7 +131,6 @@ export class ChatInfoPanel extends LitElement {
     }
     .md tr:last-child td { border-bottom: none; }
 
-    /* Token-Stats */
     .stats-section {
       border-top: 1px solid #1e293b;
       padding: 10px 16px 14px;
@@ -179,7 +177,7 @@ export class ChatInfoPanel extends LitElement {
     const cached = u.cachedInputTokens ?? 0
     return html`
       <div class="stats-section">
-        <div class="stats-title">Session-Tokens</div>
+        <div class="stats-title">Session Tokens</div>
         <div class="stats-grid">
           <div class="stat-item">
             <span class="stat-label">input</span>
@@ -219,7 +217,7 @@ export class ChatInfoPanel extends LitElement {
         <div class="content">
           <div class="loading-state">
             <div class="spinner"></div>
-            Lade Informationen…
+            Loading information...
           </div>
         </div>
         ${this._renderStats()}`
@@ -228,7 +226,7 @@ export class ChatInfoPanel extends LitElement {
     if (!this.markdown) {
       return html`${header}
         <div class="content">
-          <div class="empty-state">Keine Informationen verfügbar.</div>
+          <div class="empty-state">No information available.</div>
         </div>
         ${this._renderStats()}`
     }

@@ -1,11 +1,9 @@
-using BashGPT.Configuration;
-using BashGPT.Shell;
+using bashGPT.Core.Configuration;
 
 namespace BashGPT.Core.Tests.Configuration;
 
 public class ConfigurationServiceTests : IDisposable
 {
-    // Jeder Test bekommt ein eigenes temporäres Config-Verzeichnis
     private readonly string _tmpDir;
 
     public ConfigurationServiceTests()
@@ -29,7 +27,7 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         var config = await svc.LoadAsync();
 
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        Assert.False(config.DefaultForceTools);
         Assert.Equal("http://localhost:11434", config.Ollama.BaseUrl);
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
     }
@@ -40,26 +38,24 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         var config = new AppConfig
         {
-            DefaultProvider = ProviderType.Ollama,
+            DefaultForceTools = true,
             Ollama = new OllamaConfig { Model = "llama3.2", BaseUrl = "http://ollama.local:11434" }
         };
 
         await svc.SaveAsync(config);
         var loaded = await svc.LoadAsync();
 
-        Assert.Equal(ProviderType.Ollama, loaded.DefaultProvider);
+        Assert.True(loaded.DefaultForceTools);
         Assert.Equal("llama3.2", loaded.Ollama.Model);
         Assert.Equal("http://ollama.local:11434", loaded.Ollama.BaseUrl);
     }
 
     [Fact]
-    public async Task Set_UpdatesProvider()
+    public async Task Set_Provider_Throws()
     {
         var svc = CreateService();
-        await svc.SetAsync("defaultProvider", "ollama");
-        var config = await svc.LoadAsync();
-
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "ollama"));
+        Assert.Contains("obsolete", ex.Message);
     }
 
     [Fact]
@@ -71,44 +67,62 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Set_InvalidProvider_Throws()
+    public async Task Get_Provider_ReturnsOllama()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "invalid"));
+        Assert.Equal("ollama", await svc.GetAsync("provider"));
     }
 
     [Fact]
     public async Task Set_UnknownKey_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("unknown.key", "value"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("unknown.key", "value"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
     public async Task Set_RemovedProviderKey_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("removed-provider.apiKey", "secret"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("removed-provider.apiKey", "secret"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
-    public async Task List_ContainsAllKeys()
+    public async Task Set_ExecMode_Throws()
     {
         var svc = CreateService();
-        var list = await svc.ListAsync();
-
-        Assert.Contains("defaultProvider", list);
-        Assert.Contains("ollama.baseUrl", list);
-        Assert.Contains("ollama.model", list);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("execMode", "auto-exec"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
-    public async Task SetAsync_ExecMode_PersistsValue()
+    public async Task Get_ExecMode_Throws()
     {
         var svc = CreateService();
-        await svc.SetAsync("execMode", "auto-exec");
-        var config = await svc.LoadAsync();
-        Assert.Equal(ExecutionMode.AutoExec, config.DefaultExecMode);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.GetAsync("execMode"));
+        Assert.Contains("Unknown configuration key", ex.Message);
+    }
+
+    [Fact]
+    public async Task Set_ForceTools_InvalidValue_ThrowsEnglishError()
+    {
+        var svc = CreateService();
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("forceTools", "yes"));
+        Assert.Contains("Invalid value for 'forceTools'", ex.Message);
+    }
+
+    [Fact]
+    public async Task Load_InvalidJson_ThrowsEnglishError()
+    {
+        var svc = CreateService();
+        await File.WriteAllTextAsync(Path.Combine(_tmpDir, "config.json"), "{ invalid json");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => svc.LoadAsync());
+
+        Assert.Contains("Configuration file", ex.Message);
+        Assert.Contains("is invalid", ex.Message);
     }
 
     [Fact]
@@ -121,46 +135,36 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_ExecMode_ReturnsKebabCaseString()
-    {
-        var svc = CreateService();
-        await svc.SetAsync("execMode", "dry-run");
-        var result = await svc.GetAsync("execMode");
-        Assert.Equal("dry-run", result);
-    }
-
-    [Fact]
-    public async Task ListAsync_IncludesAllKeys()
+    public async Task List_ContainsSupportedKeys()
     {
         var svc = CreateService();
         var list = await svc.ListAsync();
-        Assert.Contains("execMode", list);
+
+        Assert.Contains("provider", list);
         Assert.Contains("forceTools", list);
-        Assert.DoesNotContain("commandTimeoutSeconds", list);
-        Assert.DoesNotContain("loopDetectionEnabled", list);
-        Assert.DoesNotContain("maxToolCallRounds", list);
+        Assert.Contains("ollama.baseUrl", list);
+        Assert.Contains("ollama.model", list);
+        Assert.DoesNotContain("defaultProvider", list);
+        Assert.DoesNotContain("execMode", list);
     }
 
     [Fact]
-    public async Task ApplyEnvironmentOverrides_BASHGPT_EXEC_MODE_AppliesCorrectly()
+    public async Task ApplyEnvironmentOverrides_BASHGPT_FORCE_TOOLS_AppliesCorrectly()
     {
         var svc = CreateService();
-        Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", "no-exec");
+        Environment.SetEnvironmentVariable("BASHGPT_FORCE_TOOLS", "true");
         try
         {
             var config = await svc.LoadAsync();
-            Assert.Equal(ExecutionMode.NoExec, config.DefaultExecMode);
+            Assert.True(config.DefaultForceTools);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", null);
+            Environment.SetEnvironmentVariable("BASHGPT_FORCE_TOOLS", null);
         }
     }
 }
 
-/// <summary>
-/// Testbare Variante, die ein temp. Verzeichnis statt ~/.config/bashgpt nutzt.
-/// </summary>
 internal class TestableConfigurationService(string configDir) : ConfigurationService
 {
     protected override string ConfigFile { get; } =

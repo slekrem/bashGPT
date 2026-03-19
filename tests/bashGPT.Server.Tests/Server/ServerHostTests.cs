@@ -2,10 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Cli;
-using BashGPT.Configuration;
-using BashGPT.Providers;
+using bashGPT.Core.Configuration;
 using BashGPT.Server;
+using bashGPT.Core.Storage;
+using bashGPT.Core.Models.Providers;
 
 namespace BashGPT.Server.Tests;
 
@@ -17,6 +17,8 @@ public sealed class ServerHostTests : IAsyncLifetime
 {
     private readonly FakePromptHandler _handler = new();
     private readonly HttpClient _client = new();
+    private string _tempDir = string.Empty;
+    private SessionStore _sessionStore = null!;
     private ServerHost _server = null!;
     private CancellationTokenSource _cts = null!;
     private Task _serverTask = null!;
@@ -29,15 +31,17 @@ public sealed class ServerHostTests : IAsyncLifetime
         var port = GetFreePort();
         _baseUrl = $"http://127.0.0.1:{port}";
         _client.BaseAddress = new Uri(_baseUrl);
+        _tempDir = Path.Combine(Path.GetTempPath(), $"bashgpt-server-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDir);
+        _sessionStore = new SessionStore(Path.Combine(_tempDir, "sessions"));
 
         var options = new ServerOptions(
             Port: port,
             NoBrowser: true,
-            Provider: null,
             Model: null,
             Verbose: false);
 
-        _server = new ServerHost(_handler);
+        _server = new ServerHost(_handler, sessionStore: _sessionStore);
         _cts = new CancellationTokenSource();
         _serverTask = _server.RunAsync(options, _cts.Token);
 
@@ -62,6 +66,7 @@ public sealed class ServerHostTests : IAsyncLifetime
 
         _client.Dispose();
         _cts.Dispose();
+        try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
     // ── GET / ───────────────────────────────────────────────────────────────

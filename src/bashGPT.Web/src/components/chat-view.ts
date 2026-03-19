@@ -5,7 +5,7 @@ import './message-bubble'
 import './tool-calls-panel'
 import './chat-info-panel'
 import { streamChat, loadHistory, resetHistory, getTools, cancelChat, getAgentInfoPanel } from '../api'
-import type { CommandResult, ToolCallEntry, ShellContext, TokenUsage, ToolInfo } from '../types'
+import type { CommandResult, ToolCallEntry, TokenUsage, ToolInfo } from '../types'
 import type { SnapshotMessage } from '../session-history'
 
 interface Message {
@@ -36,7 +36,6 @@ export class ChatView extends LitElement {
     loading:     false,
     statusText:  '',
     statusError: false,
-    shellContext: null as ShellContext | null,
     tokenUsage:  { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as TokenUsage,
   }
 
@@ -343,7 +342,7 @@ export class ChatView extends LitElement {
   }
 
   /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
-  loadSnapshot(messages: SnapshotMessage[], shellContext?: ShellContext | null, hint?: string, enabledTools?: string[]) {
+  loadSnapshot(messages: SnapshotMessage[], hint?: string, enabledTools?: string[]) {
     // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
     // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
     this._historyLoadSeq++
@@ -360,7 +359,6 @@ export class ChatView extends LitElement {
       ...this._chat,
       messages: newMessages,
       tokenUsage: this._sumTokenUsage(newMessages),
-      shellContext: shellContext !== undefined ? (shellContext ?? null) : this._chat.shellContext,
       statusText: hint ?? '',
       statusError: false,
     }
@@ -390,7 +388,10 @@ export class ChatView extends LitElement {
   /** Öffentlich: Session zurücksetzen */
   async reset() {
     try {
-      await resetHistory()
+      // Only use the legacy history reset when no explicit session is active.
+      // In session mode, the parent component manages session lifecycle itself.
+      if (!this.sessionId)
+        await resetHistory()
       this._chat = {
         ...this._chat,
         messages:   [],
@@ -560,7 +561,6 @@ export class ChatView extends LitElement {
         ...this._chat,
         messages:    newMessages,
         tokenUsage:  this._sumTokenUsage(newMessages),
-        shellContext: result.shellContext ?? this._chat.shellContext,
         statusText:  finalStatusText,
         statusError: false,
       }
@@ -634,7 +634,7 @@ export class ChatView extends LitElement {
     this.dispatchEvent(new CustomEvent('messages-changed', {
       bubbles: true,
       composed: true,
-      detail: { messages: this.getSnapshot(), shellContext: this._chat.shellContext },
+      detail: { messages: this.getSnapshot() },
     }))
   }
 

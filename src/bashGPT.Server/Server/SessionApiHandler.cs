@@ -1,12 +1,13 @@
 using System.Net;
 using System.Text.Json;
-using BashGPT.Providers;
-using BashGPT.Storage;
-using BashGPT;
+using bashGPT.Core;
+using bashGPT.Core.Storage;
+using bashGPT.Core.Models.Storage;
+using bashGPT.Core.Serialization;
 
 namespace BashGPT.Server;
 
-internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistory legacyHistory)
+internal sealed class SessionApiHandler(SessionStore? sessionStore)
 {
     public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
     {
@@ -55,7 +56,6 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
         if (req.HttpMethod == "POST" && path == "/api/sessions/clear")
         {
             await sessionStore.ClearAsync();
-            legacyHistory.Clear();
             await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
             return;
         }
@@ -79,7 +79,6 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore, LegacyHistor
                 createdAt    = session.CreatedAt,
                 updatedAt    = session.UpdatedAt,
                 messages     = visibleMessages,
-                shellContext = session.ShellContext,
                 enabledTools = session.EnabledTools,
                 agentId      = session.AgentId,
             });

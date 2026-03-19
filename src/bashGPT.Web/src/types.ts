@@ -15,15 +15,8 @@ export interface TokenUsage {
 export interface ChatResponse {
   response: string
   finalStatus?: 'completed' | 'user_cancelled' | 'timeout'
-  shellContext?: ShellContext
   commands: CommandResult[]
   usage?: TokenUsage | null
-}
-
-export interface ShellContext {
-  user: string
-  host: string
-  cwd: string
 }
 
 export interface HistoryMessage {
@@ -51,21 +44,6 @@ export interface Settings {
   contextWindowTokens?: number
   ollamaHost?: string
   ollama: OllamaSettings
-}
-
-export interface GitContext {
-  branch: string
-  lastCommit: string | null
-  changedFilesCount: number
-}
-
-export interface FullShellContext {
-  user: string
-  host: string
-  cwd: string
-  os: string
-  shell: string
-  git?: GitContext | null
 }
 
 export interface Agent {

@@ -1,36 +1,29 @@
-using BashGPT.Configuration;
-using BashGPT.Shell;
-using BashGPT.Storage;
+using System.Runtime.InteropServices;
+using bashGPT.Core.Storage;
 
-namespace BashGPT;
+namespace bashGPT.Core;
 
 public static class AppBootstrap
 {
-    public static string GetConfigDir() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".config", "bashgpt");
+    public static string GetDefaultConfigDir() =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "bashgpt")
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".config",
+                "bashgpt");
 
-    public static ProviderType? ParseProviderOrThrow(string? providerStr) => providerStr?.ToLowerInvariant() switch
-    {
-        "ollama" => ProviderType.Ollama,
-        null => null,
-        var value => throw new ArgumentException($"Unbekannter Provider '{value}'. Erlaubt: ollama")
-    };
+    public static string GetDefaultConfigFilePath() =>
+        Path.Combine(GetDefaultConfigDir(), "config.json");
 
-    public static ExecutionMode? ResolveExecutionMode(bool noExec, bool dryRun, bool autoExec) => (noExec, dryRun, autoExec) switch
-    {
-        (true, _, _) => ExecutionMode.NoExec,
-        (_, true, _) => ExecutionMode.DryRun,
-        (_, _, true) => ExecutionMode.AutoExec,
-        _ => null,
-    };
+    public static string GetSessionsDir(string? configDir = null) =>
+        Path.Combine(configDir ?? GetDefaultConfigDir(), "sessions");
 
-    public static SessionStore CreateSessionStore(string? configDir = null)
-    {
-        var baseDir            = configDir ?? GetConfigDir();
-        var historyFile        = Path.Combine(baseDir, "history.json");
-        var legacySessionsFile = Path.Combine(baseDir, "sessions.json");
-        var sessionsDir        = Path.Combine(baseDir, "sessions");
-        return new SessionStore(sessionsDir, legacyHistoryFile: historyFile, legacySessionsFile: legacySessionsFile);
-    }
+    public static SessionStore CreateSessionStore(string? configDir = null) =>
+        new(GetSessionsDir(configDir));
+
+    public static SessionRequestStore CreateSessionRequestStore(string? configDir = null) =>
+        new(GetSessionsDir(configDir));
 }

@@ -1,6 +1,7 @@
-using BashGPT.Configuration;
-using BashGPT.Providers;
-using Microsoft.Extensions.DependencyInjection;
+using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Core.Providers.Ollama;
+using bashGPT.Core.Configuration;
 
 namespace BashGPT.Core.Tests.Providers;
 
@@ -9,8 +10,8 @@ public class ProviderAbstractionTests
     [Fact]
     public void ChatMessage_RoleString_ReturnsCorrectValues()
     {
-        Assert.Equal("system",    new ChatMessage(ChatRole.System,    "").RoleString);
-        Assert.Equal("user",      new ChatMessage(ChatRole.User,      "").RoleString);
+        Assert.Equal("system", new ChatMessage(ChatRole.System, "").RoleString);
+        Assert.Equal("user", new ChatMessage(ChatRole.User, "").RoleString);
         Assert.Equal("assistant", new ChatMessage(ChatRole.Assistant, "").RoleString);
     }
 
@@ -23,41 +24,12 @@ public class ProviderAbstractionTests
     }
 
     [Fact]
-    public void ProviderFactory_Create_ReturnsOllamaProvider()
+    public void OllamaProvider_UsesConfiguredDefaults()
     {
-        var config = new AppConfig { DefaultProvider = ProviderType.Ollama };
-        var provider = ProviderFactory.Create(config);
+        var config = new AppConfig();
+        var provider = new OllamaProvider(config.Ollama);
 
         Assert.Equal("Ollama", provider.Name);
+        Assert.Equal(config.Ollama.Model, provider.Model);
     }
-
-    [Fact]
-    public void ProviderFactory_Create_WithUnsupportedProvider_ThrowsHelpfulError()
-    {
-        var config = new AppConfig { DefaultProvider = (ProviderType)999 };
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            ProviderFactory.Create(config));
-
-        Assert.Contains("Nicht unterstützter Provider", ex.Message);
-    }
-
-    [Fact]
-    public void AddBashGptProviders_RegistersSingletonLlmProvider()
-    {
-        var services = new ServiceCollection();
-        var config = new AppConfig
-        {
-            DefaultProvider = ProviderType.Ollama,
-        };
-
-        services.AddBashGptProviders(config);
-        using var scope = services.BuildServiceProvider().CreateScope();
-        var provider1 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
-        var provider2 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
-
-        Assert.Same(provider1, provider2);
-    }
-
-    // Name/Model und Implementierungsdetails des Providers werden
-    // in OllamaProviderTests getestet.
 }

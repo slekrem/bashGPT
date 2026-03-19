@@ -1,18 +1,17 @@
 using System.CommandLine;
-using BashGPT;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using BashGPT.Cli;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using BashGPT.Server;
+using BashGPT.Tools.Build;
 using BashGPT.Tools.Execution;
 using BashGPT.Tools.Fetch;
 using BashGPT.Tools.Filesystem;
-using BashGPT.Tools.Build;
 using BashGPT.Tools.Git;
 using BashGPT.Tools.Shell;
 using BashGPT.Tools.Testing;
+using bashGPT.Core;
 
 var configService = new ConfigurationService();
 var toolRegistry = new ToolRegistry([
@@ -36,13 +35,10 @@ var toolRegistry = new ToolRegistry([
 ]);
 var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 var sessionStore = AppBootstrap.CreateSessionStore();
+var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
 var agentRegistry = new AgentRegistry([new GenericAgent(), new DevAgent(), new ShellAgent()]);
-var serverHost = new ServerHost(serverRunner, configService, sessionStore, agentRegistry, toolRegistry);
+var serverHost = new ServerHost(serverRunner, configService, sessionStore, sessionRequestStore, agentRegistry, toolRegistry);
 
-var providerOpt = new Option<string?>("--provider", "-p")
-{
-    Description = "LLM-Provider: 'ollama' (überschreibt Config)"
-};
 var modelOpt = new Option<string?>("--model", "-m")
 {
     Description = "Modellname (überschreibt Config)"
@@ -62,7 +58,6 @@ var noBrowserOpt = new Option<bool>("--no-browser")
 };
 
 var rootCommand = new RootCommand("bashGPT Server");
-rootCommand.Options.Add(providerOpt);
 rootCommand.Options.Add(modelOpt);
 rootCommand.Options.Add(verboseOpt);
 rootCommand.Options.Add(portOpt);
@@ -70,12 +65,9 @@ rootCommand.Options.Add(noBrowserOpt);
 
 rootCommand.SetAction(async (parseResult, ct) =>
 {
-    var providerOverride = AppBootstrap.ParseProviderOrThrow(parseResult.GetValue(providerOpt));
-
     var serverOptions = new ServerOptions(
         Port: parseResult.GetValue(portOpt),
         NoBrowser: parseResult.GetValue(noBrowserOpt),
-        Provider: providerOverride,
         Model: parseResult.GetValue(modelOpt),
         Verbose: parseResult.GetValue(verboseOpt));
 

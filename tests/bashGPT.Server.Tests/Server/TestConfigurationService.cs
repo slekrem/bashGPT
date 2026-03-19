@@ -1,4 +1,4 @@
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 
 namespace BashGPT.Server.Tests;
 
