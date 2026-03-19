@@ -25,6 +25,15 @@ internal static class SessionStoragePaths
     public static string GetRequestsDir(string sessionsDir, string sessionId) =>
         Path.Combine(GetSessionDir(sessionsDir, sessionId), "requests");
 
+    public static string GetRequestRecordFilePath(string sessionsDir, string sessionId, string timestamp) =>
+        Path.Combine(GetRequestsDir(sessionsDir, sessionId), GetSafeTimestamp(timestamp) + ".json");
+
+    public static string GetLlmRequestFilePath(string sessionsDir, string sessionId, string timestamp) =>
+        Path.Combine(GetRequestsDir(sessionsDir, sessionId), GetSafeTimestamp(timestamp) + "-llm-request.json");
+
+    public static string GetLlmResponseFilePath(string sessionsDir, string sessionId, string timestamp) =>
+        Path.Combine(GetRequestsDir(sessionsDir, sessionId), GetSafeTimestamp(timestamp) + "-llm-response.json");
+
     public static string GetSafeTimestamp(string timestamp) =>
-        timestamp.Replace(":", "-").Replace("+", "+");
+        timestamp.Replace(":", "-");
 }

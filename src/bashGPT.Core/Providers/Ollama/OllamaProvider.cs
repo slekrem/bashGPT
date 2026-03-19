@@ -85,92 +85,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
             return new LlmChatResponse(content, toolCalls, usage);
         }
 
-        var contentBuilder = new StringBuilder();
-        var toolBuilder = new Dictionary<int, OpenAiCompatibleToolCallBuilder>();
-        var rawLines = new StringBuilder();
-        OpenAiCompatibleUsage? streamUsage = null;
-        var streamCompleted = false;
-
-        await using (var stream = await response.Content.ReadAsStreamAsync(ct))
-        using (var reader = new System.IO.StreamReader(stream))
-        {
-            while (!reader.EndOfStream && !ct.IsCancellationRequested)
-            {
-                var line = await reader.ReadLineAsync(ct);
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-
-                if (!line.StartsWith("data:", StringComparison.Ordinal))
-                    continue;
-
-                rawLines.AppendLine(line);
-
-                var json = line["data:".Length..].Trim();
-                if (json == "[DONE]")
-                {
-                    streamCompleted = true;
-                    break;
-                }
-
-                OpenAiCompatibleStreamChunk? chunk;
-                try
-                {
-                    chunk = JsonSerializer.Deserialize<OpenAiCompatibleStreamChunk>(json, JsonDefaults.Options);
-                }
-                catch (JsonException)
-                {
-                    continue;
-                }
-
-                var delta = chunk?.Choices?.FirstOrDefault()?.Delta;
-
-                var reasoning = delta?.ReasoningContent;
-                if (!string.IsNullOrEmpty(reasoning))
-                    request.OnReasoningToken?.Invoke(reasoning);
-
-                var content = delta?.Content;
-                if (!string.IsNullOrEmpty(content))
-                {
-                    request.OnToken?.Invoke(content);
-                    contentBuilder.Append(content);
-                }
-
-                if (delta?.ToolCalls is { Count: > 0 })
-                {
-                    foreach (var toolDelta in delta.ToolCalls)
-                        OllamaRequestMapper.ApplyToolDelta(toolBuilder, toolDelta);
-                }
-
-                if (chunk?.Usage is not null)
-                    streamUsage = chunk.Usage;
-            }
-        }
-
-        var rawResponse = rawLines.ToString();
-
-        if (streamCompleted)
-        {
-            if (request.OnResponseJson is not null)
-                await request.OnResponseJson(rawResponse);
-
-            var toolCallsFinal = toolBuilder
-                .OrderBy(kvp => kvp.Key)
-                .Select(kvp => kvp.Value.ToToolCall())
-                .ToList();
-
-            var usage = streamUsage is not null
-                ? new TokenUsage(streamUsage.PromptTokens, streamUsage.CompletionTokens, streamUsage.TotalTokens)
-                : null;
-
-            return new LlmChatResponse(contentBuilder.ToString(), toolCallsFinal, usage);
-        }
-
-        if (request.OnResponseJson is not null)
-            await request.OnResponseJson(rawResponse);
-
-        throw new LlmProviderException(
-            "Ollama stream ended before [DONE]." +
-            (string.IsNullOrWhiteSpace(rawResponse) ? "" : $"\nLast stream chunk:\n{rawResponse}"));
+        return await OllamaStreamParser.ParseChatResponseAsync(response.Content, request, ct);
     }
 
     public override async IAsyncEnumerable<string> StreamAsync(
@@ -209,35 +124,7 @@ public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
                 $"Ollama antwortete mit HTTP {(int)response.StatusCode}: {body}");
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var reader = new System.IO.StreamReader(stream);
-
-        while (!reader.EndOfStream && !ct.IsCancellationRequested)
-        {
-            var line = await reader.ReadLineAsync(ct);
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            if (!line.StartsWith("data:", StringComparison.Ordinal))
-                continue;
-
-            var json = line["data:".Length..].Trim();
-            if (json == "[DONE]")
-                yield break;
-
-            OpenAiCompatibleStreamChunk? chunk;
-            try
-            {
-                chunk = JsonSerializer.Deserialize<OpenAiCompatibleStreamChunk>(json, JsonDefaults.Options);
-            }
-            catch (JsonException)
-            {
-                continue;
-            }
-
-            var content = chunk?.Choices?.FirstOrDefault()?.Delta?.Content;
-            if (!string.IsNullOrEmpty(content))
-                yield return content;
-        }
+        await foreach (var token in OllamaStreamParser.StreamTokensAsync(response.Content, ct))
+            yield return token;
     }
 }

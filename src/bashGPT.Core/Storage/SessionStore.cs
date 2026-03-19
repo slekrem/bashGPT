@@ -29,15 +29,7 @@ public class SessionStore
     public async Task<List<SessionSummary>> LoadAllAsync()
     {
         var index = await ReadIndexAsync();
-        return index.Sessions
-            .Select(e => new SessionSummary
-            {
-                Id = e.Id,
-                Title = e.Title,
-                CreatedAt = e.CreatedAt,
-                UpdatedAt = e.UpdatedAt,
-            })
-            .ToList();
+        return index.Sessions.Select(ToSummary).ToList();
     }
 
     /// <summary>Loads a single session including its messages.</summary>
@@ -51,16 +43,7 @@ public class SessionStore
         var content = await _contentStore.ReadAsync(id);
         if (content is null) return null;
 
-        return new SessionRecord
-        {
-            Id = entry.Id,
-            Title = entry.Title,
-            CreatedAt = entry.CreatedAt,
-            UpdatedAt = entry.UpdatedAt,
-            Messages = content.Messages,
-            EnabledTools = content.EnabledTools,
-            AgentId = content.AgentId,
-        };
+        return ToSessionRecord(entry, content);
     }
 
     /// <summary>
@@ -70,83 +53,44 @@ public class SessionStore
     public async Task UpsertAsync(SessionRecord session)
     {
         ValidateSessionId(session.Id);
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
             Directory.CreateDirectory(_sessionsDir);
 
-            var content = new SessionContent
-            {
-                Messages = session.Messages,
-                EnabledTools = session.EnabledTools,
-                AgentId = session.AgentId,
-            };
+            var content = ToSessionContent(session);
             await _contentStore.WriteAsync(session.Id, content);
 
             var index = await _indexStore.ReadAsync();
-            var existing = index.Sessions.FirstOrDefault(e => e.Id == session.Id);
-            var newEntry = new SessionIndexEntry
-            {
-                Id = session.Id,
-                Title = session.Title,
-                CreatedAt = session.CreatedAt,
-                UpdatedAt = session.UpdatedAt,
-            };
-
-            if (existing is not null)
-                index.Sessions[index.Sessions.IndexOf(existing)] = newEntry;
-            else
-                index.Sessions.Insert(0, newEntry);
-
-            var sorted = index.Sessions
-                .OrderByDescending(e => e.UpdatedAt)
-                .ThenByDescending(e => e.CreatedAt)
-                .ToList();
-
-            index.Sessions = sorted;
+            UpsertIndexEntry(index, ToIndexEntry(session));
             await _indexStore.WriteAsync(index);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        });
     }
 
     /// <summary>Deletes a session by ID.</summary>
     public async Task DeleteAsync(string id)
     {
         ValidateSessionId(id);
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
             TryDeleteSessionDir(id);
 
             var index = await _indexStore.ReadAsync();
             index.Sessions.RemoveAll(e => e.Id == id);
             await _indexStore.WriteAsync(index);
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        });
     }
 
     /// <summary>Deletes all sessions.</summary>
     public async Task ClearAsync()
     {
-        await _lock.WaitAsync();
-        try
+        await WithLockAsync(async () =>
         {
             var index = await _indexStore.ReadAsync();
             foreach (var entry in index.Sessions)
                 TryDeleteSessionDir(entry.Id);
 
             await _indexStore.WriteAsync(new SessionIndex());
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        });
     }
 
     private void ValidateSessionId(string id)
@@ -154,16 +98,73 @@ public class SessionStore
 
     public string GetSessionDir(string id) => SessionStoragePaths.GetSessionDir(_sessionsDir, id);
     private string SessionDir(string id) => GetSessionDir(id);
-    private async Task<SessionIndex> ReadIndexAsync()
-    {
-        await _lock.WaitAsync();
-        try { return await _indexStore.ReadAsync(); }
-        finally { _lock.Release(); }
-    }
+    private Task<SessionIndex> ReadIndexAsync() => WithLockAsync(() => _indexStore.ReadAsync());
 
     private void TryDeleteSessionDir(string id)
     {
         try { Directory.Delete(SessionDir(id), recursive: true); }
         catch { }
+    }
+
+    private static SessionSummary ToSummary(SessionIndexEntry entry) => new()
+    {
+        Id = entry.Id,
+        Title = entry.Title,
+        CreatedAt = entry.CreatedAt,
+        UpdatedAt = entry.UpdatedAt,
+    };
+
+    private static SessionRecord ToSessionRecord(SessionIndexEntry entry, SessionContent content) => new()
+    {
+        Id = entry.Id,
+        Title = entry.Title,
+        CreatedAt = entry.CreatedAt,
+        UpdatedAt = entry.UpdatedAt,
+        Messages = content.Messages,
+        EnabledTools = content.EnabledTools,
+        AgentId = content.AgentId,
+    };
+
+    private static SessionContent ToSessionContent(SessionRecord session) => new()
+    {
+        Messages = session.Messages,
+        EnabledTools = session.EnabledTools,
+        AgentId = session.AgentId,
+    };
+
+    private static SessionIndexEntry ToIndexEntry(SessionRecord session) => new()
+    {
+        Id = session.Id,
+        Title = session.Title,
+        CreatedAt = session.CreatedAt,
+        UpdatedAt = session.UpdatedAt,
+    };
+
+    private static void UpsertIndexEntry(SessionIndex index, SessionIndexEntry entry)
+    {
+        var existing = index.Sessions.FindIndex(e => e.Id == entry.Id);
+        if (existing >= 0)
+            index.Sessions[existing] = entry;
+        else
+            index.Sessions.Insert(0, entry);
+
+        index.Sessions = index.Sessions
+            .OrderByDescending(e => e.UpdatedAt)
+            .ThenByDescending(e => e.CreatedAt)
+            .ToList();
+    }
+
+    private async Task WithLockAsync(Func<Task> action)
+    {
+        await _lock.WaitAsync();
+        try { await action(); }
+        finally { _lock.Release(); }
+    }
+
+    private async Task<T> WithLockAsync<T>(Func<Task<T>> action)
+    {
+        await _lock.WaitAsync();
+        try { return await action(); }
+        finally { _lock.Release(); }
     }
 }

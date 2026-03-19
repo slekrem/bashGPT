@@ -13,39 +13,37 @@ public sealed class SessionRequestStore
 
     public async Task SaveRequestAsync(string sessionId, SessionRequestRecord record)
     {
-        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
-
-        var dir = SessionStoragePaths.GetRequestsDir(_sessionsDir, sessionId);
-        Directory.CreateDirectory(dir);
-
-        var safeName = SessionStoragePaths.GetSafeTimestamp(record.Timestamp);
-        var path = Path.Combine(dir, safeName + ".json");
+        var path = GetRequestRecordFilePath(sessionId, record.Timestamp);
         await SessionJsonStorage.WriteAsync(path, record);
     }
 
     public async Task SaveLlmRequestAsync(string sessionId, string timestamp, string llmRequestJson)
     {
-        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
-
-        var dir = SessionStoragePaths.GetRequestsDir(_sessionsDir, sessionId);
-        Directory.CreateDirectory(dir);
-
-        var safeName = SessionStoragePaths.GetSafeTimestamp(timestamp);
-        var path = Path.Combine(dir, safeName + "-llm-request.json");
-
+        var path = GetLlmRequestFilePath(sessionId, timestamp);
         await SessionJsonStorage.WriteRawAsync(path, llmRequestJson);
     }
 
     public async Task SaveLlmResponseAsync(string sessionId, string timestamp, string llmResponseJson)
     {
-        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
-
-        var dir = SessionStoragePaths.GetRequestsDir(_sessionsDir, sessionId);
-        Directory.CreateDirectory(dir);
-
-        var safeName = SessionStoragePaths.GetSafeTimestamp(timestamp);
-        var path = Path.Combine(dir, safeName + "-llm-response.json");
-
+        var path = GetLlmResponseFilePath(sessionId, timestamp);
         await SessionJsonStorage.WriteRawAsync(path, llmResponseJson);
+    }
+
+    private string GetRequestRecordFilePath(string sessionId, string timestamp)
+    {
+        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
+        return SessionStoragePaths.GetRequestRecordFilePath(_sessionsDir, sessionId, timestamp);
+    }
+
+    private string GetLlmRequestFilePath(string sessionId, string timestamp)
+    {
+        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
+        return SessionStoragePaths.GetLlmRequestFilePath(_sessionsDir, sessionId, timestamp);
+    }
+
+    private string GetLlmResponseFilePath(string sessionId, string timestamp)
+    {
+        SessionStoragePaths.ValidateSessionId(_sessionsDir, sessionId);
+        return SessionStoragePaths.GetLlmResponseFilePath(_sessionsDir, sessionId, timestamp);
     }
 }
