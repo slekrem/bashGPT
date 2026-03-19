@@ -22,9 +22,9 @@ public sealed class ServerApplicationTests
         var registry = ServerApplication.CreateAgentRegistry();
 
         Assert.NotNull(registry);
-        Assert.NotNull(registry.Get("generic"));
-        Assert.NotNull(registry.Get("dev"));
-        Assert.NotNull(registry.Get("shell"));
+        Assert.NotNull(registry.Find("generic"));
+        Assert.NotNull(registry.Find("dev"));
+        Assert.NotNull(registry.Find("shell"));
     }
 
     [Fact]

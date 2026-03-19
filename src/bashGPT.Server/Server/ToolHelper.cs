@@ -28,7 +28,7 @@ internal static class ToolHelper
         return result;
     }
 
-    private static ToolDefinition ToLlmDefinition(Tools.Abstractions.ToolDefinition def)
+    private static ToolDefinition ToLlmDefinition(BashGPT.Tools.Abstractions.ToolDefinition def)
     {
         var required = def.Parameters
             .Where(p => p.Required)

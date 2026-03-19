@@ -2,7 +2,7 @@ using System.CommandLine;
 using bashGPT.Core;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Versioning;
-using BashGPT.Cli;
+using bashGPT.Cli;
 
 if (args is ["--version"])
 {

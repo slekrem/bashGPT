@@ -1,6 +1,6 @@
 using System.CommandLine;
 using bashGPT.Core.Configuration;
-using BashGPT.Server;
+using bashGPT.Server;
 
 var configService = ServerApplication.CreateConfigurationService();
 var toolRegistry = ServerApplication.CreateToolRegistry();

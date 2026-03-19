@@ -4,7 +4,7 @@ using System.Text.Json;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using BashGPT.Server;
+using bashGPT.Server;
 
 namespace bashGPT.Server.Tests;
 
