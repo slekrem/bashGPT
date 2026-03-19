@@ -3,7 +3,7 @@ using System.Text.Json;
 using bashGPT.Core;
 using bashGPT.Core.Storage;
 using bashGPT.Core.Models.Storage;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Serialization;
 
 namespace BashGPT.Server;
 

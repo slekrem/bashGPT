@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BashGPT.Configuration;
 using bashGPT.Core.Models.Providers.Ollama;
+using bashGPT.Core.Serialization;
 using bashGPT.Core.Models.Providers;
 
 namespace bashGPT.Core.Providers.Ollama;

@@ -1,7 +1,7 @@
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Ollama;
 using BashGPT.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BashGPT.Core.Tests.Providers;
 
@@ -24,25 +24,12 @@ public class ProviderAbstractionTests
     }
 
     [Fact]
-    public void ProviderFactory_Create_ReturnsOllamaProvider()
+    public void OllamaProvider_UsesConfiguredDefaults()
     {
         var config = new AppConfig();
-        var provider = ProviderFactory.Create(config);
+        var provider = new OllamaProvider(config.Ollama);
 
         Assert.Equal("Ollama", provider.Name);
-    }
-
-    [Fact]
-    public void AddBashGptProviders_RegistersSingletonLlmProvider()
-    {
-        var services = new ServiceCollection();
-        var config = new AppConfig();
-
-        services.AddBashGptProviders(config);
-        using var scope = services.BuildServiceProvider().CreateScope();
-        var provider1 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
-        var provider2 = scope.ServiceProvider.GetRequiredService<ILlmProvider>();
-
-        Assert.Same(provider1, provider2);
+        Assert.Equal(config.Ollama.Model, provider.Model);
     }
 }

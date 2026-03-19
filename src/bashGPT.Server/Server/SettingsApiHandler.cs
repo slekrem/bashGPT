@@ -3,6 +3,8 @@ using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Ollama;
+using bashGPT.Core.Serialization;
 using BashGPT.Configuration;
 using BashGPT.Shell;
 
@@ -88,7 +90,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         }
 
         var config = await configService.LoadAsync();
-        var provider = ProviderFactory.Create(config);
+        var provider = new OllamaProvider(config.Ollama);
         var sw = Stopwatch.StartNew();
         try
         {

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Serialization;
 
 namespace BashGPT.Server;
 

@@ -3,8 +3,8 @@ using bashGPT.Core.Models.Providers;
 namespace bashGPT.Core.Providers;
 
 /// <summary>
-/// Gemeinsame Basisfunktionalität für LLM-Provider:
-/// HTTP-Client-Erstellung, Exception-Wrapping und CompleteAsync.
+/// Shared base functionality for LLM providers:
+/// HTTP client creation, exception wrapping, and CompleteAsync.
 /// </summary>
 public abstract class BaseLlmProvider(HttpClient? httpClient = null) : ILlmProvider
 {
@@ -39,9 +39,9 @@ public abstract class BaseLlmProvider(HttpClient? httpClient = null) : ILlmProvi
 
     protected static LlmProviderException WrapHttpException(
         HttpRequestException ex, string baseUrl)
-        => new($"Nicht erreichbar ({baseUrl}): {ex.Message}", ex);
+        => new($"Unreachable ({baseUrl}): {ex.Message}", ex);
 
     protected static LlmProviderException WrapTimeoutException(
         TaskCanceledException ex, string context)
-        => new($"Timeout beim Verbinden mit {context}.", ex);
+        => new($"Timed out while connecting to {context}.", ex);
 }

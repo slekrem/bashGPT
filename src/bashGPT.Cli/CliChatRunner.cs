@@ -2,6 +2,7 @@ using bashGPT.Core;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Ollama;
 using BashGPT.Configuration;
 using BashGPT.Shell;
 
@@ -33,7 +34,7 @@ public class CliChatRunner(ConfigurationService configService)
         ILlmProvider provider;
         try
         {
-            provider = ProviderFactory.Create(config);
+            provider = new OllamaProvider(config.Ollama);
         }
         catch (Exception ex)
         {

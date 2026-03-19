@@ -2,6 +2,7 @@ using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Ollama;
 using BashGPT.Configuration;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
@@ -44,7 +45,7 @@ public class ServerChatRunner(
 
             try
             {
-                provider = ProviderFactory.Create(config);
+                provider = new OllamaProvider(config.Ollama);
             }
             catch (Exception ex)
             {
