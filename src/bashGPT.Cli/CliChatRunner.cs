@@ -4,6 +4,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers;
+using bashGPT.Cli.Shell;
 using BashGPT.Shell;
 
 namespace bashGPT.Cli;

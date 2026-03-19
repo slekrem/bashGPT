@@ -1,6 +1,6 @@
 using bashGPT.Core.Models.Providers;
 
-namespace bashGPT.Cli;
+namespace bashGPT.Cli.Shell;
 
 internal static class CliBashTool
 {
