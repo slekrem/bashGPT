@@ -1,3 +1,5 @@
+using bashGPT.Core.Models.Providers.Ollama;
+
 namespace bashGPT.Core.Providers.Ollama;
 
 internal static class OllamaRequestMapper

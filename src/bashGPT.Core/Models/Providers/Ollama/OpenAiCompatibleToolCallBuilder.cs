@@ -1,6 +1,7 @@
 using System.Text;
+using bashGPT.Core.Providers;
 
-namespace bashGPT.Core.Providers.Ollama;
+namespace bashGPT.Core.Models.Providers.Ollama;
 
 internal sealed class OpenAiCompatibleToolCallBuilder
 {

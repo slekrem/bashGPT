@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Configuration;
+using bashGPT.Core.Models.Providers.Ollama;
 
 namespace bashGPT.Core.Providers.Ollama;
 
