@@ -1,7 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using bashGPT.Core.Chat;
-using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
@@ -46,6 +44,7 @@ internal sealed class StreamingChatApiHandler(
         ctx.Response.Headers["X-Accel-Buffering"] = "no";
 
         var stream = ctx.Response.OutputStream;
+        var sse = new StreamingSseWriter(stream);
 
         try
         {
@@ -78,27 +77,9 @@ internal sealed class StreamingChatApiHandler(
                 History: historySnapshot,
                 Model: options.Model,
                 Verbose: options.Verbose || body.Verbose == true,
-                OnToken: token =>
-                {
-                    var json = JsonSerializer.Serialize(
-                        new { choices = new[] { new { delta = new { content = token } } } },
-                        JsonDefaults.Options);
-                    ApiResponse.WriteSseEvent(stream, json);
-                },
-                OnReasoningToken: token =>
-                {
-                    var json = JsonSerializer.Serialize(
-                        new { choices = new[] { new { delta = new { reasoning = token } } } },
-                        JsonDefaults.Options);
-                    ApiResponse.WriteSseEvent(stream, json);
-                },
-                OnEvent: evt =>
-                {
-                    var json = JsonSerializer.Serialize(
-                        new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = evt.Event, data = evt.Data } } } } },
-                        JsonDefaults.Options);
-                    ApiResponse.WriteSseEvent(stream, json);
-                },
+                OnToken: sse.WriteContentToken,
+                OnReasoningToken: sse.WriteReasoningToken,
+                OnEvent: sse.WriteEvent,
                 OnLlmRequestJson: sessionId is not null
                     ? (idx, json) => _sessionService.SaveLlmRequestAsync(sessionId, requestKey, idx, json)
                     : null,
@@ -112,27 +93,7 @@ internal sealed class StreamingChatApiHandler(
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 
-            var doneJson = JsonSerializer.Serialize(new
-            {
-                choices = new[] { new { delta = new { content = "" } } },
-                usage = result.Usage == null ? null : (object)new
-                {
-                    promptTokens = result.Usage.InputTokens,
-                    completionTokens = result.Usage.OutputTokens,
-                },
-                bashgpt = new
-                {
-                    @event = "done",
-                    response = result.Response,
-                    usedToolCalls = result.UsedToolCalls,
-                    finalStatus = result.FinalStatus,
-                    requestId,
-                    logs = result.Logs,
-                    commands = result.Commands,
-                },
-            }, JsonDefaults.Options);
-            ApiResponse.WriteSseEvent(stream, doneJson);
-            ApiResponse.WriteSseEvent(stream, "[DONE]");
+            sse.WriteDone(result, requestId);
 
             if (sessionId is not null)
                 await _sessionService.PersistChatAsync(sessionId, body.Prompt.Trim(), requestKey, now, selectableToolNames, agent?.Id, session, result);
@@ -141,22 +102,7 @@ internal sealed class StreamingChatApiHandler(
         {
             try
             {
-                var cancelledJson = JsonSerializer.Serialize(new
-                {
-                    choices = new[] { new { delta = new { content = "" } } },
-                    bashgpt = new
-                    {
-                        @event = "done",
-                        response = "Cancelled by user.",
-                        usedToolCalls = false,
-                        finalStatus = "user_cancelled",
-                        requestId,
-                        logs = Array.Empty<string>(),
-                        commands = Array.Empty<object>(),
-                    },
-                }, JsonDefaults.Options);
-                ApiResponse.WriteSseEvent(stream, cancelledJson);
-                ApiResponse.WriteSseEvent(stream, "[DONE]");
+                sse.WriteCancelled(requestId);
             }
             catch { }
         }
@@ -165,11 +111,7 @@ internal sealed class StreamingChatApiHandler(
             try
             {
                 Console.Error.WriteLine($"[server] Streaming request failed: {ex}");
-                var errJson = JsonSerializer.Serialize(
-                    new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", data = new { message = ApiErrors.GenericServerError } } } } } },
-                    JsonDefaults.Options);
-                ApiResponse.WriteSseEvent(stream, errJson);
-                ApiResponse.WriteSseEvent(stream, "[DONE]");
+                sse.WriteError(ApiErrors.GenericServerError);
             }
             catch { }
         }
