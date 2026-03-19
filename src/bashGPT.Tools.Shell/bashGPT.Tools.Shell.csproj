@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\bashGPT.Core\bashGPT.Core.csproj" />
     <ProjectReference Include="..\bashGPT.Tools\bashGPT.Tools.csproj" />
   </ItemGroup>
 
