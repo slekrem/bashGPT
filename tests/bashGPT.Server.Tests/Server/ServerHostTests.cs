@@ -38,7 +38,6 @@ public sealed class ServerHostTests : IAsyncLifetime
         var options = new ServerOptions(
             Port: port,
             NoBrowser: true,
-            Provider: null,
             Model: null,
             Verbose: false);
 

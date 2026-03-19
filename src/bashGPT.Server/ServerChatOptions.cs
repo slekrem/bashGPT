@@ -7,7 +7,6 @@ namespace BashGPT.Server;
 public record ServerChatOptions(
     string Prompt,
     IReadOnlyList<ChatMessage> History,
-    ProviderType? Provider,
     string? Model,
     bool Verbose,
     Action<string>? OnToken = null,

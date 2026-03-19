@@ -68,7 +68,6 @@ rootCommand.SetAction(async (parseResult, ct) =>
     var serverOptions = new ServerOptions(
         Port: parseResult.GetValue(portOpt),
         NoBrowser: parseResult.GetValue(noBrowserOpt),
-        Provider: null,
         Model: parseResult.GetValue(modelOpt),
         Verbose: parseResult.GetValue(verboseOpt));
 

@@ -19,7 +19,6 @@ public sealed class ServerChatRunnerStreamingTests
         new(
             Prompt:   prompt,
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             OnToken:  onToken);

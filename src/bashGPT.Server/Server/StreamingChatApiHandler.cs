@@ -100,7 +100,6 @@ internal sealed class StreamingChatApiHandler(
             var chatOpts = new ServerChatOptions(
                 Prompt:   body.Prompt.Trim(),
                 History:  historySnapshot,
-                Provider: options.Provider,
                 Model:    options.Model,
                 Verbose:  options.Verbose || body.Verbose == true,
                 OnToken: token =>

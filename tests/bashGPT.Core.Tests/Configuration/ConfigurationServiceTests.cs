@@ -27,7 +27,6 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         var config = await svc.LoadAsync();
 
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
         Assert.False(config.DefaultForceTools);
         Assert.Equal("http://localhost:11434", config.Ollama.BaseUrl);
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
@@ -39,7 +38,6 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         var config = new AppConfig
         {
-            DefaultProvider = ProviderType.Ollama,
             DefaultForceTools = true,
             Ollama = new OllamaConfig { Model = "llama3.2", BaseUrl = "http://ollama.local:11434" }
         };
@@ -47,20 +45,16 @@ public class ConfigurationServiceTests : IDisposable
         await svc.SaveAsync(config);
         var loaded = await svc.LoadAsync();
 
-        Assert.Equal(ProviderType.Ollama, loaded.DefaultProvider);
         Assert.True(loaded.DefaultForceTools);
         Assert.Equal("llama3.2", loaded.Ollama.Model);
         Assert.Equal("http://ollama.local:11434", loaded.Ollama.BaseUrl);
     }
 
     [Fact]
-    public async Task Set_UpdatesProvider()
+    public async Task Set_Provider_Throws()
     {
         var svc = CreateService();
-        await svc.SetAsync("defaultProvider", "ollama");
-        var config = await svc.LoadAsync();
-
-        Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "ollama"));
     }
 
     [Fact]
@@ -72,10 +66,10 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Set_InvalidProvider_Throws()
+    public async Task Get_Provider_ReturnsOllama()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "invalid"));
+        Assert.Equal("ollama", await svc.GetAsync("provider"));
     }
 
     [Fact]
@@ -121,10 +115,11 @@ public class ConfigurationServiceTests : IDisposable
         var svc = CreateService();
         var list = await svc.ListAsync();
 
-        Assert.Contains("defaultProvider", list);
+        Assert.Contains("provider", list);
         Assert.Contains("forceTools", list);
         Assert.Contains("ollama.baseUrl", list);
         Assert.Contains("ollama.model", list);
+        Assert.DoesNotContain("defaultProvider", list);
         Assert.DoesNotContain("execMode", list);
     }
 

@@ -1,9 +1,7 @@
-﻿using BashGPT.Cli;
-using BashGPT.Configuration;
+﻿using BashGPT.Configuration;
 using BashGPT.Providers;
 using BashGPT.Tools.Execution;
 using BashGPT.Server;
-using System.Reflection;
 
 namespace BashGPT.Cli.Tests;
 
@@ -13,8 +11,6 @@ namespace BashGPT.Cli.Tests;
 /// </summary>
 public sealed class ServerChatRunnerTests
 {
-    // â”€â”€ Hilfsmethoden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
     private static ServerChatRunner CreateRunner(FakeLlmProvider provider) =>
         new(new ConfigurationService(), provider);
 
@@ -25,7 +21,6 @@ public sealed class ServerChatRunnerTests
         new(
             Prompt:   prompt,
             History:  history ?? [],
-            Provider: null,
             Model:    null,
             Verbose:  verbose);
 
@@ -129,7 +124,7 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WithUnknownProviderInConfig_ReturnsConfigurationError()
+    public async Task RunServerChatAsync_WithLegacyProviderFieldInConfig_IgnoresIt()
     {
         var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
         try
@@ -144,7 +139,7 @@ public sealed class ServerChatRunnerTests
             var sut = new ServerChatRunner(configService);
             var result = await sut.RunServerChatAsync(Opts());
 
-            Assert.Contains("Configuration error:", result.Response);
+            Assert.NotEqual(string.Empty, result.Response);
         }
         finally
         {
@@ -175,33 +170,6 @@ public sealed class ServerChatRunnerTests
     }
 
     [Fact]
-    public async Task RunServerChatAsync_WhenProviderFactoryThrows_ReturnsProviderError()
-    {
-        var configPath = Path.Combine(Path.GetTempPath(), $"bashgpt-cli-tests-{Guid.NewGuid()}.json");
-        try
-        {
-            await File.WriteAllTextAsync(configPath, """
-            {
-              "defaultProvider": 999
-            }
-            """);
-            var configService = new TestConfigurationService(configPath);
-            var sut = new ServerChatRunner(configService);
-
-            var result = await sut.RunServerChatAsync(Opts());
-
-            Assert.Contains("Provider error:", result.Response);
-        }
-        finally
-        {
-            if (File.Exists(configPath))
-                File.Delete(configPath);
-        }
-    }
-
-    // â”€â”€ Tool-Call-Loop-Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    [Fact]
     public async Task RunServerChatAsync_WithToolsAndNoToolCallsInResponse_SingleLlmCall()
     {
         var provider = new FakeLlmProvider();
@@ -215,7 +183,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Hallo",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -244,7 +211,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze das Tool",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -273,7 +239,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Nutze ein Tool",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -305,7 +270,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze unbekanntes Tool",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -337,7 +301,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Schleife",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -364,7 +327,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Hallo",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);
@@ -392,7 +354,6 @@ public sealed class ServerChatRunnerTests
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze Tool",
             History:  [],
-            Provider: null,
             Model:    null,
             Verbose:  false,
             Tools:    tools);

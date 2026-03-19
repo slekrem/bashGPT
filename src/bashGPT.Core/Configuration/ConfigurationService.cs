@@ -36,7 +36,7 @@ public class ConfigurationService
             catch (JsonException ex)
             {
                 throw new InvalidOperationException(
-                    $"Konfigurationsdatei '{ConfigFile}' ist ungültig: {ex.Message}", ex);
+                    $"Konfigurationsdatei '{ConfigFile}' ist ungÃ¼ltig: {ex.Message}", ex);
             }
         }
 
@@ -60,10 +60,7 @@ public class ConfigurationService
         {
             case "defaultprovider":
             case "provider":
-                if (!string.Equals(value, "ollama", StringComparison.OrdinalIgnoreCase))
-                    throw new ArgumentException($"Ungültiger Provider '{value}'. Erlaubt: ollama");
-                config.DefaultProvider = ProviderType.Ollama;
-                break;
+                throw new ArgumentException("The 'provider' setting is obsolete. Ollama is the only supported provider.");
 
             case "ollama.baseurl":
                 config.Ollama.BaseUrl = value;
@@ -76,15 +73,14 @@ public class ConfigurationService
             case "forcetools":
             case "defaultforcetools":
                 if (!bool.TryParse(value, out var ft))
-                    throw new ArgumentException($"Ungültiger Wert für 'forceTools': '{value}'. Erlaubt: true, false");
+                    throw new ArgumentException($"UngÃ¼ltiger Wert fÃ¼r 'forceTools': '{value}'. Erlaubt: true, false");
                 config.DefaultForceTools = ft;
                 break;
 
             default:
                 throw new ArgumentException(
-                    $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
-                    "Gültige Schlüssel: defaultProvider, forceTools, " +
-                    "ollama.baseUrl, ollama.model");
+                    $"Unbekannter KonfigurationsschlÃ¼ssel '{key}'.\n" +
+                    "GÃ¼ltige SchlÃ¼ssel: forceTools, ollama.baseUrl, ollama.model");
         }
 
         await SaveAsync(config);
@@ -96,11 +92,11 @@ public class ConfigurationService
 
         return key.ToLowerInvariant() switch
         {
-            "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLowerInvariant(),
+            "defaultprovider" or "provider" => "ollama",
             "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLowerInvariant(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
-            _ => throw new ArgumentException($"Unbekannter Konfigurationsschlüssel '{key}'.")
+            _ => throw new ArgumentException($"Unbekannter KonfigurationsschlÃ¼ssel '{key}'.")
         };
     }
 
@@ -108,7 +104,7 @@ public class ConfigurationService
     {
         var config = await LoadAsync();
         return $"""
-            defaultProvider  = {config.DefaultProvider.ToString().ToLowerInvariant()}
+            provider         = ollama
             forceTools       = {config.DefaultForceTools.ToString().ToLowerInvariant()}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
@@ -117,12 +113,6 @@ public class ConfigurationService
 
     private static void ApplyEnvironmentOverrides(AppConfig config)
     {
-        var provider = Environment.GetEnvironmentVariable("BASHGPT_PROVIDER");
-        if (provider is not null
-            && Enum.TryParse<ProviderType>(provider, ignoreCase: true, out var p)
-            && p == ProviderType.Ollama)
-            config.DefaultProvider = p;
-
         var ollamaUrl = Environment.GetEnvironmentVariable("BASHGPT_OLLAMA_URL");
         if (ollamaUrl is not null)
             config.Ollama.BaseUrl = ollamaUrl;

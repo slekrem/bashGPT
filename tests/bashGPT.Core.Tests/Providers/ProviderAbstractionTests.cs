@@ -9,8 +9,8 @@ public class ProviderAbstractionTests
     [Fact]
     public void ChatMessage_RoleString_ReturnsCorrectValues()
     {
-        Assert.Equal("system",    new ChatMessage(ChatRole.System,    "").RoleString);
-        Assert.Equal("user",      new ChatMessage(ChatRole.User,      "").RoleString);
+        Assert.Equal("system", new ChatMessage(ChatRole.System, "").RoleString);
+        Assert.Equal("user", new ChatMessage(ChatRole.User, "").RoleString);
         Assert.Equal("assistant", new ChatMessage(ChatRole.Assistant, "").RoleString);
     }
 
@@ -25,30 +25,17 @@ public class ProviderAbstractionTests
     [Fact]
     public void ProviderFactory_Create_ReturnsOllamaProvider()
     {
-        var config = new AppConfig { DefaultProvider = ProviderType.Ollama };
+        var config = new AppConfig();
         var provider = ProviderFactory.Create(config);
 
         Assert.Equal("Ollama", provider.Name);
     }
 
     [Fact]
-    public void ProviderFactory_Create_WithUnsupportedProvider_ThrowsHelpfulError()
-    {
-        var config = new AppConfig { DefaultProvider = (ProviderType)999 };
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            ProviderFactory.Create(config));
-
-        Assert.Contains("Nicht unterstützter Provider", ex.Message);
-    }
-
-    [Fact]
     public void AddBashGptProviders_RegistersSingletonLlmProvider()
     {
         var services = new ServiceCollection();
-        var config = new AppConfig
-        {
-            DefaultProvider = ProviderType.Ollama,
-        };
+        var config = new AppConfig();
 
         services.AddBashGptProviders(config);
         using var scope = services.BuildServiceProvider().CreateScope();
@@ -57,7 +44,4 @@ public class ProviderAbstractionTests
 
         Assert.Same(provider1, provider2);
     }
-
-    // Name/Model und Implementierungsdetails des Providers werden
-    // in OllamaProviderTests getestet.
 }

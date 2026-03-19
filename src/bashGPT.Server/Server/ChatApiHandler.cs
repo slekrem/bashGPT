@@ -82,7 +82,6 @@ internal sealed class ChatApiHandler(
         var chatOpts = new ServerChatOptions(
             Prompt:   body.Prompt.Trim(),
             History:  historySnapshot,
-            Provider: options.Provider,
             Model:    options.Model,
             Verbose:  options.Verbose || body.Verbose == true,
             OnLlmRequestJson: sessionRequestStore is not null && sessionId is not null

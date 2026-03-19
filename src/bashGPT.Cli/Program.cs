@@ -58,7 +58,6 @@ rootCommand.SetAction(async (parseResult, ct) =>
 
     var opts = new CliOptions(
         Prompt: prompt,
-        Provider: null,
         Model: parseResult.GetValue(modelOpt),
         NoContext: false,
         IncludeDir: false,

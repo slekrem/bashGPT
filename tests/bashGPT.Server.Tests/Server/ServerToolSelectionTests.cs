@@ -128,7 +128,6 @@ public sealed class ServerToolSelectionTests
             var options = new ServerOptions(
                 Port: port,
                 NoBrowser: true,
-                Provider: null,
                 Model: null,
                 Verbose: false);
 

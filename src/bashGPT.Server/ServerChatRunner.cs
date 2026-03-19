@@ -39,11 +39,11 @@ public class ServerChatRunner(
                     Logs: []);
             }
 
-            ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
+            ChatOrchestrator.ApplyModelOverride(config, opts.Model);
 
             try
             {
-                provider = ProviderFactory.Create(config, opts.Provider);
+                provider = ProviderFactory.Create(config);
             }
             catch (Exception ex)
             {

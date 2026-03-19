@@ -25,14 +25,14 @@ public class CliChatRunner(ConfigurationService configService)
             return 1;
         }
 
-        ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
+        ChatOrchestrator.ApplyModelOverride(config, opts.Model);
 
         var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         ILlmProvider provider;
         try
         {
-            provider = ProviderFactory.Create(config, opts.Provider);
+            provider = ProviderFactory.Create(config);
         }
         catch (Exception ex)
         {
