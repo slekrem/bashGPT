@@ -1,6 +1,4 @@
-using bashGPT.Core.Models.Providers;
-
-namespace bashGPT.Core.Providers;
+namespace bashGPT.Core.Models.Providers;
 
 public record ChatMessage(
     ChatRole Role,

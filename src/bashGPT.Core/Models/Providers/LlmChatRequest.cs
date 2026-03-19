@@ -1,5 +1,3 @@
-using bashGPT.Core.Providers;
-
 namespace bashGPT.Core.Models.Providers;
 
 public record LlmChatRequest(

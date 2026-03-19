@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
 using BashGPT.Configuration;
 using BashGPT.Shell;

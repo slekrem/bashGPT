@@ -1,4 +1,4 @@
-namespace bashGPT.Core.Providers;
+namespace bashGPT.Core.Models.Providers;
 
 public enum ChatRole
 {
