@@ -33,21 +33,6 @@ var includeDirOpt = new Option<bool>("--include-dir")
     Description = "Verzeichnisinhalt in den Kontext aufnehmen"
 };
 
-var autoExecOpt = new Option<bool>("--auto-exec", "-y")
-{
-    Description = "Befehle ohne Bestätigung ausführen"
-};
-
-var dryRunOpt = new Option<bool>("--dry-run")
-{
-    Description = "Befehle anzeigen, aber nie ausführen"
-};
-
-var noExecOpt = new Option<bool>("--no-exec")
-{
-    Description = "Keine Befehle ausführen (reiner Chat-Modus)"
-};
-
 var verboseOpt = new Option<bool>("--verbose", "-v")
 {
     Description = "Debug-Ausgaben anzeigen"
@@ -70,9 +55,6 @@ rootCommand.Arguments.Add(promptArg);
 rootCommand.Options.Add(modelOpt);
 rootCommand.Options.Add(noContextOpt);
 rootCommand.Options.Add(includeDirOpt);
-rootCommand.Options.Add(autoExecOpt);
-rootCommand.Options.Add(dryRunOpt);
-rootCommand.Options.Add(noExecOpt);
 rootCommand.Options.Add(verboseOpt);
 rootCommand.Options.Add(forceToolsOpt);
 
@@ -88,24 +70,12 @@ rootCommand.SetAction(async (parseResult, ct) =>
         return;
     }
 
-    ExecutionMode? execMode = (
-        noExec: parseResult.GetValue(noExecOpt),
-        dryRun: parseResult.GetValue(dryRunOpt),
-        autoExec: parseResult.GetValue(autoExecOpt)) switch
-    {
-        (true, _, _) => ExecutionMode.NoExec,
-        (_, true, _) => ExecutionMode.DryRun,
-        (_, _, true) => ExecutionMode.AutoExec,
-        _ => null,
-    };
-
     var opts = new CliOptions(
         Prompt: prompt,
         Provider: null,
         Model: parseResult.GetValue(modelOpt),
         NoContext: parseResult.GetValue(noContextOpt),
         IncludeDir: parseResult.GetValue(includeDirOpt),
-        ExecMode: execMode,
         Verbose: parseResult.GetValue(verboseOpt),
         ForceTools: parseResult.GetValue(forceToolsOpt));
 

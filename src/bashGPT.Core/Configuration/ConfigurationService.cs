@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using BashGPT.Shell;
 
 namespace BashGPT.Configuration;
 
@@ -40,6 +39,7 @@ public class ConfigurationService
                     $"Konfigurationsdatei '{ConfigFile}' ist ungültig: {ex.Message}", ex);
             }
         }
+
         ApplyEnvironmentOverrides(config);
         return config;
     }
@@ -64,27 +64,26 @@ public class ConfigurationService
                     throw new ArgumentException($"Ungültiger Provider '{value}'. Erlaubt: ollama");
                 config.DefaultProvider = ProviderType.Ollama;
                 break;
+
             case "ollama.baseurl":
                 config.Ollama.BaseUrl = value;
                 break;
+
             case "ollama.model":
                 config.Ollama.Model = value;
                 break;
-            case "execmode":
-            case "defaultexecmode":
-                config.DefaultExecMode = ExecModeConverter.Parse(value)
-                    ?? throw new ArgumentException($"Ungültiger ExecMode '{value}'. Erlaubt: ask, auto-exec, dry-run, no-exec");
-                break;
+
             case "forcetools":
             case "defaultforcetools":
                 if (!bool.TryParse(value, out var ft))
                     throw new ArgumentException($"Ungültiger Wert für 'forceTools': '{value}'. Erlaubt: true, false");
                 config.DefaultForceTools = ft;
                 break;
+
             default:
                 throw new ArgumentException(
                     $"Unbekannter Konfigurationsschlüssel '{key}'.\n" +
-                    "Gültige Schlüssel: defaultProvider, execMode, forceTools, " +
+                    "Gültige Schlüssel: defaultProvider, forceTools, " +
                     "ollama.baseUrl, ollama.model");
         }
 
@@ -97,9 +96,8 @@ public class ConfigurationService
 
         return key.ToLowerInvariant() switch
         {
-            "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLower(),
-            "execmode" or "defaultexecmode" => ExecModeConverter.ToString(config.DefaultExecMode),
-            "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLower(),
+            "defaultprovider" or "provider" => config.DefaultProvider.ToString().ToLowerInvariant(),
+            "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLowerInvariant(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
             _ => throw new ArgumentException($"Unbekannter Konfigurationsschlüssel '{key}'.")
@@ -110,9 +108,8 @@ public class ConfigurationService
     {
         var config = await LoadAsync();
         return $"""
-            defaultProvider  = {config.DefaultProvider.ToString().ToLower()}
-            execMode         = {ExecModeConverter.ToString(config.DefaultExecMode)}
-            forceTools       = {config.DefaultForceTools.ToString().ToLower()}
+            defaultProvider  = {config.DefaultProvider.ToString().ToLowerInvariant()}
+            forceTools       = {config.DefaultForceTools.ToString().ToLowerInvariant()}
             ollama.baseUrl   = {config.Ollama.BaseUrl}
             ollama.model     = {config.Ollama.Model}
             """;
@@ -134,19 +131,8 @@ public class ConfigurationService
         if (ollamaModel is not null)
             config.Ollama.Model = ollamaModel;
 
-        if (ExecModeConverter.Parse(Environment.GetEnvironmentVariable("BASHGPT_EXEC_MODE")) is { } em)
-            config.DefaultExecMode = em;
-
         if (Environment.GetEnvironmentVariable("BASHGPT_FORCE_TOOLS") is { } fts
             && bool.TryParse(fts, out var ftBool))
             config.DefaultForceTools = ftBool;
-
-    }
-
-    private static int ParseInt(string value, string key)
-    {
-        if (!int.TryParse(value, out var parsed))
-            throw new ArgumentException($"Ungültiger Wert für '{key}': '{value}'");
-        return parsed;
     }
 }

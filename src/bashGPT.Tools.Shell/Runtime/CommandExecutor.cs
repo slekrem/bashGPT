@@ -8,9 +8,7 @@ namespace BashGPT.Shell;
 public record CommandResult(string Command, int ExitCode, string Output, bool WasExecuted);
 
 public class CommandExecutor(
-    ExecutionMode mode = ExecutionMode.Ask,
     TextWriter? output = null,
-    TextReader? input = null,
     int commandTimeoutSeconds = 300)
 {
     public const int DefaultCommandTimeoutSeconds = 300;
@@ -35,17 +33,12 @@ public class CommandExecutor(
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly TextWriter _out = output ?? Console.Out;
-    private readonly TextReader _in = input ?? Console.In;
 
-    /// <summary>
-    /// Verarbeitet alle extrahierten Befehle: anzeigen, bestaetigen, ausfuehren.
-    /// Gibt die Ergebnisse zurueck, auch nicht ausgefuehrte, fuer den LLM-Kontext.
-    /// </summary>
     public async Task<IReadOnlyList<CommandResult>> ProcessAsync(
         IReadOnlyList<ExtractedCommand> commands,
         CancellationToken ct = default)
     {
-        if (mode == ExecutionMode.NoExec || commands.Count == 0)
+        if (commands.Count == 0)
             return [];
 
         var results = new List<CommandResult>();
@@ -60,9 +53,6 @@ public class CommandExecutor(
         return results;
     }
 
-    /// <summary>
-    /// Formatiert die Ergebnisse als Follow-up-Kontext fuer das LLM.
-    /// </summary>
     public static string BuildFollowUpContext(IReadOnlyList<CommandResult> results)
     {
         if (results.Count == 0) return string.Empty;
@@ -107,12 +97,6 @@ public class CommandExecutor(
             _out.WriteLine($"  ->  {cmd.Command}");
         }
 
-        if (mode == ExecutionMode.DryRun)
-        {
-            _out.WriteLine("     (--dry-run: nicht ausgefuehrt)");
-            return new CommandResult(cmd.Command, -1, string.Empty, WasExecuted: false);
-        }
-
         if (TryGetInteractiveReason(cmd.Command, out var interactiveReason))
         {
             _out.WriteLine($"     Uebersprungen: {interactiveReason}");
@@ -121,22 +105,6 @@ public class CommandExecutor(
                 -1,
                 $"ERROR: {interactiveReason}",
                 WasExecuted: false);
-        }
-
-        if (mode == ExecutionMode.Ask)
-        {
-            var prompt = cmd.IsDangerous
-                ? "     Trotzdem ausfuehren? [j/N] "
-                : "     Ausfuehren? [j/N] ";
-
-            _out.Write(prompt);
-            var answer = _in.ReadLine()?.Trim().ToLowerInvariant();
-
-            if (answer is not ("j" or "ja" or "y" or "yes"))
-            {
-                _out.WriteLine("     Uebersprungen.");
-                return new CommandResult(cmd.Command, -1, string.Empty, WasExecuted: false);
-            }
         }
 
         var (exitCode, cmdOutput) = await RunAsync(cmd.Command, ct);
@@ -186,7 +154,6 @@ public class CommandExecutor(
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                // Ignore: the process already exited or could not be killed.
             }
 
             return (-1, $"ERROR: Befehl nach {commandTimeoutSeconds}s abgebrochen.");

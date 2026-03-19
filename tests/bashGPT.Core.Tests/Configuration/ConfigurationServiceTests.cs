@@ -1,11 +1,9 @@
 using BashGPT.Configuration;
-using BashGPT.Shell;
 
 namespace BashGPT.Core.Tests.Configuration;
 
 public class ConfigurationServiceTests : IDisposable
 {
-    // Jeder Test bekommt ein eigenes temporäres Config-Verzeichnis
     private readonly string _tmpDir;
 
     public ConfigurationServiceTests()
@@ -30,6 +28,7 @@ public class ConfigurationServiceTests : IDisposable
         var config = await svc.LoadAsync();
 
         Assert.Equal(ProviderType.Ollama, config.DefaultProvider);
+        Assert.False(config.DefaultForceTools);
         Assert.Equal("http://localhost:11434", config.Ollama.BaseUrl);
         Assert.Equal("gpt-oss:20b", config.Ollama.Model);
     }
@@ -41,6 +40,7 @@ public class ConfigurationServiceTests : IDisposable
         var config = new AppConfig
         {
             DefaultProvider = ProviderType.Ollama,
+            DefaultForceTools = true,
             Ollama = new OllamaConfig { Model = "llama3.2", BaseUrl = "http://ollama.local:11434" }
         };
 
@@ -48,6 +48,7 @@ public class ConfigurationServiceTests : IDisposable
         var loaded = await svc.LoadAsync();
 
         Assert.Equal(ProviderType.Ollama, loaded.DefaultProvider);
+        Assert.True(loaded.DefaultForceTools);
         Assert.Equal("llama3.2", loaded.Ollama.Model);
         Assert.Equal("http://ollama.local:11434", loaded.Ollama.BaseUrl);
     }
@@ -92,23 +93,17 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task List_ContainsAllKeys()
+    public async Task Set_ExecMode_Throws()
     {
         var svc = CreateService();
-        var list = await svc.ListAsync();
-
-        Assert.Contains("defaultProvider", list);
-        Assert.Contains("ollama.baseUrl", list);
-        Assert.Contains("ollama.model", list);
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("execMode", "auto-exec"));
     }
 
     [Fact]
-    public async Task SetAsync_ExecMode_PersistsValue()
+    public async Task Get_ExecMode_Throws()
     {
         var svc = CreateService();
-        await svc.SetAsync("execMode", "auto-exec");
-        var config = await svc.LoadAsync();
-        Assert.Equal(ExecutionMode.AutoExec, config.DefaultExecMode);
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetAsync("execMode"));
     }
 
     [Fact]
@@ -121,46 +116,35 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_ExecMode_ReturnsKebabCaseString()
-    {
-        var svc = CreateService();
-        await svc.SetAsync("execMode", "dry-run");
-        var result = await svc.GetAsync("execMode");
-        Assert.Equal("dry-run", result);
-    }
-
-    [Fact]
-    public async Task ListAsync_IncludesAllKeys()
+    public async Task List_ContainsSupportedKeys()
     {
         var svc = CreateService();
         var list = await svc.ListAsync();
-        Assert.Contains("execMode", list);
+
+        Assert.Contains("defaultProvider", list);
         Assert.Contains("forceTools", list);
-        Assert.DoesNotContain("commandTimeoutSeconds", list);
-        Assert.DoesNotContain("loopDetectionEnabled", list);
-        Assert.DoesNotContain("maxToolCallRounds", list);
+        Assert.Contains("ollama.baseUrl", list);
+        Assert.Contains("ollama.model", list);
+        Assert.DoesNotContain("execMode", list);
     }
 
     [Fact]
-    public async Task ApplyEnvironmentOverrides_BASHGPT_EXEC_MODE_AppliesCorrectly()
+    public async Task ApplyEnvironmentOverrides_BASHGPT_FORCE_TOOLS_AppliesCorrectly()
     {
         var svc = CreateService();
-        Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", "no-exec");
+        Environment.SetEnvironmentVariable("BASHGPT_FORCE_TOOLS", "true");
         try
         {
             var config = await svc.LoadAsync();
-            Assert.Equal(ExecutionMode.NoExec, config.DefaultExecMode);
+            Assert.True(config.DefaultForceTools);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("BASHGPT_EXEC_MODE", null);
+            Environment.SetEnvironmentVariable("BASHGPT_FORCE_TOOLS", null);
         }
     }
 }
 
-/// <summary>
-/// Testbare Variante, die ein temp. Verzeichnis statt ~/.config/bashgpt nutzt.
-/// </summary>
 internal class TestableConfigurationService(string configDir) : ConfigurationService
 {
     protected override string ConfigFile { get; } =

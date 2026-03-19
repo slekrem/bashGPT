@@ -8,7 +8,7 @@ namespace BashGPT.Cli;
 
 /// <summary>
 /// Verarbeitet Chat-Anfragen im CLI-Modus: streamt Tokens direkt auf die Console
-/// und fuehrt Shell-Befehle interaktiv oder automatisch aus.
+/// und führt Shell-Befehle automatisch aus.
 /// </summary>
 public class CliChatRunner(
     ConfigurationService configService,
@@ -29,7 +29,6 @@ public class CliChatRunner(
 
         ChatOrchestrator.ApplyModelOverride(config, opts.Provider, opts.Model);
 
-        var execMode   = opts.ExecMode ?? config.DefaultExecMode;
         var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         ILlmProvider provider;
@@ -78,7 +77,6 @@ public class CliChatRunner(
                 firstResponse,
                 tools,
                 opts,
-                execMode,
                 toolChoiceName,
                 AppDefaults.CommandTimeoutSeconds,
                 ct);
@@ -91,13 +89,13 @@ public class CliChatRunner(
         var commands = BashCommandExtractor.Extract(firstResponse.Content);
         if (opts.Verbose && commands.Count > 0)
             Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codebloecken extrahiert");
-        if (commands.Count == 0 || execMode == ExecutionMode.NoExec)
+        if (commands.Count == 0)
             return 0;
 
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] {commands.Count} Befehl(e) gefunden");
 
-        var executor = new CommandExecutor(execMode, commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
+        var executor = new CommandExecutor(commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
         var results  = await executor.ProcessAsync(commands, ct);
 
         var executed = results.Where(r => r.WasExecuted).ToList();
@@ -124,7 +122,6 @@ public class CliChatRunner(
         LlmChatResponse initialResponse,
         IReadOnlyList<ToolDefinition> tools,
         CliOptions opts,
-        ExecutionMode execMode,
         string? toolChoiceName,
         int commandTimeoutSeconds,
         CancellationToken ct)
@@ -149,7 +146,7 @@ public class CliChatRunner(
                     Console.Error.WriteLine($"[verbose] Tool-Call-Fehler ({err.ToolCall.Name}): {err.Error}");
             }
 
-            var executor = new CommandExecutor(execMode, commandTimeoutSeconds: commandTimeoutSeconds);
+            var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
             await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
                 toolCalls, commands, errors, response.Content, messages, executor, ct);
 

@@ -1,5 +1,4 @@
 using BashGPT.Configuration;
-using BashGPT.Shell;
 
 namespace BashGPT.Cli;
 
@@ -10,7 +9,6 @@ public record CliOptions(
     string? Model,
     bool NoContext,
     bool IncludeDir,
-    ExecutionMode? ExecMode,
     bool Verbose,
     bool? ForceTools
 );
