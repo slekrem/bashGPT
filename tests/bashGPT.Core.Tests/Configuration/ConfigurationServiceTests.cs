@@ -54,7 +54,8 @@ public class ConfigurationServiceTests : IDisposable
     public async Task Set_Provider_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "ollama"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("defaultProvider", "ollama"));
+        Assert.Contains("obsolete", ex.Message);
     }
 
     [Fact]
@@ -76,28 +77,52 @@ public class ConfigurationServiceTests : IDisposable
     public async Task Set_UnknownKey_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("unknown.key", "value"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("unknown.key", "value"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
     public async Task Set_RemovedProviderKey_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("removed-provider.apiKey", "secret"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("removed-provider.apiKey", "secret"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
     public async Task Set_ExecMode_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("execMode", "auto-exec"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("execMode", "auto-exec"));
+        Assert.Contains("Unknown configuration key", ex.Message);
     }
 
     [Fact]
     public async Task Get_ExecMode_Throws()
     {
         var svc = CreateService();
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.GetAsync("execMode"));
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.GetAsync("execMode"));
+        Assert.Contains("Unknown configuration key", ex.Message);
+    }
+
+    [Fact]
+    public async Task Set_ForceTools_InvalidValue_ThrowsEnglishError()
+    {
+        var svc = CreateService();
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("forceTools", "yes"));
+        Assert.Contains("Invalid value for 'forceTools'", ex.Message);
+    }
+
+    [Fact]
+    public async Task Load_InvalidJson_ThrowsEnglishError()
+    {
+        var svc = CreateService();
+        await File.WriteAllTextAsync(Path.Combine(_tmpDir, "config.json"), "{ invalid json");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => svc.LoadAsync());
+
+        Assert.Contains("Configuration file", ex.Message);
+        Assert.Contains("is invalid", ex.Message);
     }
 
     [Fact]

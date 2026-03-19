@@ -8,10 +8,15 @@ public class ConfigurationService
 {
     private static readonly string DefaultConfigFile =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "bashgpt", "config.json")
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".config", "bashgpt", "config.json");
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "bashgpt",
+                "config.json")
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".config",
+                "bashgpt",
+                "config.json");
 
     protected virtual string ConfigFile => DefaultConfigFile;
 
@@ -36,7 +41,8 @@ public class ConfigurationService
             catch (JsonException ex)
             {
                 throw new InvalidOperationException(
-                    $"Konfigurationsdatei '{ConfigFile}' ist ungÃ¼ltig: {ex.Message}", ex);
+                    $"Configuration file '{ConfigFile}' is invalid: {ex.Message}",
+                    ex);
             }
         }
 
@@ -72,15 +78,19 @@ public class ConfigurationService
 
             case "forcetools":
             case "defaultforcetools":
-                if (!bool.TryParse(value, out var ft))
-                    throw new ArgumentException($"UngÃ¼ltiger Wert fÃ¼r 'forceTools': '{value}'. Erlaubt: true, false");
-                config.DefaultForceTools = ft;
+                if (!bool.TryParse(value, out var forceTools))
+                {
+                    throw new ArgumentException(
+                        $"Invalid value for 'forceTools': '{value}'. Allowed: true, false");
+                }
+
+                config.DefaultForceTools = forceTools;
                 break;
 
             default:
                 throw new ArgumentException(
-                    $"Unbekannter KonfigurationsschlÃ¼ssel '{key}'.\n" +
-                    "GÃ¼ltige SchlÃ¼ssel: forceTools, ollama.baseUrl, ollama.model");
+                    $"Unknown configuration key '{key}'.\n" +
+                    "Valid keys: forceTools, ollama.baseUrl, ollama.model");
         }
 
         await SaveAsync(config);
@@ -96,7 +106,7 @@ public class ConfigurationService
             "forcetools" or "defaultforcetools" => config.DefaultForceTools.ToString().ToLowerInvariant(),
             "ollama.baseurl" => config.Ollama.BaseUrl,
             "ollama.model" => config.Ollama.Model,
-            _ => throw new ArgumentException($"Unbekannter KonfigurationsschlÃ¼ssel '{key}'.")
+            _ => throw new ArgumentException($"Unknown configuration key '{key}'.")
         };
     }
 
@@ -121,8 +131,10 @@ public class ConfigurationService
         if (ollamaModel is not null)
             config.Ollama.Model = ollamaModel;
 
-        if (Environment.GetEnvironmentVariable("BASHGPT_FORCE_TOOLS") is { } fts
-            && bool.TryParse(fts, out var ftBool))
-            config.DefaultForceTools = ftBool;
+        if (Environment.GetEnvironmentVariable("BASHGPT_FORCE_TOOLS") is { } forceTools
+            && bool.TryParse(forceTools, out var forceToolsEnabled))
+        {
+            config.DefaultForceTools = forceToolsEnabled;
+        }
     }
 }

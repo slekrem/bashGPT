@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using bashGPT.Core.Models.Storage;
 
 namespace bashGPT.Core.Storage;
@@ -14,14 +12,6 @@ namespace bashGPT.Core.Storage;
 public class SessionStore
 {
     public const string LiveSessionId = "current";
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
 
     private readonly string _sessionsDir;
     private readonly string _indexFile;
@@ -177,50 +167,24 @@ public class SessionStore
         if (!File.Exists(_indexFile))
             return new SessionIndex();
 
-        try
-        {
-            var json = await File.ReadAllTextAsync(_indexFile);
-            return JsonSerializer.Deserialize<SessionIndex>(json, JsonOptions) ?? new SessionIndex();
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return new SessionIndex();
-        }
+        return await SessionJsonStorage.ReadAsync<SessionIndex>(_indexFile) ?? new SessionIndex();
     }
 
     private async Task<SessionContent?> ReadContentAsync(string id)
     {
         var path = ContentFilePath(id);
-        if (!File.Exists(path)) return null;
-        try
-        {
-            var json = await File.ReadAllTextAsync(path);
-            return JsonSerializer.Deserialize<SessionContent>(json, JsonOptions);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
-        {
-            return null;
-        }
+        return await SessionJsonStorage.ReadAsync<SessionContent>(path);
     }
 
     private async Task WriteIndexInternalAsync(SessionIndex index)
     {
-        Directory.CreateDirectory(_sessionsDir);
-        var tmp = _indexFile + ".tmp";
-        var json = JsonSerializer.Serialize(index, JsonOptions);
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, _indexFile, overwrite: true);
+        await SessionJsonStorage.WriteAsync(_indexFile, index);
     }
 
     private async Task WriteContentInternalAsync(string id, SessionContent content)
     {
-        var dir = SessionDir(id);
-        Directory.CreateDirectory(dir);
         var path = ContentFilePath(id);
-        var tmp = path + ".tmp";
-        var json = JsonSerializer.Serialize(content, JsonOptions);
-        await File.WriteAllTextAsync(tmp, json);
-        File.Move(tmp, path, overwrite: true);
+        await SessionJsonStorage.WriteAsync(path, content);
     }
 
     private void TryDeleteSessionDir(string id)
