@@ -67,7 +67,6 @@ public class SessionStore
             CreatedAt = entry.CreatedAt,
             UpdatedAt = entry.UpdatedAt,
             Messages = content.Messages,
-            ShellContext = content.ShellContext,
             EnabledTools = content.EnabledTools,
             AgentId = content.AgentId,
         };
@@ -88,7 +87,6 @@ public class SessionStore
             var content = new SessionContent
             {
                 Messages = session.Messages,
-                ShellContext = session.ShellContext,
                 EnabledTools = session.EnabledTools,
                 AgentId = session.AgentId,
             };

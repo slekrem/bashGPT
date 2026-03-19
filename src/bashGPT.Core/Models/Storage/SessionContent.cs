@@ -6,7 +6,6 @@ namespace bashGPT.Core.Models.Storage;
 public sealed class SessionContent
 {
     public List<SessionMessage> Messages { get; set; } = [];
-    public SessionShellContext? ShellContext { get; set; }
     public List<string>? EnabledTools { get; set; }
     public string? AgentId { get; set; }
 }

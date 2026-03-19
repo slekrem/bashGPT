@@ -50,7 +50,7 @@ describe('SessionManager.prepareNewChat()', () => {
     const sm = new SessionManager()
     await sm.init()
     const msgs = [{ role: 'user' as const, content: 'Hello' }]
-    const { sessions } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID, null)
+    const { sessions } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID)
     // 1 archived + 1 new live session
     expect(sessions.length).toBeGreaterThanOrEqual(2)
     const archivedSession = sessions.find(s => s.id !== LIVE_SESSION_ID)
@@ -60,7 +60,7 @@ describe('SessionManager.prepareNewChat()', () => {
   it('does not archive an empty session', async () => {
     const sm = new SessionManager()
     await sm.init()
-    const { sessions } = await sm.prepareNewChat([], LIVE_SESSION_ID, null)
+    const { sessions } = await sm.prepareNewChat([], LIVE_SESSION_ID)
     // Only the new live session
     expect(sessions).toHaveLength(1)
     expect(sessions[0].id).toBe(LIVE_SESSION_ID)
@@ -74,7 +74,7 @@ describe('SessionManager.persistMessages()', () => {
     const sm = new SessionManager()
     await sm.init()
     const msgs = [{ role: 'user' as const, content: 'Saved message' }]
-    const sessions = await sm.persistMessages(LIVE_SESSION_ID, msgs, null)
+    const sessions = await sm.persistMessages(LIVE_SESSION_ID, msgs)
     expect(sessions).toHaveLength(1)
     expect(sessions[0].title).toBe('Saved message')
   })
@@ -86,7 +86,7 @@ describe('SessionManager.persistMessages()', () => {
       { role: 'assistant' as const, content: 'Hi there' },
       { role: 'user' as const, content: 'Show me the files' },
     ]
-    const sessions = await sm.persistMessages(LIVE_SESSION_ID, msgs, null)
+    const sessions = await sm.persistMessages(LIVE_SESSION_ID, msgs)
     expect(sessions[0].title).toBe('Show me the files')
   })
 })
@@ -99,7 +99,7 @@ describe('SessionManager.activateArchived()', () => {
     await sm.init()
     // Create an archived session via prepareNewChat
     const msgs = [{ role: 'user' as const, content: 'Old message' }]
-    const { sessions: afterNew } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID, null)
+    const { sessions: afterNew } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID)
     const archivedId = afterNew.find(s => s.id !== LIVE_SESSION_ID)!.id
 
     const { sessions, activeId } = await sm.activateArchived(archivedId)
@@ -112,7 +112,7 @@ describe('SessionManager.activateArchived()', () => {
     await sm.init()
     // Create archived session
     const msgs = [{ role: 'user' as const, content: 'Archived' }]
-    const { sessions: afterNew } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID, null)
+    const { sessions: afterNew } = await sm.prepareNewChat(msgs, LIVE_SESSION_ID)
     const archivedId = afterNew.find(s => s.id !== LIVE_SESSION_ID)!.id
     // Give the live session some content
     await sm.persistMessages(LIVE_SESSION_ID, [{ role: 'user', content: 'Live content' }])
@@ -129,7 +129,7 @@ describe('SessionManager.clearAll()', () => {
   it('removes all local sessions and clears localStorage', async () => {
     const sm = new SessionManager()
     await sm.init()
-    await sm.persistMessages(LIVE_SESSION_ID, [{ role: 'user', content: 'hi' }], null)
+    await sm.persistMessages(LIVE_SESSION_ID, [{ role: 'user', content: 'hi' }])
     await sm.clearAll()
     const { sessions } = await sm.init()
     expect(sessions).toHaveLength(0)

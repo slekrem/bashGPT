@@ -10,7 +10,6 @@ public sealed class SessionRecord
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
     public List<SessionMessage> Messages { get; set; } = [];
-    public SessionShellContext? ShellContext { get; set; }
     public List<string>? EnabledTools { get; set; }
     public string? AgentId { get; set; }
 }

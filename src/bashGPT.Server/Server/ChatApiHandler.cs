@@ -99,13 +99,6 @@ internal sealed class ChatApiHandler(
 
         var result = await handler.RunServerChatAsync(chatOpts, ct);
 
-        var shellCtx = new SessionShellContext
-        {
-            User = Environment.UserName,
-            Host = Environment.MachineName,
-            Cwd  = Environment.CurrentDirectory,
-        };
-
         // Persistieren: nur session-basiert
         if (sessionStore is not null && sessionId is not null)
         {
@@ -123,7 +116,6 @@ internal sealed class ChatApiHandler(
                 CreatedAt    = session?.CreatedAt ?? now,
                 UpdatedAt    = now,
                 Messages     = allMessages,
-                ShellContext = shellCtx,
                 EnabledTools = selectableToolNames?.ToList(),
                 AgentId      = agent?.Id ?? session?.AgentId,
             });
@@ -156,7 +148,6 @@ internal sealed class ChatApiHandler(
             finalStatus  = result.FinalStatus,
             logs         = result.Logs,
             commands     = result.Commands,
-            shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
             usage        = result.Usage == null ? null : (object)new
             {
                 inputTokens       = result.Usage.InputTokens,

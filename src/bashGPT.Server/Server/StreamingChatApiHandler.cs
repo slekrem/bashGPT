@@ -139,13 +139,6 @@ internal sealed class StreamingChatApiHandler(
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 
-            var shellCtx = new SessionShellContext
-            {
-                User = Environment.UserName,
-                Host = Environment.MachineName,
-                Cwd  = Environment.CurrentDirectory,
-            };
-
             // done-Event senden
             var doneJson = JsonSerializer.Serialize(new
             {
@@ -164,7 +157,6 @@ internal sealed class StreamingChatApiHandler(
                     requestId,
                     logs         = result.Logs,
                     commands     = result.Commands,
-                    shellContext = new { user = shellCtx.User, host = shellCtx.Host, cwd = shellCtx.Cwd },
                 },
             }, JsonDefaults.Options);
             ApiResponse.WriteSseEvent(stream, doneJson);
@@ -187,7 +179,6 @@ internal sealed class StreamingChatApiHandler(
                     CreatedAt    = session?.CreatedAt ?? now,
                     UpdatedAt    = now,
                     Messages     = allMessages,
-                    ShellContext = shellCtx,
                     EnabledTools = selectableToolNames?.ToList(),
                     AgentId      = agent?.Id ?? session?.AgentId,
                 });

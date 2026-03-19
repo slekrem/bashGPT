@@ -79,7 +79,6 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
                 createdAt    = session.CreatedAt,
                 updatedAt    = session.UpdatedAt,
                 messages     = visibleMessages,
-                shellContext = session.ShellContext,
                 enabledTools = session.EnabledTools,
                 agentId      = session.AgentId,
             });

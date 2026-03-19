@@ -10,9 +10,7 @@ namespace BashGPT.Cli;
 /// Verarbeitet Chat-Anfragen im CLI-Modus: streamt Tokens direkt auf die Console
 /// und führt Shell-Befehle automatisch aus.
 /// </summary>
-public class CliChatRunner(
-    ConfigurationService configService,
-    ShellContextCollector contextCollector)
+public class CliChatRunner(ConfigurationService configService)
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
@@ -46,17 +44,6 @@ public class CliChatRunner(
             Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, Modell: {provider.Model}");
 
         var messages = new List<ChatMessage>();
-
-        if (!opts.NoContext)
-        {
-            var ctx          = await contextCollector.CollectAsync(opts.IncludeDir);
-            var systemPrompt = contextCollector.BuildSystemPrompt(ctx);
-            messages.Add(new ChatMessage(ChatRole.System, systemPrompt));
-
-            if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Kontext gesammelt: {ctx.WorkingDirectory}, Git: {ctx.Git?.Branch ?? "n/a"}");
-        }
-
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
         var tools          = new[] { ToolDefinitions.Bash };

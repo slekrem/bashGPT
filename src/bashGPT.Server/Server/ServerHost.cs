@@ -9,7 +9,6 @@ namespace BashGPT.Server;
 
 public class ServerHost
 {
-    private readonly ContextApiHandler _contextHandler;
     private readonly SettingsApiHandler _settingsHandler;
     private readonly ChatApiHandler _chatHandler;
     private readonly StreamingChatApiHandler _streamingChatHandler;
@@ -41,7 +40,6 @@ public class ServerHost
         _toolRegistry = toolRegistry;
         _toolSelectionPolicy = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats = new RunningChatRegistry();
-        _contextHandler = new ContextApiHandler();
         _settingsHandler = new SettingsApiHandler(configService);
         _chatHandler = new ChatApiHandler(handler, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
         _streamingChatHandler = new StreamingChatApiHandler(handler, _runningChats, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
@@ -138,12 +136,6 @@ public class ServerHost
             if (req.HttpMethod == "POST" && path == "/api/reset")
             {
                 await ResetLegacyHistoryAsync(ctx.Response, ct);
-                return;
-            }
-
-            if (req.HttpMethod == "GET" && path == "/api/context")
-            {
-                await _contextHandler.HandleAsync(ctx.Response, ct);
                 return;
             }
 

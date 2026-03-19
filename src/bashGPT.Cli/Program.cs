@@ -3,7 +3,6 @@ using bashGPT.Core;
 using bashGPT.Core.Versioning;
 using BashGPT.Cli;
 using BashGPT.Configuration;
-using BashGPT.Shell;
 
 if (args is ["--version"])
 {
@@ -15,22 +14,11 @@ if (args is ["--version"])
 }
 
 var configService = new ConfigurationService();
-var contextCollector = new ShellContextCollector();
-var cliRunner = new CliChatRunner(configService, contextCollector);
+var cliRunner = new CliChatRunner(configService);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
     Description = "Modellname (überschreibt Config)"
-};
-
-var noContextOpt = new Option<bool>("--no-context")
-{
-    Description = "Kein Shell-Kontext mitschicken"
-};
-
-var includeDirOpt = new Option<bool>("--include-dir")
-{
-    Description = "Verzeichnisinhalt in den Kontext aufnehmen"
 };
 
 var verboseOpt = new Option<bool>("--verbose", "-v")
@@ -53,8 +41,6 @@ var rootCommand = new RootCommand("bashGPT - KI-gestützter Shell-Assistent");
 
 rootCommand.Arguments.Add(promptArg);
 rootCommand.Options.Add(modelOpt);
-rootCommand.Options.Add(noContextOpt);
-rootCommand.Options.Add(includeDirOpt);
 rootCommand.Options.Add(verboseOpt);
 rootCommand.Options.Add(forceToolsOpt);
 
@@ -74,8 +60,8 @@ rootCommand.SetAction(async (parseResult, ct) =>
         Prompt: prompt,
         Provider: null,
         Model: parseResult.GetValue(modelOpt),
-        NoContext: parseResult.GetValue(noContextOpt),
-        IncludeDir: parseResult.GetValue(includeDirOpt),
+        NoContext: false,
+        IncludeDir: false,
         Verbose: parseResult.GetValue(verboseOpt),
         ForceTools: parseResult.GetValue(forceToolsOpt));
 
