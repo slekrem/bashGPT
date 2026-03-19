@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
 using BashGPT.Agents;
 

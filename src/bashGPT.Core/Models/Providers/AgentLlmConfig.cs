@@ -1,4 +1,4 @@
-namespace bashGPT.Core.Providers;
+namespace bashGPT.Core.Models.Providers;
 
 /// <summary>
 /// Agent-specific LLM configuration passed through to the provider layer.
