@@ -111,62 +111,15 @@ public class ServerChatRunner(
 
                     round++;
                     opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
-                    var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(
+                    commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
                         response.Response.ToolCalls,
-                        content: response.Response.Content);
-                    messages.Add(assistantToolCallMessage);
-                    conversationDelta.Add(assistantToolCallMessage);
-
-                    foreach (var call in response.Response.ToolCalls)
-                    {
-                        ct.ThrowIfCancellationRequested();
-
-                        var commandLabel = ToolCallArguments.TryGetString(call, "command", out var parsedCommand, out _)
-                            ? parsedCommand
-                            : call.Name;
-                        opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
-
-                        CommandResult commandResult;
-                        string toolResult;
-                        if (toolRegistry.TryGet(call.Name, out var iTool) && iTool is not null)
-                        {
-                            try
-                            {
-                                var r = await iTool.ExecuteAsync(
-                                    new BashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", opts.SessionPath), ct);
-
-                                toolResult = r.Content;
-                                commandResult = BuildCommandResult(call.Name, commandLabel, r.Content, r.Success);
-                            }
-                            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                            {
-                                throw;
-                            }
-                            catch (Exception ex)
-                            {
-                                toolResult = $"Error: {ex.Message}";
-                                commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
-                            }
-                        }
-                        else
-                        {
-                            toolResult = $"Error: Unknown tool '{call.Name}'.";
-                            commandResult = new CommandResult(commandLabel, 1, toolResult, WasExecuted: false);
-                        }
-
-                        commandResults.Add(commandResult);
-                        opts.OnEvent?.Invoke(new SseEvent("command_result", new
-                        {
-                            command = commandResult.Command,
-                            output = commandResult.Output,
-                            exitCode = commandResult.ExitCode,
-                            wasExecuted = commandResult.WasExecuted,
-                            status = ClassifyCommandStatus(commandResult),
-                        }));
-                        var toolMessage = ChatMessage.ToolResult(toolResult, call.Id, call.Name);
-                        messages.Add(toolMessage);
-                        conversationDelta.Add(toolMessage);
-                    }
+                        response.Response.Content,
+                        messages,
+                        conversationDelta,
+                        toolRegistry,
+                        opts.SessionPath,
+                        opts.OnEvent,
+                        ct));
 
                     RefreshSystemMessages();
                     response = await CallOnce();
@@ -221,16 +174,6 @@ public class ServerChatRunner(
             FinalStatus: finalStatus);
     }
 
-    private static CommandResult BuildCommandResult(string toolName, string commandLabel, string content, bool success)
-    {
-        var exitCode = success ? 0 : 1;
-        return new CommandResult($"{toolName}: {commandLabel}", exitCode, content, WasExecuted: success);
-    }
-
     private static string ClassifyCommandStatus(CommandResult result)
-        => result.Output.Contains("timed out", StringComparison.OrdinalIgnoreCase)
-            ? "timeout"
-            : result.WasExecuted
-                ? "executed"
-                : "failed";
+        => ServerToolCallOrchestrator.ClassifyCommandStatus(result);
 }
