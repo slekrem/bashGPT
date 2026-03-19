@@ -33,8 +33,12 @@ public class CliChatRunner(ConfigurationService configService)
 
         var tools = new[] { CliBashTool.Definition };
         var toolChoiceName = forceTools ? "bash" : null;
-        var chatSession = new ChatSessionState(provider, tools, toolChoiceName);
-        chatSession.InitializeMessages([], opts.Prompt);
+        var chatSession = ChatSessionFactory.Create(
+            provider,
+            tools,
+            [],
+            opts.Prompt,
+            toolChoiceName);
 
         Console.WriteLine();
         var firstResponse = await StreamAndCollectAsync(chatSession, ct);

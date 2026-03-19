@@ -40,15 +40,16 @@ public class ServerChatRunner(
         if (opts.Verbose)
             logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
         var tools = opts.Tools ?? [];
-        var chatSession = new ChatSessionState(
+        var chatSession = ChatSessionFactory.Create(
             provider,
             tools,
+            opts.History,
+            opts.Prompt,
             systemPrompt: opts.SystemPrompt,
             llmConfig: opts.LlmConfig,
             onReasoningToken: opts.OnReasoningToken,
             onLlmRequestJson: opts.OnLlmRequestJson,
             onLlmResponseJson: opts.OnLlmResponseJson);
-        chatSession.InitializeMessages(opts.History, opts.Prompt);
 
         var commandResults = new List<CommandResult>();
         var usedToolCalls = false;

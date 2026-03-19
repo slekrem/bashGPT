@@ -61,6 +61,24 @@ public sealed class ChatSessionStateTests
     }
 
     [Fact]
+    public void ChatSessionFactory_Create_InitializesSessionWithHistoryAndPrompt()
+    {
+        var provider = new FakeSessionProvider();
+
+        var session = ChatSessionFactory.Create(
+            provider,
+            [],
+            [new ChatMessage(ChatRole.Assistant, "Earlier")],
+            "Prompt",
+            systemPrompt: () => ["System"]);
+
+        Assert.Equal(3, session.Messages.Count);
+        Assert.Equal(ChatRole.System, session.Messages[0].Role);
+        Assert.Equal(ChatRole.Assistant, session.Messages[1].Role);
+        Assert.Equal(ChatRole.User, session.Messages[2].Role);
+    }
+
+    [Fact]
     public async Task CreateCompletedOutcome_UsesLastResponseAndUsage()
     {
         var provider = new FakeSessionProvider();
