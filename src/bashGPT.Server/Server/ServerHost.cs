@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Net;
+using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
 using BashGPT.Agents;
-using bashGPT.Core.Configuration;
 using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;
@@ -16,11 +16,7 @@ public class ServerHost
     private readonly SessionApiHandler _sessionHandler;
     private readonly AgentApiHandler _agentHandler;
     private readonly ToolApiHandler _toolHandler;
-    private readonly ConfigurationService? _configService;
-    private readonly AgentRegistry? _agentRegistry;
     private readonly SessionStore? _sessionStore;
-    private readonly SessionRequestStore? _sessionRequestStore;
-    private readonly ToolRegistry? _toolRegistry;
     private readonly RunningChatRegistry _runningChats;
     private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
 
@@ -33,11 +29,7 @@ public class ServerHost
         ToolRegistry? toolRegistry = null,
         ServerToolSelectionPolicy? toolSelectionPolicy = null)
     {
-        _configService = configService;
-        _agentRegistry = agentRegistry;
         _sessionStore = sessionStore;
-        _sessionRequestStore = sessionRequestStore;
-        _toolRegistry = toolRegistry;
         _toolSelectionPolicy = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats = new RunningChatRegistry();
         _settingsHandler = new SettingsApiHandler(configService);
@@ -61,12 +53,12 @@ public class ServerHost
         }
         catch (HttpListenerException ex)
         {
-            Console.Error.WriteLine($"Server konnte nicht gestartet werden: {ex.Message}");
+            Console.Error.WriteLine($"Failed to start server: {ex.Message}");
             return 1;
         }
 
-        Console.WriteLine($"bashGPT Server laeuft auf {prefix}");
-        Console.WriteLine("Beenden mit Ctrl+C");
+        Console.WriteLine($"bashGPT Server running on {prefix}");
+        Console.WriteLine("Press Ctrl+C to stop.");
 
         if (!options.NoBrowser)
             TryOpenBrowser(prefix);
@@ -187,11 +179,11 @@ public class ServerHost
                 return;
             }
 
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[server] Unbehandelter Request-Fehler: {ex}");
+            Console.Error.WriteLine($"[server] Unhandled request error: {ex}");
             await ApiResponse.WriteJsonAsync(ctx.Response, new { error = ApiErrors.GenericServerError }, statusCode: 500);
         }
     }

@@ -1,8 +1,9 @@
 using System.CommandLine;
+using bashGPT.Core;
+using bashGPT.Core.Configuration;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using bashGPT.Core.Configuration;
 using BashGPT.Server;
 using BashGPT.Tools.Build;
 using BashGPT.Tools.Execution;
@@ -11,7 +12,6 @@ using BashGPT.Tools.Filesystem;
 using BashGPT.Tools.Git;
 using BashGPT.Tools.Shell;
 using BashGPT.Tools.Testing;
-using bashGPT.Core;
 
 var configService = new ConfigurationService();
 var toolRegistry = new ToolRegistry([
@@ -41,20 +41,20 @@ var serverHost = new ServerHost(serverRunner, configService, sessionStore, sessi
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
-    Description = "Modellname (überschreibt Config)"
+    Description = "Model name (overrides config)"
 };
 var verboseOpt = new Option<bool>("--verbose", "-v")
 {
-    Description = "Debug-Ausgaben anzeigen"
+    Description = "Show debug output"
 };
 var portOpt = new Option<int>("--port")
 {
-    Description = "Port für den Server-Modus",
+    Description = "Port for server mode",
     DefaultValueFactory = _ => 5050
 };
 var noBrowserOpt = new Option<bool>("--no-browser")
 {
-    Description = "Browser beim Start nicht automatisch öffnen"
+    Description = "Do not open the browser automatically on startup"
 };
 
 var rootCommand = new RootCommand("bashGPT Server");

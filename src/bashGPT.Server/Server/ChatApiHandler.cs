@@ -26,23 +26,20 @@ internal sealed class ChatApiHandler(
         var body = await JsonSerializer.DeserializeAsync<ChatRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Prompt fehlt." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Prompt is required." }, statusCode: 400);
             return;
         }
 
         var sessionId = ResolveSessionId(body.SessionId);
 
-        // Agent laden (optional)
         AgentBase? agent = null;
         if (agentRegistry is not null && !string.IsNullOrWhiteSpace(body.AgentId))
             agent = agentRegistry.Find(body.AgentId);
 
-        // Session laden (einmalig – wird für History, EnabledTools und Persistenz genutzt)
         SessionRecord? session = null;
         if (sessionStore is not null && sessionId is not null)
             session = await sessionStore.LoadAsync(sessionId);
 
-        // History laden: session-basiert oder leer, wenn keine Session verfuegbar ist
         IReadOnlyList<ChatMessage> historySnapshot;
         if (session is not null)
         {
@@ -60,7 +57,6 @@ internal sealed class ChatApiHandler(
             historySnapshot = [];
         }
 
-        // EnabledTools: Agent-Wert hat Vorrang, danach Session-Wert, danach Request-Wert
         var effectiveToolNames = agent?.EnabledTools.Count > 0
             ? agent.EnabledTools.ToList()
             : session?.EnabledTools?.Count > 0
@@ -73,67 +69,65 @@ internal sealed class ChatApiHandler(
 
         var resolvedTools = ToolHelper.Resolve(selectableToolNames, toolRegistry);
 
-        var now        = DateTime.UtcNow.ToString("o");
+        var now = DateTime.UtcNow.ToString("o");
         var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
 
-        // Session-Pfad setzen, bevor agent.SystemPrompt ausgewertet wird.
         ContextFileCache.CurrentSessionPath = sessionStore is not null && sessionId is not null
             ? sessionStore.GetSessionDir(sessionId)
             : null;
 
         var chatOpts = new ServerChatOptions(
-            Prompt:   body.Prompt.Trim(),
-            History:  historySnapshot,
-            Model:    options.Model,
-            Verbose:  options.Verbose || body.Verbose == true,
+            Prompt: body.Prompt.Trim(),
+            History: historySnapshot,
+            Model: options.Model,
+            Verbose: options.Verbose || body.Verbose == true,
             OnLlmRequestJson: sessionRequestStore is not null && sessionId is not null
                 ? (idx, json) => sessionRequestStore.SaveLlmRequestAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
             OnLlmResponseJson: sessionRequestStore is not null && sessionId is not null
                 ? (idx, json) => sessionRequestStore.SaveLlmResponseAsync(sessionId, requestKey + $"_r{idx}", json)
                 : null,
-            Tools:        resolvedTools.Count > 0 ? resolvedTools : null,
+            Tools: resolvedTools.Count > 0 ? resolvedTools : null,
             SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
-            SessionPath:  sessionStore is not null && sessionId is not null
+            SessionPath: sessionStore is not null && sessionId is not null
                 ? sessionStore.GetSessionDir(sessionId)
                 : null);
 
         var result = await handler.RunServerChatAsync(chatOpts, ct);
 
-        // Persistieren: nur session-basiert
         if (sessionStore is not null && sessionId is not null)
         {
             var newMessages = BuildSessionMessages(body.Prompt.Trim(), result);
 
             var existingMessages = session?.Messages ?? [];
-            var allMessages      = existingMessages.Concat(newMessages).ToList();
-            var title            = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
+            var allMessages = existingMessages.Concat(newMessages).ToList();
+            var title = allMessages.FirstOrDefault(m => m.Role == "user")?.Content?.Trim() ?? "Chat";
             if (title.Length > 40) title = title[..40] + "...";
 
             await sessionStore.UpsertAsync(new SessionRecord
             {
-                Id           = sessionId,
-                Title        = title,
-                CreatedAt    = session?.CreatedAt ?? now,
-                UpdatedAt    = now,
-                Messages     = allMessages,
+                Id = sessionId,
+                Title = title,
+                CreatedAt = session?.CreatedAt ?? now,
+                UpdatedAt = now,
+                Messages = allMessages,
                 EnabledTools = selectableToolNames?.ToList(),
-                AgentId      = agent?.Id ?? session?.AgentId,
+                AgentId = agent?.Id ?? session?.AgentId,
             });
 
             var reqRecord = new SessionRequestRecord
             {
                 Timestamp = requestKey,
-                Request   = new SessionRequestData { Prompt = body.Prompt.Trim() },
-                Response  = new SessionResponseData
+                Request = new SessionRequestData { Prompt = body.Prompt.Trim() },
+                Response = new SessionResponseData
                 {
-                    Content  = result.Response,
+                    Content = result.Response,
                     Commands = ToSessionCommands(result.Commands),
-                    Usage    = result.Usage is null ? null : new SessionTokenUsage
+                    Usage = result.Usage is null ? null : new SessionTokenUsage
                     {
-                        InputTokens       = result.Usage.InputTokens,
-                        OutputTokens      = result.Usage.OutputTokens,
-                        TotalTokens       = result.Usage.TotalTokens,
+                        InputTokens = result.Usage.InputTokens,
+                        OutputTokens = result.Usage.OutputTokens,
+                        TotalTokens = result.Usage.TotalTokens,
                         CachedInputTokens = result.Usage.CachedInputTokens,
                     },
                 },
@@ -144,16 +138,16 @@ internal sealed class ChatApiHandler(
 
         await ApiResponse.WriteJsonAsync(ctx.Response, new
         {
-            response     = result.Response,
+            response = result.Response,
             usedToolCalls = result.UsedToolCalls,
-            finalStatus  = result.FinalStatus,
-            logs         = result.Logs,
-            commands     = result.Commands,
-            usage        = result.Usage == null ? null : (object)new
+            finalStatus = result.FinalStatus,
+            logs = result.Logs,
+            commands = result.Commands,
+            usage = result.Usage == null ? null : (object)new
             {
-                inputTokens       = result.Usage.InputTokens,
-                outputTokens      = result.Usage.OutputTokens,
-                totalTokens       = result.Usage.TotalTokens,
+                inputTokens = result.Usage.InputTokens,
+                outputTokens = result.Usage.OutputTokens,
+                totalTokens = result.Usage.TotalTokens,
                 cachedInputTokens = result.Usage.CachedInputTokens,
             },
         });
@@ -171,9 +165,9 @@ internal sealed class ChatApiHandler(
             ? null
             : commands.Select(c => new SessionCommand
             {
-                Command     = c.Command,
-                ExitCode    = c.ExitCode,
-                Output      = c.Output,
+                Command = c.Command,
+                ExitCode = c.ExitCode,
+                Output = c.Output,
                 WasExecuted = c.WasExecuted,
             }).ToList();
 
@@ -202,11 +196,11 @@ internal sealed class ChatApiHandler(
         }
 
         finalAssistant.Commands = ToSessionCommands(result.Commands);
-        finalAssistant.Usage    = result.Usage is null ? null : new SessionTokenUsage
+        finalAssistant.Usage = result.Usage is null ? null : new SessionTokenUsage
         {
-            InputTokens       = result.Usage.InputTokens,
-            OutputTokens      = result.Usage.OutputTokens,
-            TotalTokens       = result.Usage.TotalTokens,
+            InputTokens = result.Usage.InputTokens,
+            OutputTokens = result.Usage.OutputTokens,
+            TotalTokens = result.Usage.TotalTokens,
             CachedInputTokens = result.Usage.CachedInputTokens,
         };
 

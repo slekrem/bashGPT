@@ -2,6 +2,6 @@ namespace BashGPT.Server;
 
 internal static class ApiErrors
 {
-    internal const string GenericServerError = "Interner Serverfehler.";
-    internal const string GenericProviderError = "Verbindungstest fehlgeschlagen.";
+    internal const string GenericServerError = "Internal server error.";
+    internal const string GenericProviderError = "Connection test failed.";
 }

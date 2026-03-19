@@ -222,7 +222,7 @@ public sealed class ServerHostTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Interner Serverfehler.", json.GetProperty("error").GetString());
+        Assert.Equal("Internal server error.", json.GetProperty("error").GetString());
         Assert.DoesNotContain("Simulierter Fehler", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
@@ -282,7 +282,7 @@ public sealed class ServerHostTests : IAsyncLifetime
         var ssePayload = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Interner Serverfehler.", ssePayload, StringComparison.Ordinal);
+        Assert.Contains("Internal server error.", ssePayload, StringComparison.Ordinal);
         Assert.DoesNotContain("Vertrauliches Streaming-Detail", ssePayload, StringComparison.Ordinal);
         Assert.Contains("[DONE]", ssePayload, StringComparison.Ordinal);
     }

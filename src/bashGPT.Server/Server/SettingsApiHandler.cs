@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
 using bashGPT.Core.Serialization;
-using bashGPT.Core.Configuration;
 using BashGPT.Shell;
 
 namespace BashGPT.Server;
@@ -25,14 +25,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         if (ctx.Request.HttpMethod == "POST" && path == "/api/settings/test")
         { await HandleTestAsync(ctx.Response, ct); return; }
 
-        await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Nicht gefunden." }, statusCode: 404);
+        await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
     }
 
     private async Task HandleGetAsync(HttpListenerResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(response, new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
@@ -55,14 +55,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
         var body = await JsonSerializer.DeserializeAsync<SettingsRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
         if (body is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "UngÃ¼ltiger Request-Body." }, statusCode: 400);
+            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Invalid request body." }, statusCode: 400);
             return;
         }
 
@@ -85,7 +85,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Kein ConfigurationService verfÃ¼gbar." }, statusCode: 503);
+            await ApiResponse.WriteJsonAsync(response, new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
@@ -100,7 +100,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         }
         catch (LlmProviderException ex)
         {
-            Console.Error.WriteLine($"[server] Provider-Verbindungstest fehlgeschlagen: {ex}");
+            Console.Error.WriteLine($"[server] Provider connectivity test failed: {ex}");
             await ApiResponse.WriteJsonAsync(response, new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
