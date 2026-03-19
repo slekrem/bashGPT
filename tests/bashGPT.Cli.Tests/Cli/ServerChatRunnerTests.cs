@@ -1,10 +1,10 @@
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using BashGPT.Server;
+using bashGPT.Server;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Cli.Tests;
+namespace bashGPT.Cli.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="ServerChatRunner.RunServerChatAsync"/>.

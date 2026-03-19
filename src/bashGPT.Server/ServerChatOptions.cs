@@ -3,7 +3,7 @@ using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
 using BashGPT.Shell;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 public record ServerChatOptions(
     string Prompt,

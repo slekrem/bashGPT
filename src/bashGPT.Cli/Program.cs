@@ -1,8 +1,8 @@
 using System.CommandLine;
 using bashGPT.Core;
-using bashGPT.Core.Versioning;
-using BashGPT.Cli;
 using bashGPT.Core.Configuration;
+using bashGPT.Core.Versioning;
+using bashGPT.Cli;
 
 if (args is ["--version"])
 {
@@ -13,31 +13,31 @@ if (args is ["--version"])
     return 0;
 }
 
-var configService = new ConfigurationService();
-var cliRunner = new CliChatRunner(configService);
+var configService = CliApplication.CreateConfigurationService();
+var cliRunner = CliApplication.CreateChatRunner(configService);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
-    Description = "Modellname (überschreibt Config)"
+    Description = "Model name (overrides config)"
 };
 
 var verboseOpt = new Option<bool>("--verbose", "-v")
 {
-    Description = "Debug-Ausgaben anzeigen"
+    Description = "Show debug output"
 };
 
 var forceToolsOpt = new Option<bool?>("--force-tools")
 {
-    Description = "Tool-Calls erzwingen (tool_choice=bash)"
+    Description = "Force tool calls (tool_choice=bash)"
 };
 
 var promptArg = new Argument<string[]>("prompt")
 {
-    Description = "Die Anfrage an das LLM",
+    Description = "The prompt to send to the LLM",
     Arity = ArgumentArity.ZeroOrMore
 };
 
-var rootCommand = new RootCommand("bashGPT - KI-gestützter Shell-Assistent");
+var rootCommand = new RootCommand("bashGPT - AI-powered shell assistant");
 
 rootCommand.Arguments.Add(promptArg);
 rootCommand.Options.Add(modelOpt);
@@ -51,8 +51,8 @@ rootCommand.SetAction(async (parseResult, ct) =>
 
     if (string.IsNullOrWhiteSpace(prompt))
     {
-        Console.Error.WriteLine("Bitte gib eine Anfrage an.");
-        Console.Error.WriteLine("Beispiel: bashgpt \"zeige alle .cs Dateien\"");
+        Console.Error.WriteLine("Please provide a prompt.");
+        Console.Error.WriteLine("Example: bashgpt \"show all .cs files\"");
         return;
     }
 
@@ -70,24 +70,24 @@ rootCommand.SetAction(async (parseResult, ct) =>
     await cliRunner.RunAsync(opts, cts.Token);
 });
 
-var configCommand = new Command("config", "Konfiguration lesen und setzen");
+var configCommand = new Command("config", "Read and update configuration");
 
-var configListCommand = new Command("list", "Alle Einstellungen anzeigen");
+var configListCommand = new Command("list", "Show all settings");
 configListCommand.SetAction(async (_, _) =>
     Console.WriteLine(await configService.ListAsync()));
 
-var configGetKey = new Argument<string>("key") { Description = "Konfigurationsschlüssel" };
-var configGetCommand = new Command("get", "Einen Wert lesen");
+var configGetKey = new Argument<string>("key") { Description = "Configuration key" };
+var configGetCommand = new Command("get", "Read a setting value");
 configGetCommand.Arguments.Add(configGetKey);
 configGetCommand.SetAction(async (parseResult, _) =>
 {
     try { Console.WriteLine(await configService.GetAsync(parseResult.GetValue(configGetKey)!)); }
-    catch (ArgumentException ex) { Console.Error.WriteLine($"Fehler: {ex.Message}"); }
+    catch (ArgumentException ex) { Console.Error.WriteLine($"Error: {ex.Message}"); }
 });
 
-var configSetKey = new Argument<string>("key") { Description = "Konfigurationsschlüssel" };
-var configSetValue = new Argument<string>("value") { Description = "Neuer Wert" };
-var configSetCommand = new Command("set", "Einen Wert setzen");
+var configSetKey = new Argument<string>("key") { Description = "Configuration key" };
+var configSetValue = new Argument<string>("value") { Description = "New value" };
+var configSetCommand = new Command("set", "Update a setting value");
 configSetCommand.Arguments.Add(configSetKey);
 configSetCommand.Arguments.Add(configSetValue);
 configSetCommand.SetAction(async (parseResult, _) =>
@@ -97,9 +97,9 @@ configSetCommand.SetAction(async (parseResult, _) =>
     try
     {
         await configService.SetAsync(key, value);
-        Console.WriteLine($"✓ {key} = {value}");
+        Console.WriteLine($"OK {key} = {value}");
     }
-    catch (ArgumentException ex) { Console.Error.WriteLine($"Fehler: {ex.Message}"); }
+    catch (ArgumentException ex) { Console.Error.WriteLine($"Error: {ex.Message}"); }
 });
 
 configCommand.Subcommands.Add(configListCommand);

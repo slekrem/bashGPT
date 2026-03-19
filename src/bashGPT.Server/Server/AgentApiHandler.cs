@@ -4,7 +4,7 @@ using bashGPT.Core.Providers.Abstractions;
 using BashGPT.Agents;
 using bashGPT.Core.Configuration;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationService? configService)
 {

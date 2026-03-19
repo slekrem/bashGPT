@@ -1,54 +1,42 @@
 using bashGPT.Core;
 using bashGPT.Core.Chat;
+using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Core.Providers.Ollama;
-using bashGPT.Core.Configuration;
+using bashGPT.Core.Providers;
+using bashGPT.Cli.Shell;
 using BashGPT.Shell;
 
-namespace BashGPT.Cli;
+namespace bashGPT.Cli;
 
 /// <summary>
-/// Verarbeitet Chat-Anfragen im CLI-Modus: streamt Tokens direkt auf die Console
-/// und führt Shell-Befehle automatisch aus.
+/// Processes chat requests in CLI mode by streaming tokens to the console
+/// and executing shell commands automatically.
 /// </summary>
 public class CliChatRunner(ConfigurationService configService)
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
-        AppConfig config;
-        try
+        var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
+        if (bootstrap.Error is not null || bootstrap.Config is null || bootstrap.Provider is null)
         {
-            config = await configService.LoadAsync();
-        }
-        catch (InvalidOperationException ex)
-        {
-            Console.Error.WriteLine($"Konfigurationsfehler: {ex.Message}");
+            Console.Error.WriteLine(bootstrap.Error ?? "Failed to initialize provider.");
             return 1;
         }
 
-        ChatOrchestrator.ApplyModelOverride(config, opts.Model);
-
+        var config = bootstrap.Config;
+        var provider = bootstrap.Provider;
         var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
-        ILlmProvider provider;
-        try
-        {
-            provider = new OllamaProvider(config.Ollama);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Provider-Fehler: {ex.Message}");
-            return 1;
-        }
-
         if (opts.Verbose)
-            Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, Modell: {provider.Model}");
+            Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, model: {provider.Model}");
 
-        var messages = new List<ChatMessage>();
-        messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, opts.Prompt)
+        };
 
-        var tools          = new[] { CliBashTool.Definition };
+        var tools = new[] { CliBashTool.Definition };
         var toolChoiceName = forceTools ? "bash" : null;
 
         Console.WriteLine();
@@ -58,7 +46,7 @@ public class CliChatRunner(ConfigurationService configService)
         if (firstResponse.ToolCalls.Count > 0)
         {
             if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Tool-Calls empfangen: {firstResponse.ToolCalls.Count}");
+                Console.Error.WriteLine($"[verbose] Received tool calls: {firstResponse.ToolCalls.Count}");
 
             await HandleToolCallsAsync(
                 provider,
@@ -77,15 +65,19 @@ public class CliChatRunner(ConfigurationService configService)
 
         var commands = BashCommandExtractor.Extract(firstResponse.Content);
         if (opts.Verbose && commands.Count > 0)
-            Console.Error.WriteLine($"[verbose] Fallback aktiv: {commands.Count} Befehl(e) aus Text-Codebloecken extrahiert");
+        {
+            Console.Error.WriteLine(
+                $"[verbose] Fallback active: extracted {commands.Count} command(s) from text code blocks");
+        }
+
         if (commands.Count == 0)
             return 0;
 
         if (opts.Verbose)
-            Console.Error.WriteLine($"[verbose] {commands.Count} Befehl(e) gefunden");
+            Console.Error.WriteLine($"[verbose] Found {commands.Count} command(s)");
 
         var executor = new CommandExecutor(commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
-        var results  = await executor.ProcessAsync(commands, ct);
+        var results = await executor.ProcessAsync(commands, ct);
 
         var executed = results.Where(r => r.WasExecuted).ToList();
         if (executed.Count == 0)
@@ -96,7 +88,7 @@ public class CliChatRunner(ConfigurationService configService)
         messages.Add(new ChatMessage(ChatRole.User, followUp));
 
         if (opts.Verbose)
-            Console.Error.WriteLine("[verbose] Follow-up an LLM...");
+            Console.Error.WriteLine("[verbose] Sending follow-up to the LLM...");
 
         Console.WriteLine();
         await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
@@ -116,7 +108,7 @@ public class CliChatRunner(ConfigurationService configService)
         CancellationToken ct)
     {
         var response = initialResponse;
-        var rounds   = 0;
+        var rounds = 0;
 
         while (response.ToolCalls.Count > 0)
         {
@@ -124,20 +116,27 @@ public class CliChatRunner(ConfigurationService configService)
 
             var toolCalls = response.ToolCalls;
             if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Tool-Call-Runde {rounds}: {toolCalls.Count} Call(s)");
+                Console.Error.WriteLine($"[verbose] Tool call round {rounds}: {toolCalls.Count} call(s)");
 
             var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
             if (opts.Verbose)
             {
                 foreach (var command in commands)
                     Console.Error.WriteLine($"[verbose] Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
+
                 foreach (var err in errors)
-                    Console.Error.WriteLine($"[verbose] Tool-Call-Fehler ({err.ToolCall.Name}): {err.Error}");
+                    Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
             }
 
             var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
             await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
-                toolCalls, commands, errors, response.Content, messages, executor, ct);
+                toolCalls,
+                commands,
+                errors,
+                response.Content,
+                messages,
+                executor,
+                ct);
 
             Console.WriteLine();
             response = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
@@ -152,17 +151,17 @@ public class CliChatRunner(ConfigurationService configService)
         string? toolChoiceName,
         CancellationToken ct)
     {
-        var sb       = new System.Text.StringBuilder();
+        var sb = new System.Text.StringBuilder();
         var response = new LlmChatResponse("", []);
         try
         {
             response = await provider.ChatAsync(
                 new LlmChatRequest(
-                    Messages:          messages,
-                    Tools:             tools,
-                    ToolChoiceName:    toolChoiceName,
+                    Messages: messages,
+                    Tools: tools,
+                    ToolChoiceName: toolChoiceName,
                     ParallelToolCalls: false,
-                    Stream:            true,
+                    Stream: true,
                     OnToken: token =>
                     {
                         Console.Write(token);
@@ -172,13 +171,16 @@ public class CliChatRunner(ConfigurationService configService)
         }
         catch (LlmProviderException ex)
         {
-            Console.Error.WriteLine($"\nFehler: {ex.Message}");
+            Console.Error.WriteLine($"\nError: {ex.Message}");
         }
         catch (OperationCanceledException)
         {
-            Console.Error.WriteLine("\nAbgebrochen.");
+            Console.Error.WriteLine("\nCancelled.");
         }
 
-        return response with { Content = string.IsNullOrEmpty(response.Content) ? sb.ToString() : response.Content };
+        return response with
+        {
+            Content = string.IsNullOrEmpty(response.Content) ? sb.ToString() : response.Content
+        };
     }
 }

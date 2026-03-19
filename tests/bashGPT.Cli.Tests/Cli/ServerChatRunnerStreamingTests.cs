@@ -1,10 +1,9 @@
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using BashGPT.Cli;
-using BashGPT.Server;
+using bashGPT.Server;
 
-namespace BashGPT.Cli.Tests;
+namespace bashGPT.Cli.Tests;
 
 /// <summary>
 /// Tests SSE token callbacks in <see cref="ServerChatRunner"/>.

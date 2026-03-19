@@ -1,60 +1,27 @@
 using System.CommandLine;
-using BashGPT.Agents;
-using BashGPT.Agents.Dev;
-using BashGPT.Agents.Shell;
 using bashGPT.Core.Configuration;
-using BashGPT.Server;
-using BashGPT.Tools.Build;
-using BashGPT.Tools.Execution;
-using BashGPT.Tools.Fetch;
-using BashGPT.Tools.Filesystem;
-using BashGPT.Tools.Git;
-using BashGPT.Tools.Shell;
-using BashGPT.Tools.Testing;
-using bashGPT.Core;
+using bashGPT.Server;
 
-var configService = new ConfigurationService();
-var toolRegistry = new ToolRegistry([
-    new ShellExecTool(),
-    new FetchTool(),
-    new FilesystemReadTool(),
-    new FilesystemWriteTool(),
-    new FilesystemSearchTool(),
-    new GitStatusTool(),
-    new GitDiffTool(),
-    new GitLogTool(),
-    new GitBranchTool(),
-    new GitAddTool(),
-    new GitCommitTool(),
-    new GitCheckoutTool(),
-    new TestRunTool(),
-    new BuildRunTool(),
-    new ContextLoadFilesTool(),
-    new ContextUnloadFilesTool(),
-    new ContextClearFilesTool(),
-]);
-var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
-var sessionStore = AppBootstrap.CreateSessionStore();
-var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
-var agentRegistry = new AgentRegistry([new GenericAgent(), new DevAgent(), new ShellAgent()]);
-var serverHost = new ServerHost(serverRunner, configService, sessionStore, sessionRequestStore, agentRegistry, toolRegistry);
+var configService = ServerApplication.CreateConfigurationService();
+var toolRegistry = ServerApplication.CreateToolRegistry();
+var serverHost = ServerApplication.CreateServerHost(configService, toolRegistry);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
-    Description = "Modellname (überschreibt Config)"
+    Description = "Model name (overrides config)"
 };
 var verboseOpt = new Option<bool>("--verbose", "-v")
 {
-    Description = "Debug-Ausgaben anzeigen"
+    Description = "Show debug output"
 };
 var portOpt = new Option<int>("--port")
 {
-    Description = "Port für den Server-Modus",
+    Description = "Port for server mode",
     DefaultValueFactory = _ => 5050
 };
 var noBrowserOpt = new Option<bool>("--no-browser")
 {
-    Description = "Browser beim Start nicht automatisch öffnen"
+    Description = "Do not open the browser automatically on startup"
 };
 
 var rootCommand = new RootCommand("bashGPT Server");

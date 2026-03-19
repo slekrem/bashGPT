@@ -1,6 +1,6 @@
 using bashGPT.Core.Configuration;
 
-namespace BashGPT.Cli.Tests;
+namespace bashGPT.Cli.Tests;
 
 internal sealed class TestConfigurationService(string configFile) : ConfigurationService
 {

@@ -2,7 +2,7 @@ using System.Net;
 using BashGPT.Tools.Abstractions;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 internal sealed class ToolApiHandler(ToolRegistry? toolRegistry, ServerToolSelectionPolicy toolSelectionPolicy)
 {

@@ -1,16 +1,16 @@
 using bashGPT.Core.Models.Providers;
 using BashGPT.Tools.Execution;
 
-namespace BashGPT.Server;
+namespace bashGPT.Server;
 
 /// <summary>
-/// Hilfsmethoden für die Auflösung von Tool-Namen zu LLM-ToolDefinitions.
+/// Helper methods for resolving tool names to LLM tool definitions.
 /// </summary>
 internal static class ToolHelper
 {
     /// <summary>
-    /// Löst eine Liste von Tool-Namen gegen die ToolRegistry auf und gibt
-    /// die zugehörigen LLM-ToolDefinitions zurück.
+    /// Resolves a list of tool names against the tool registry and returns
+    /// the matching LLM tool definitions.
     /// </summary>
     public static IReadOnlyList<ToolDefinition> Resolve(
         IEnumerable<string>? toolNames,
@@ -28,7 +28,7 @@ internal static class ToolHelper
         return result;
     }
 
-    private static ToolDefinition ToLlmDefinition(Tools.Abstractions.ToolDefinition def)
+    private static ToolDefinition ToLlmDefinition(BashGPT.Tools.Abstractions.ToolDefinition def)
     {
         var required = def.Parameters
             .Where(p => p.Required)
@@ -42,8 +42,8 @@ internal static class ToolHelper
                 : (object)new { type = p.Type, description = p.Description });
 
         return new ToolDefinition(
-            Name:        def.Name,
+            Name: def.Name,
             Description: def.Description,
-            Parameters:  new { type = "object", properties, required });
+            Parameters: new { type = "object", properties, required });
     }
 }

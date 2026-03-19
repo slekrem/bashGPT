@@ -3,10 +3,10 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using bashGPT.Core.Configuration;
-using BashGPT.Server;
+using bashGPT.Server;
 using BashGPT.Shell;
 
-namespace BashGPT.Server.Tests;
+namespace bashGPT.Server.Tests;
 
 /// <summary>
 /// Integration-Tests für die /api/settings-Endpunkte des ServerHost.
@@ -223,7 +223,7 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         var raw = await response.Content.ReadAsStringAsync();
         var json = JsonSerializer.Deserialize<JsonElement>(raw);
         Assert.False(json.GetProperty("ok").GetBoolean());
-        Assert.Equal("Verbindungstest fehlgeschlagen.", json.GetProperty("error").GetString());
+        Assert.Equal("Connection test failed.", json.GetProperty("error").GetString());
         Assert.DoesNotContain("127.0.0.1:1", raw, StringComparison.Ordinal);
     }
 
