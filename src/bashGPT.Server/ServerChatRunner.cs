@@ -12,7 +12,7 @@ namespace BashGPT.Server;
 public class ServerChatRunner(
     ConfigurationService configService,
     ILlmProvider? providerOverride = null,
-    ToolRegistry? toolRegistry = null) : IPromptHandler
+    ToolRegistry? toolRegistry = null) : IChatHandler
 {
     public async Task<ServerChatResult> RunServerChatAsync(
         ServerChatOptions opts,

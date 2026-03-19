@@ -21,7 +21,7 @@ public class ServerHost
     private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
 
     public ServerHost(
-        IPromptHandler handler,
+        IChatHandler handler,
         ConfigurationService? configService = null,
         SessionStore? sessionStore = null,
         SessionRequestStore? sessionRequestStore = null,

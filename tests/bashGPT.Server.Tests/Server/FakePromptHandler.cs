@@ -1,13 +1,13 @@
 namespace BashGPT.Server.Tests;
 
 /// <summary>
-/// Test-Stub für IPromptHandler – gibt konfigurierbare Dummy-Antworten zurück
-/// ohne echte LLM-Aufrufe zu machen.
+/// Test stub for <see cref="IChatHandler"/> that returns configurable dummy responses
+/// without making real LLM calls.
 /// </summary>
-internal sealed class FakePromptHandler : IPromptHandler
+internal sealed class FakePromptHandler : IChatHandler
 {
     public ServerChatResult NextResult { get; set; } = new(
-        Response: "Fake-Antwort vom LLM.",
+        Response: "Fake response from the LLM.",
         Logs: []);
 
     public Exception? NextException { get; set; }

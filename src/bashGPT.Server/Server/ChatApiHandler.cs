@@ -14,7 +14,7 @@ using BashGPT.Tools.Execution;
 namespace BashGPT.Server;
 
 internal sealed class ChatApiHandler(
-    IPromptHandler handler,
+    IChatHandler handler,
     ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
     SessionRequestStore? sessionRequestStore = null,
