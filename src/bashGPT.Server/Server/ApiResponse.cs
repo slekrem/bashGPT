@@ -2,7 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Providers;
+using bashGPT.Core.Providers;
 
 namespace BashGPT.Server;
 

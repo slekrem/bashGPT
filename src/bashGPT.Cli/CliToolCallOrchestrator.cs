@@ -1,4 +1,4 @@
-using BashGPT.Providers;
+using bashGPT.Core.Providers;
 using BashGPT.Shell;
 
 namespace BashGPT.Cli;

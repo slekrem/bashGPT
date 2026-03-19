@@ -1,7 +1,7 @@
 using System.Net;
+using bashGPT.Core.Providers;
 using BashGPT.Agents;
 using BashGPT.Configuration;
-using BashGPT.Providers;
 
 namespace BashGPT.Server;
 

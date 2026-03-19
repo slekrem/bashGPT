@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers.Ollama;
 
 internal sealed class OpenAiCompatibleChatRequest
 {

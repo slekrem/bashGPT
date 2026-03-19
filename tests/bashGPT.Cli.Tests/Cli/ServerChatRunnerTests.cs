@@ -1,7 +1,7 @@
 ﻿using BashGPT.Configuration;
-using BashGPT.Providers;
 using BashGPT.Tools.Execution;
 using BashGPT.Server;
+using bashGPT.Core.Providers;
 
 namespace BashGPT.Cli.Tests;
 
@@ -179,7 +179,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Hallo",
             History:  [],
@@ -200,14 +200,14 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe das Tool auf.",
-            [new Providers.ToolCall("call-1", "my_tool", "{\"input\":\"x\"}")]));
+            [new ToolCall("call-1", "my_tool", "{\"input\":\"x\"}")]));
         provider.Enqueue(new LlmChatResponse("Fertig nach Tool.", []));
 
         var fakeTool = new FakeTool("my_tool", returnValue: "Tool-Ausgabe");
         var registry = new ToolRegistry([fakeTool]);
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze das Tool",
             History:  [],
@@ -228,14 +228,14 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Planungs- und Reasoning-Text, der in Runde 2 mit den Tool-Calls enthalten sein soll.",
-            [new Providers.ToolCall("call-1", "my_tool", "{}")]));
+            [new ToolCall("call-1", "my_tool", "{}")]));
         provider.Enqueue(new LlmChatResponse("Finale Antwort.", []));
 
         var fakeTool = new FakeTool("my_tool", returnValue: "ok");
         var registry = new ToolRegistry([fakeTool]);
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Nutze ein Tool",
             History:  [],
@@ -260,13 +260,13 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe unbekanntes Tool auf.",
-            [new Providers.ToolCall("call-1", "unbekannt", "{}")]));
+            [new ToolCall("call-1", "unbekannt", "{}")]));
         provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
 
         var registry = new ToolRegistry();
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("unbekannt", "Unbekannt", new { }) };
+        var tools = new[] { new ToolDefinition("unbekannt", "Unbekannt", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze unbekanntes Tool",
             History:  [],
@@ -289,7 +289,7 @@ public sealed class ServerChatRunnerTests
         {
             provider.Enqueue(new LlmChatResponse(
                 $"Runde {i}",
-                [new Providers.ToolCall($"c{i}", "my_tool", "{}")]));
+                [new ToolCall($"c{i}", "my_tool", "{}")]));
         }
         provider.Enqueue(new LlmChatResponse("Nach Loop.", []));
 
@@ -297,7 +297,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Schleife",
             History:  [],
@@ -319,11 +319,11 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Antwort mit Tool-Call.",
-            [new Providers.ToolCall("c1", "my_tool", "{}")]));
+            [new ToolCall("c1", "my_tool", "{}")]));
 
         var sut = new ServerChatRunner(new ConfigurationService(), provider); // kein Registry
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Hallo",
             History:  [],
@@ -343,14 +343,14 @@ public sealed class ServerChatRunnerTests
         var provider = new FakeLlmProvider();
         provider.Enqueue(new LlmChatResponse(
             "Ich rufe ein Tool auf.",
-            [new Providers.ToolCall("call-1", "my_tool", "{\"path\":\"\"}")]));
+            [new ToolCall("call-1", "my_tool", "{\"path\":\"\"}")]));
         provider.Enqueue(new LlmChatResponse("Fehler verarbeitet.", []));
 
         var fakeTool = new FakeTool("my_tool", throwException: new ArgumentException("The path is empty. (Parameter 'path')"));
         var registry = new ToolRegistry([fakeTool]);
         var sut      = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new Providers.ToolDefinition("my_tool", "Ein Tool", new { }) };
+        var tools = new[] { new ToolDefinition("my_tool", "Ein Tool", new { }) };
         var opts  = new ServerChatOptions(
             Prompt:   "Benutze Tool",
             History:  [],

@@ -1,4 +1,4 @@
-using BashGPT.Providers;
+using bashGPT.Core.Providers;
 using System.Runtime.CompilerServices;
 
 namespace BashGPT.Cli.Tests;

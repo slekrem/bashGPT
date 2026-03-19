@@ -1,7 +1,7 @@
 using System.Text.Json;
 using bashGPT.Core.Chat;
+using bashGPT.Core.Providers;
 using BashGPT.Configuration;
-using BashGPT.Providers;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
 

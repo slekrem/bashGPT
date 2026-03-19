@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
+using bashGPT.Core.Providers;
 using BashGPT.Agents;
-using BashGPT.Providers;
 
 namespace BashGPT.Agents.Shell;
 

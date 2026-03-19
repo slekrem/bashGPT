@@ -1,10 +1,9 @@
-using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using BashGPT.Configuration;
 
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers.Ollama;
 
 public class OllamaProvider(OllamaConfig config, HttpClient? httpClient = null)
     : BaseLlmProvider(httpClient)

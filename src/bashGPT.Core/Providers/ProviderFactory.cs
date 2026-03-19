@@ -1,7 +1,8 @@
+using bashGPT.Core.Providers.Ollama;
 using BashGPT.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers;
 
 public static class ProviderFactory
 {

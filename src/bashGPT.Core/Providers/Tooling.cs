@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers;
 
 public record ToolDefinition(string Name, string Description, object Parameters);
 

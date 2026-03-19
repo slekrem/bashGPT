@@ -1,7 +1,8 @@
 using System.Net;
 using System.Text.Json;
+using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Ollama;
 using BashGPT.Configuration;
-using BashGPT.Providers;
 
 namespace BashGPT.Core.Tests.Providers;
 

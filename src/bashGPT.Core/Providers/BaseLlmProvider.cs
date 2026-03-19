@@ -1,4 +1,4 @@
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers;
 
 /// <summary>
 /// Gemeinsame Basisfunktionalität für LLM-Provider:

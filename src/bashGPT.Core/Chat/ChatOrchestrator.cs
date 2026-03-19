@@ -1,5 +1,5 @@
+using bashGPT.Core.Providers;
 using BashGPT.Configuration;
-using BashGPT.Providers;
 
 namespace bashGPT.Core.Chat;
 

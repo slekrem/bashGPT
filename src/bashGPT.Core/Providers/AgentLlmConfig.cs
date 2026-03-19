@@ -1,4 +1,4 @@
-namespace BashGPT.Providers;
+namespace bashGPT.Core.Providers;
 
 /// <summary>
 /// LLM-Konfiguration eines Agenten. Wird direkt an den Provider übergeben.
