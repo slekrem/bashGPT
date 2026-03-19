@@ -3,7 +3,7 @@ using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 using BashGPT.Agents;

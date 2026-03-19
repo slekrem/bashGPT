@@ -1,9 +1,9 @@
 using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using BashGPT.Shell;
 using BashGPT.Tools.Execution;
 

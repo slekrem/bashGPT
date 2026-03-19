@@ -1,5 +1,5 @@
 using bashGPT.Core.Models.Providers;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using System.Runtime.CompilerServices;
 
 namespace BashGPT.Cli.Tests;

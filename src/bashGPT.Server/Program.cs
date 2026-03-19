@@ -2,7 +2,7 @@ using System.CommandLine;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using BashGPT.Server;
 using BashGPT.Tools.Build;
 using BashGPT.Tools.Execution;

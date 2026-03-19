@@ -1,8 +1,8 @@
 using System.Net;
 using bashGPT.Core.Models.Providers;
-using bashGPT.Core.Providers;
+using bashGPT.Core.Providers.Abstractions;
 using BashGPT.Agents;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 
 namespace BashGPT.Server;
 

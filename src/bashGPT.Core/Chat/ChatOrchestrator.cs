@@ -1,6 +1,6 @@
 using bashGPT.Core.Models.Providers;
-using bashGPT.Core.Providers;
-using BashGPT.Configuration;
+using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Core.Configuration;
 
 namespace bashGPT.Core.Chat;
 

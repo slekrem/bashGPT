@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers.Ollama;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Providers.Abstractions;
 
 namespace bashGPT.Core.Providers.Ollama;
 

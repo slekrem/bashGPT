@@ -28,6 +28,16 @@ public class AppBootstrapTests
     }
 
     [Fact]
+    public void GetDefaultConfigFilePath_AppendsConfigJson()
+    {
+        var actual = AppBootstrap.GetDefaultConfigFilePath();
+
+        Assert.Equal(
+            Path.Combine(AppBootstrap.GetDefaultConfigDir(), "config.json"),
+            actual);
+    }
+
+    [Fact]
     public void CreateSessionStore_UsesResolvedSessionsDirectory()
     {
         var configDir = Path.Combine("root", "bashgpt-config");

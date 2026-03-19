@@ -1,6 +1,6 @@
 using bashGPT.Core.Models.Providers;
 
-namespace bashGPT.Core.Providers;
+namespace bashGPT.Core.Providers.Abstractions;
 
 /// <summary>
 /// Shared base functionality for LLM providers:

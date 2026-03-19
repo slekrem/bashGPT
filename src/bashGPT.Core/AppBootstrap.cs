@@ -15,6 +15,9 @@ public static class AppBootstrap
                 ".config",
                 "bashgpt");
 
+    public static string GetDefaultConfigFilePath() =>
+        Path.Combine(GetDefaultConfigDir(), "config.json");
+
     public static string GetSessionsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "sessions");
 

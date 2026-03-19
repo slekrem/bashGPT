@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using bashGPT.Core.Storage;
 using BashGPT.Agents;
-using BashGPT.Configuration;
+using bashGPT.Core.Configuration;
 using BashGPT.Tools.Execution;
 
 namespace BashGPT.Server;

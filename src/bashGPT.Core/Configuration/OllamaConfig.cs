@@ -1,4 +1,4 @@
-namespace BashGPT.Configuration;
+namespace bashGPT.Core.Configuration;
 
 public class OllamaConfig
 {
