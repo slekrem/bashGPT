@@ -16,7 +16,7 @@ internal static class CliToolCallOrchestrator
 
         foreach (var call in toolCalls)
         {
-            if (!ToolCallParsing.TryGetCommand(call, out var command, out var error))
+            if (!CliToolCallParser.TryGetCommand(call, out var command, out var error))
             {
                 errors.Add(new ToolCallError(call, error ?? "Unknown error."));
                 continue;

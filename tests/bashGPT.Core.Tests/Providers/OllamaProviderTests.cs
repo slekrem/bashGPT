@@ -8,6 +8,23 @@ namespace BashGPT.Core.Tests.Providers;
 
 public class OllamaProviderTests
 {
+    private static readonly ToolDefinition BashTool = new(
+        "bash",
+        "Executes a shell command",
+        new
+        {
+            type = "object",
+            properties = new
+            {
+                command = new
+                {
+                    type = "string",
+                    description = "Shell command"
+                }
+            },
+            required = new[] { "command" }
+        });
+
     private static OllamaProvider CreateProvider(string responseBody, HttpStatusCode status = HttpStatusCode.OK)
     {
         var handler = new TestHttpMessageHandler(responseBody, status);
@@ -144,7 +161,7 @@ public class OllamaProviderTests
 
         var result = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
-                Tools: [ToolDefinitions.Bash], Stream: false));
+                Tools: [BashTool], Stream: false));
 
         Assert.Single(result.ToolCalls);
         Assert.Equal("bash", result.ToolCalls[0].Name);
@@ -243,7 +260,7 @@ public class OllamaProviderTests
 
         var result = await provider.ChatAsync(
             new LlmChatRequest([new ChatMessage(ChatRole.User, "liste dateien")],
-                Tools: [ToolDefinitions.Bash], Stream: false));
+                Tools: [BashTool], Stream: false));
 
         Assert.Single(result.ToolCalls);
         Assert.Equal("bash", result.ToolCalls[0].Name);

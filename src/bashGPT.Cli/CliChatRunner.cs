@@ -46,7 +46,7 @@ public class CliChatRunner(ConfigurationService configService)
         var messages = new List<ChatMessage>();
         messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
-        var tools          = new[] { ToolDefinitions.Bash };
+        var tools          = new[] { CliBashTool.Definition };
         var toolChoiceName = forceTools ? "bash" : null;
 
         Console.WriteLine();
