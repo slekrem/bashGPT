@@ -31,16 +31,13 @@ public class CliChatRunner(ConfigurationService configService)
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, model: {provider.Model}");
 
-        var messages = new List<ChatMessage>
-        {
-            new(ChatRole.User, opts.Prompt)
-        };
-
         var tools = new[] { CliBashTool.Definition };
         var toolChoiceName = forceTools ? "bash" : null;
+        var chatSession = new ChatSessionState(provider, tools, toolChoiceName);
+        chatSession.InitializeMessages([], opts.Prompt);
 
         Console.WriteLine();
-        var firstResponse = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
+        var firstResponse = await StreamAndCollectAsync(chatSession, ct);
         Console.WriteLine();
 
         if (firstResponse.ToolCalls.Count > 0)
@@ -49,12 +46,9 @@ public class CliChatRunner(ConfigurationService configService)
                 Console.Error.WriteLine($"[verbose] Received tool calls: {firstResponse.ToolCalls.Count}");
 
             await HandleToolCallsAsync(
-                provider,
-                messages,
+                chatSession,
                 firstResponse,
-                tools,
                 opts,
-                toolChoiceName,
                 AppDefaults.CommandTimeoutSeconds,
                 ct);
             return 0;
@@ -84,26 +78,23 @@ public class CliChatRunner(ConfigurationService configService)
             return 0;
 
         var followUp = CommandExecutor.BuildFollowUpContext(results);
-        messages.Add(new ChatMessage(ChatRole.Assistant, firstResponse.Content));
-        messages.Add(new ChatMessage(ChatRole.User, followUp));
+        chatSession.Messages.Add(new ChatMessage(ChatRole.Assistant, firstResponse.Content));
+        chatSession.Messages.Add(new ChatMessage(ChatRole.User, followUp));
 
         if (opts.Verbose)
             Console.Error.WriteLine("[verbose] Sending follow-up to the LLM...");
 
         Console.WriteLine();
-        await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
+        await StreamAndCollectAsync(chatSession, ct);
         Console.WriteLine();
 
         return 0;
     }
 
     private static async Task HandleToolCallsAsync(
-        ILlmProvider provider,
-        List<ChatMessage> messages,
+        ChatSessionState chatSession,
         LlmChatResponse initialResponse,
-        IReadOnlyList<ToolDefinition> tools,
         CliOptions opts,
-        string? toolChoiceName,
         int commandTimeoutSeconds,
         CancellationToken ct)
     {
@@ -134,53 +125,24 @@ public class CliChatRunner(ConfigurationService configService)
                 commands,
                 errors,
                 response.Content,
-                messages,
+                chatSession.Messages,
                 executor,
                 ct);
 
             Console.WriteLine();
-            response = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
+            response = await StreamAndCollectAsync(chatSession, ct);
             Console.WriteLine();
         }
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(
-        ILlmProvider provider,
-        List<ChatMessage> messages,
-        IReadOnlyList<ToolDefinition> tools,
-        string? toolChoiceName,
+        ChatSessionState chatSession,
         CancellationToken ct)
     {
-        var sb = new System.Text.StringBuilder();
-        var response = new LlmChatResponse("", []);
-        try
-        {
-            response = await provider.ChatAsync(
-                new LlmChatRequest(
-                    Messages: messages,
-                    Tools: tools,
-                    ToolChoiceName: toolChoiceName,
-                    ParallelToolCalls: false,
-                    Stream: true,
-                    OnToken: token =>
-                    {
-                        Console.Write(token);
-                        sb.Append(token);
-                    }),
-                ct);
-        }
-        catch (LlmProviderException ex)
-        {
-            Console.Error.WriteLine($"\nError: {ex.Message}");
-        }
-        catch (OperationCanceledException)
-        {
-            Console.Error.WriteLine("\nCancelled.");
-        }
+        var response = await chatSession.CallOnceAsync(Console.Write, ct);
+        if (response.Error is not null)
+            Console.Error.WriteLine($"\n{response.Error}");
 
-        return response with
-        {
-            Content = string.IsNullOrEmpty(response.Content) ? sb.ToString() : response.Content
-        };
+        return response.Response;
     }
 }

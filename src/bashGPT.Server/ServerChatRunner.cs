@@ -18,8 +18,6 @@ public class ServerChatRunner(
         CancellationToken ct = default)
     {
         var logs = new List<string>();
-        var totalInputTokens = 0;
-        var totalOutputTokens = 0;
 
         ILlmProvider provider;
         if (providerOverride is not null)
@@ -41,64 +39,26 @@ public class ServerChatRunner(
 
         if (opts.Verbose)
             logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
-
-        var messages = new List<ChatMessage>();
-        void RefreshSystemMessages()
-        {
-            if (opts.SystemPrompt is null) return;
-            var firstNonSystem = messages.FindIndex(m => m.Role != ChatRole.System);
-            var removeCount    = firstNonSystem >= 0 ? firstNonSystem : messages.Count;
-            if (removeCount > 0) messages.RemoveRange(0, removeCount);
-            var freshPrompts = opts.SystemPrompt().Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-            for (var i = freshPrompts.Count - 1; i >= 0; i--)
-                messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
-        }
-
-        RefreshSystemMessages();
-        foreach (var msg in opts.History)
-            messages.Add(msg);
-        messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
-
         var tools = opts.Tools ?? [];
-        var llmExchanges = new List<LlmExchangeRecord>();
-        var exchangeIdx = 0;
+        var chatSession = new ChatSessionState(
+            provider,
+            tools,
+            systemPrompt: opts.SystemPrompt,
+            llmConfig: opts.LlmConfig,
+            onReasoningToken: opts.OnReasoningToken,
+            onLlmRequestJson: opts.OnLlmRequestJson,
+            onLlmResponseJson: opts.OnLlmResponseJson);
+        chatSession.InitializeMessages(opts.History, opts.Prompt);
+
         var commandResults = new List<CommandResult>();
         var usedToolCalls = false;
         var conversationDelta = new List<ChatMessage>();
-        LlmChatResponse? lastResponse = null;
-
-        async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
-        {
-            var idx = exchangeIdx++;
-            string? reqJson = null;
-            string? resJson = null;
-            var result = await ChatOrchestrator.ChatOnceAsync(
-                provider, messages, tools, null, ct, onToken,
-                onReasoningToken: opts.OnReasoningToken,
-                onRequestJson: async json =>
-                {
-                    reqJson = json;
-                    if (opts.OnLlmRequestJson is not null) await opts.OnLlmRequestJson(idx, json);
-                },
-                onResponseJson: async json =>
-                {
-                    resJson = json;
-                    if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
-                },
-                llmConfig: opts.LlmConfig);
-            llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
-            return result;
-        }
 
         try
         {
-            var response = await CallOnce(opts.OnToken);
+            var response = await chatSession.CallOnceAsync(opts.OnToken, ct);
             if (response.Error is not null)
                 return new ServerChatResult(response.Error, []);
-
-            lastResponse = response.Response;
-            totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
-            totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
 
             if (tools.Count > 0 && toolRegistry is not null)
             {
@@ -114,19 +74,16 @@ public class ServerChatRunner(
                     commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
                         response.Response.ToolCalls,
                         response.Response.Content,
-                        messages,
+                        chatSession.Messages,
                         conversationDelta,
                         toolRegistry,
                         opts.SessionPath,
                         opts.OnEvent,
                         ct));
 
-                    RefreshSystemMessages();
-                    response = await CallOnce();
+                    chatSession.RefreshSystemMessages();
+                    response = await chatSession.CallOnceAsync(null, ct);
                     if (response.Error is not null) break;
-                    lastResponse = response.Response;
-                    totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
-                    totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
                 }
             }
         }
@@ -136,26 +93,18 @@ public class ServerChatRunner(
             var cancelledAssistant = new ChatMessage(ChatRole.Assistant, cancelledText);
             conversationDelta.Add(cancelledAssistant);
 
-            TokenUsage? cancelledUsage = totalInputTokens > 0 || totalOutputTokens > 0
-                ? new TokenUsage(totalInputTokens, totalOutputTokens)
-                : null;
-
             return new ServerChatResult(
                 Response: cancelledText,
                 Logs: logs,
-                Usage: cancelledUsage,
-                LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+                Usage: chatSession.BuildUsage(),
+                LlmExchanges: chatSession.LlmExchanges.Count > 0 ? chatSession.LlmExchanges : null,
                 Commands: commandResults.Count > 0 ? commandResults : null,
                 UsedToolCalls: usedToolCalls,
                 ConversationDelta: conversationDelta,
                 FinalStatus: "user_cancelled");
         }
 
-        TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
-            ? new TokenUsage(totalInputTokens, totalOutputTokens)
-            : null;
-
-        var finalResponse = lastResponse?.Content ?? string.Empty;
+        var finalResponse = chatSession.LastResponse?.Content ?? string.Empty;
         var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, finalResponse);
         conversationDelta.Add(finalAssistantMessage);
 
@@ -166,8 +115,8 @@ public class ServerChatRunner(
         return new ServerChatResult(
             Response: finalResponse,
             Logs: logs,
-            Usage: BuildUsage(),
-            LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+            Usage: chatSession.BuildUsage(),
+            LlmExchanges: chatSession.LlmExchanges.Count > 0 ? chatSession.LlmExchanges : null,
             Commands: commandResults.Count > 0 ? commandResults : null,
             UsedToolCalls: usedToolCalls,
             ConversationDelta: conversationDelta,
