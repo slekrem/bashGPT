@@ -38,7 +38,8 @@ public sealed class SessionStoreTests : IDisposable
         var sessions = await store.LoadAllAsync();
 
         Assert.Single(sessions);
-        Assert.Empty(sessions[0].Messages);
+        Assert.Equal("s1", sessions[0].Id);
+        Assert.Equal("Title", sessions[0].Title);
     }
 
     [Fact]

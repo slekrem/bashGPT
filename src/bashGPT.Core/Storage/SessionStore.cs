@@ -26,17 +26,16 @@ public class SessionStore
     }
 
     /// <summary>Returns all sessions without messages, suitable for sidebar summaries.</summary>
-    public async Task<List<SessionRecord>> LoadAllAsync()
+    public async Task<List<SessionSummary>> LoadAllAsync()
     {
         var index = await ReadIndexAsync();
         return index.Sessions
-            .Select(e => new SessionRecord
+            .Select(e => new SessionSummary
             {
                 Id = e.Id,
                 Title = e.Title,
                 CreatedAt = e.CreatedAt,
                 UpdatedAt = e.UpdatedAt,
-                Messages = [],
             })
             .ToList();
     }
