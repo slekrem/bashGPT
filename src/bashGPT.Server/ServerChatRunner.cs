@@ -1,4 +1,3 @@
-using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers;
@@ -122,7 +121,7 @@ public class ServerChatRunner(
                     {
                         ct.ThrowIfCancellationRequested();
 
-                        var commandLabel = TryExtractCommand(call.ArgumentsJson, out var parsedCommand)
+                        var commandLabel = ToolCallArguments.TryGetString(call, "command", out var parsedCommand, out _)
                             ? parsedCommand
                             : call.Name;
                         opts.OnEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
@@ -220,25 +219,6 @@ public class ServerChatRunner(
             UsedToolCalls: usedToolCalls,
             ConversationDelta: conversationDelta,
             FinalStatus: finalStatus);
-    }
-
-    private static bool TryExtractCommand(string? argumentsJson, out string command)
-    {
-        command = string.Empty;
-        if (string.IsNullOrWhiteSpace(argumentsJson)) return false;
-        try
-        {
-            using var doc = JsonDocument.Parse(argumentsJson);
-            if (!doc.RootElement.TryGetProperty("command", out var commandEl)) return false;
-            var value = commandEl.GetString();
-            if (string.IsNullOrWhiteSpace(value)) return false;
-            command = value;
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static CommandResult BuildCommandResult(string toolName, string commandLabel, string content, bool success)
