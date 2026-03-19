@@ -3,13 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace BashGPT.Providers;
 
-// ── OpenAI-kompatible DTOs für Provider-Integrationen ───────────────────────
-
-internal sealed class OpenAiChatRequest
+internal sealed class OpenAiCompatibleChatRequest
 {
-    [JsonPropertyName("model")]    public string Model    { get; set; } = "";
-    [JsonPropertyName("messages")] public List<OpenAiMessage> Messages { get; set; } = [];
-    [JsonPropertyName("stream")]   public bool   Stream   { get; set; } = true;
+    [JsonPropertyName("model")] public string Model { get; set; } = "";
+    [JsonPropertyName("messages")] public List<OpenAiCompatibleMessage> Messages { get; set; } = [];
+    [JsonPropertyName("stream")] public bool Stream { get; set; } = true;
     [JsonPropertyName("temperature")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? Temperature { get; set; }
@@ -39,147 +37,147 @@ internal sealed class OpenAiChatRequest
     public List<string>? Stop { get; set; }
     [JsonPropertyName("response_format")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public OpenAiResponseFormat? ResponseFormat { get; set; }
+    public OpenAiCompatibleResponseFormat? ResponseFormat { get; set; }
     [JsonPropertyName("stream_options")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public OpenAiStreamOptions? StreamOptions { get; set; }
+    public OpenAiCompatibleStreamOptions? StreamOptions { get; set; }
     [JsonPropertyName("tools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<OpenAiTool>? Tools { get; set; }
+    public List<OpenAiCompatibleTool>? Tools { get; set; }
     [JsonPropertyName("tool_choice")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public OpenAiToolChoice? ToolChoice { get; set; }
+    public OpenAiCompatibleToolChoice? ToolChoice { get; set; }
     [JsonPropertyName("parallel_tool_calls")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? ParallelToolCalls { get; set; }
     [JsonPropertyName("options")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public OpenAiOllamaOptions? Options { get; set; }
+    public OpenAiCompatibleOllamaOptions? Options { get; set; }
 }
 
-internal sealed class OpenAiResponseFormat
+internal sealed class OpenAiCompatibleResponseFormat
 {
     [JsonPropertyName("type")] public string Type { get; set; } = "text";
 
-    public static OpenAiResponseFormat? FromString(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : new OpenAiResponseFormat { Type = value };
+    public static OpenAiCompatibleResponseFormat? FromString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : new OpenAiCompatibleResponseFormat { Type = value };
 }
 
-internal sealed class OpenAiOllamaOptions
+internal sealed class OpenAiCompatibleOllamaOptions
 {
     [JsonPropertyName("num_ctx")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? NumCtx { get; set; }
 }
 
-internal sealed class OpenAiStreamOptions
+internal sealed class OpenAiCompatibleStreamOptions
 {
     [JsonPropertyName("include_usage")] public bool IncludeUsage { get; set; } = true;
 }
 
-internal sealed class OpenAiMessage
+internal sealed class OpenAiCompatibleMessage
 {
-    [JsonPropertyName("role")]    public string Role    { get; set; } = "";
+    [JsonPropertyName("role")] public string Role { get; set; } = "";
     [JsonPropertyName("content")] public string Content { get; set; } = "";
     [JsonPropertyName("tool_calls")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<OpenAiToolCall>? ToolCalls { get; set; }
+    public List<OpenAiCompatibleToolCall>? ToolCalls { get; set; }
     [JsonPropertyName("tool_call_id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ToolCallId { get; set; }
 }
 
-internal sealed class OpenAiStreamChunk
+internal sealed class OpenAiCompatibleStreamChunk
 {
-    [JsonPropertyName("choices")] public List<OpenAiChoice>? Choices { get; set; }
-    [JsonPropertyName("usage")] public OpenAiUsage? Usage { get; set; }
+    [JsonPropertyName("choices")] public List<OpenAiCompatibleChoice>? Choices { get; set; }
+    [JsonPropertyName("usage")] public OpenAiCompatibleUsage? Usage { get; set; }
 }
 
-internal sealed class OpenAiChoice
+internal sealed class OpenAiCompatibleChoice
 {
-    [JsonPropertyName("delta")] public OpenAiDelta? Delta { get; set; }
+    [JsonPropertyName("delta")] public OpenAiCompatibleDelta? Delta { get; set; }
 }
 
-internal sealed class OpenAiDelta
+internal sealed class OpenAiCompatibleDelta
 {
     [JsonPropertyName("content")] public string? Content { get; set; }
     [JsonPropertyName("reasoning")] public string? ReasoningContent { get; set; }
-    [JsonPropertyName("tool_calls")] public List<OpenAiToolCallDelta>? ToolCalls { get; set; }
+    [JsonPropertyName("tool_calls")] public List<OpenAiCompatibleToolCallDelta>? ToolCalls { get; set; }
 }
 
-internal sealed class OpenAiChatResponse
+internal sealed class OpenAiCompatibleChatResponse
 {
-    [JsonPropertyName("choices")] public List<OpenAiChatChoice>? Choices { get; set; }
-    [JsonPropertyName("usage")] public OpenAiUsage? Usage { get; set; }
+    [JsonPropertyName("choices")] public List<OpenAiCompatibleChatChoice>? Choices { get; set; }
+    [JsonPropertyName("usage")] public OpenAiCompatibleUsage? Usage { get; set; }
 }
 
-internal sealed class OpenAiUsage
+internal sealed class OpenAiCompatibleUsage
 {
     [JsonPropertyName("prompt_tokens")] public int PromptTokens { get; set; }
     [JsonPropertyName("completion_tokens")] public int CompletionTokens { get; set; }
     [JsonPropertyName("total_tokens")] public int? TotalTokens { get; set; }
-    [JsonPropertyName("prompt_tokens_details")] public OpenAiPromptTokensDetails? PromptTokensDetails { get; set; }
+    [JsonPropertyName("prompt_tokens_details")] public OpenAiCompatiblePromptTokensDetails? PromptTokensDetails { get; set; }
 }
 
-internal sealed class OpenAiPromptTokensDetails
+internal sealed class OpenAiCompatiblePromptTokensDetails
 {
     [JsonPropertyName("cached_tokens")] public int? CachedTokens { get; set; }
 }
 
-internal sealed class OpenAiChatChoice
+internal sealed class OpenAiCompatibleChatChoice
 {
-    [JsonPropertyName("message")] public OpenAiMessage? Message { get; set; }
+    [JsonPropertyName("message")] public OpenAiCompatibleMessage? Message { get; set; }
 }
 
-internal sealed class OpenAiTool
+internal sealed class OpenAiCompatibleTool
 {
     [JsonPropertyName("type")] public string Type { get; set; } = "function";
-    [JsonPropertyName("function")] public OpenAiToolFunction Function { get; set; } = new();
+    [JsonPropertyName("function")] public OpenAiCompatibleToolFunction Function { get; set; } = new();
 }
 
-internal sealed class OpenAiToolFunction
+internal sealed class OpenAiCompatibleToolFunction
 {
     [JsonPropertyName("name")] public string Name { get; set; } = "";
     [JsonPropertyName("description")] public string Description { get; set; } = "";
     [JsonPropertyName("parameters")] public object Parameters { get; set; } = new();
 }
 
-internal sealed class OpenAiToolChoice
+internal sealed class OpenAiCompatibleToolChoice
 {
     [JsonPropertyName("type")] public string Type { get; set; } = "function";
-    [JsonPropertyName("function")] public OpenAiToolChoiceFunction Function { get; set; } = new();
+    [JsonPropertyName("function")] public OpenAiCompatibleToolChoiceFunction Function { get; set; } = new();
 
-    public static OpenAiToolChoice ForFunction(string name) =>
-        new() { Function = new OpenAiToolChoiceFunction { Name = name } };
+    public static OpenAiCompatibleToolChoice ForFunction(string name) =>
+        new() { Function = new OpenAiCompatibleToolChoiceFunction { Name = name } };
 }
 
-internal sealed class OpenAiToolChoiceFunction
+internal sealed class OpenAiCompatibleToolChoiceFunction
 {
     [JsonPropertyName("name")] public string Name { get; set; } = "";
 }
 
-internal sealed class OpenAiToolCall
+internal sealed class OpenAiCompatibleToolCall
 {
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("type")] public string Type { get; set; } = "function";
-    [JsonPropertyName("function")] public OpenAiToolCallFunction Function { get; set; } = new();
+    [JsonPropertyName("function")] public OpenAiCompatibleToolCallFunction Function { get; set; } = new();
 }
 
-internal sealed class OpenAiToolCallDelta
+internal sealed class OpenAiCompatibleToolCallDelta
 {
     [JsonPropertyName("index")] public int Index { get; set; }
     [JsonPropertyName("id")] public string? Id { get; set; }
     [JsonPropertyName("type")] public string? Type { get; set; }
-    [JsonPropertyName("function")] public OpenAiToolCallFunction? Function { get; set; }
+    [JsonPropertyName("function")] public OpenAiCompatibleToolCallFunction? Function { get; set; }
 }
 
-internal sealed class OpenAiToolCallFunction
+internal sealed class OpenAiCompatibleToolCallFunction
 {
     [JsonPropertyName("name")] public string? Name { get; set; }
     [JsonPropertyName("arguments")] public string? Arguments { get; set; }
 }
 
-internal sealed class ToolCallBuilder
+internal sealed class OpenAiCompatibleToolCallBuilder
 {
     public string? Id { get; set; }
     public string? Name { get; set; }
