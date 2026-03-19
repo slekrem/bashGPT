@@ -2,14 +2,6 @@ using bashGPT.Core.Models.Providers;
 
 namespace bashGPT.Core.Providers;
 
-public enum ChatRole
-{
-    System,
-    User,
-    Assistant,
-    Tool
-}
-
 public record ChatMessage(
     ChatRole Role,
     string Content,
@@ -19,11 +11,11 @@ public record ChatMessage(
 {
     public string RoleString => Role switch
     {
-        ChatRole.System    => "system",
-        ChatRole.User      => "user",
+        ChatRole.System => "system",
+        ChatRole.User => "user",
         ChatRole.Assistant => "assistant",
-        ChatRole.Tool      => "tool",
-        _                  => throw new ArgumentOutOfRangeException()
+        ChatRole.Tool => "tool",
+        _ => throw new ArgumentOutOfRangeException()
     };
 
     public static ChatMessage AssistantWithToolCalls(
