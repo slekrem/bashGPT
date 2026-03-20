@@ -12,7 +12,7 @@ Agents are plain C# classes that subclass `AgentBase`. Each agent defines:
 - an optional **LLM configuration** (temperature, context size, etc.)
 - a **markdown info panel** shown in the browser UI
 
-No JSON configuration, no plugin loading, no reflection — just code.
+No JSON configuration required — just code.
 
 ## Minimal example
 
@@ -87,13 +87,32 @@ public override IReadOnlyList<string> SystemPrompt =>
 
 ## Registering the agent
 
-Pass your agent to `AgentRegistry` during server startup. The registry enforces
-unique IDs and throws `ArgumentException` if a duplicate is detected.
+There are two ways to register a custom agent:
+
+### Option A — Plugin directory (recommended for external agents)
+
+Build your agent as a class library and drop the DLL into the plugin directory.
+bashGPT discovers it automatically at startup without any code changes:
+
+```
+~/.config/bashgpt/plugins/
+  MyPlugin/
+    MyPlugin.dll
+```
+
+See [docs/plugins.md](plugins.md) for the full plugin development guide, including
+directory layout, build instructions, versioning, and the security model.
+
+### Option B — Code registration (for built-in or fork-based agents)
+
+Fork the repository and pass your agent directly during server startup:
 
 ```csharp
 // src/bashGPT.Server/ServerApplication.cs
-public static AgentRegistry CreateAgentRegistry() =>
-    new([new DevAgent(), new ShellAgent(), new MyAgent()]);
+public static AgentRegistry CreateAgentRegistry(IEnumerable<AgentBase>? additionalAgents = null) =>
+    // additionalAgents are already handled by the plugin loader;
+    // add your agent to the builtins array for hard-coded registration:
+    new([new GenericAgent(), new DevAgent(), new ShellAgent(), new MyAgent()]);
 ```
 
 > **Note:** `GenericAgent` is an `internal` built-in default inside `bashGPT.Server` and is
