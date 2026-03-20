@@ -93,8 +93,13 @@ unique IDs and throws `ArgumentException` if a duplicate is detected.
 ```csharp
 // src/bashGPT.Server/ServerApplication.cs
 public static AgentRegistry CreateAgentRegistry() =>
-    new([new GenericAgent(), new DevAgent(), new ShellAgent(), new MyAgent()]);
+    new([new DevAgent(), new ShellAgent(), new MyAgent()]);
 ```
+
+> **Note:** `GenericAgent` is an `internal` built-in default inside `bashGPT.Server` and is
+> not part of the public agent SDK. External consumers only work with the public types in
+> `bashGPT.Agents` (`AgentBase`, `AgentRegistry`) and the public built-in agents
+> (`DevAgent`, `ShellAgent`).
 
 ## Adding custom tools
 
