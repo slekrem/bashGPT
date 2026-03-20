@@ -19,29 +19,10 @@ public class ServerChatRunner(
     {
         var logs = new List<string>();
 
-        ILlmProvider provider;
-        if (providerOverride is not null)
-        {
-            provider = providerOverride;
-        }
-        else
-        {
-            var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
-            if (bootstrap.Error is not null || bootstrap.Provider is null)
-            {
-                return new ServerChatResult(
-                    Response: bootstrap.Error ?? "Failed to initialize provider.",
-                    Logs: []);
-            }
-
-            provider = bootstrap.Provider;
-        }
-
-        if (opts.Verbose)
-            logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
         var tools = opts.Tools ?? [];
-        var chatSession = ChatSessionFactory.Create(
-            provider,
+        var bootstrap = await ChatSessionBootstrap.CreateAsync(
+            configService,
+            opts.Model,
             tools,
             opts.History,
             opts.Prompt,
@@ -49,7 +30,20 @@ public class ServerChatRunner(
             llmConfig: opts.LlmConfig,
             onReasoningToken: opts.OnReasoningToken,
             onLlmRequestJson: opts.OnLlmRequestJson,
-            onLlmResponseJson: opts.OnLlmResponseJson);
+            onLlmResponseJson: opts.OnLlmResponseJson,
+            providerOverride: providerOverride);
+
+        if (bootstrap.Error is not null || bootstrap.Provider is null || bootstrap.Session is null)
+        {
+            return new ServerChatResult(
+                Response: bootstrap.Error ?? "Failed to initialize provider.",
+                Logs: []);
+        }
+
+        var provider = bootstrap.Provider;
+        if (opts.Verbose)
+            logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
+        var chatSession = bootstrap.Session;
 
         var commandResults = new List<CommandResult>();
         var usedToolCalls = false;
@@ -57,31 +51,30 @@ public class ServerChatRunner(
 
         try
         {
-            var response = await chatSession.CallOnceAsync(opts.OnToken, ct);
-            if (response.Error is not null)
-                return new ServerChatResult(response.Error, []);
+            var runResult = await ChatSessionRunner.RunAsync(
+                chatSession,
+                opts.OnToken,
+                enableToolCalls: tools.Count > 0 && toolRegistry is not null,
+                async (round, currentResponse) =>
+                {
+                    opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
+                    commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
+                        currentResponse.ToolCalls,
+                        currentResponse.Content,
+                        chatSession.Messages,
+                        conversationDelta,
+                        toolRegistry!,
+                        opts.SessionPath,
+                        opts.OnEvent,
+                        ct));
+                },
+                beforeNextCall: chatSession.RefreshSystemMessages,
+                ct);
 
-            if (tools.Count > 0 && toolRegistry is not null)
-            {
-                var loopResult = await chatSession.RunToolCallLoopAsync(
-                    response.Response,
-                    async (round, currentResponse) =>
-                    {
-                        usedToolCalls = true;
-                        opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
-                        commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
-                            currentResponse.ToolCalls,
-                            currentResponse.Content,
-                            chatSession.Messages,
-                            conversationDelta,
-                            toolRegistry,
-                            opts.SessionPath,
-                            opts.OnEvent,
-                            ct));
-                    },
-                    beforeNextCall: chatSession.RefreshSystemMessages,
-                    ct);
-            }
+            if (runResult.Error is not null)
+                return new ServerChatResult(runResult.Error, []);
+
+            usedToolCalls = runResult.UsedToolCalls;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

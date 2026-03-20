@@ -17,44 +17,34 @@ public class CliChatRunner(ConfigurationService configService)
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
-        var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
-        if (bootstrap.Error is not null || bootstrap.Config is null || bootstrap.Provider is null)
+        var tools = new[] { CliBashTool.Definition };
+        var bootstrap = await ChatSessionBootstrap.CreateAsync(
+            configService,
+            opts.Model,
+            tools,
+            [],
+            opts.Prompt,
+            toolChoiceFactory: config => (opts.ForceTools ?? config.DefaultForceTools) ? "bash" : null);
+
+        if (bootstrap.Error is not null || bootstrap.Provider is null || bootstrap.Session is null)
         {
             Console.Error.WriteLine(bootstrap.Error ?? "Failed to initialize provider.");
             return 1;
         }
 
-        var config = bootstrap.Config;
         var provider = bootstrap.Provider;
-        var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, model: {provider.Model}");
 
-        var tools = new[] { CliBashTool.Definition };
-        var toolChoiceName = forceTools ? "bash" : null;
-        var chatSession = ChatSessionFactory.Create(
-            provider,
-            tools,
-            [],
-            opts.Prompt,
-            toolChoiceName);
+        var chatSession = bootstrap.Session;
 
-        Console.WriteLine();
-        var firstResponse = await StreamAndCollectAsync(chatSession, ct);
-        Console.WriteLine();
+        var runResult = await RunChatSessionAsync(chatSession, opts, ct);
+        var firstResponse = runResult.Response;
 
-        if (firstResponse.ToolCalls.Count > 0)
+        if (runResult.Error is not null)
         {
-            if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Received tool calls: {firstResponse.ToolCalls.Count}");
-
-            await HandleToolCallsAsync(
-                chatSession,
-                firstResponse,
-                opts,
-                AppDefaults.CommandTimeoutSeconds,
-                ct);
+            Console.Error.WriteLine($"\n{runResult.Error}");
             return 0;
         }
 
@@ -95,15 +85,16 @@ public class CliChatRunner(ConfigurationService configService)
         return 0;
     }
 
-    private static async Task HandleToolCallsAsync(
+    private static async Task<ChatSessionRunResult> RunChatSessionAsync(
         ChatSessionState chatSession,
-        LlmChatResponse initialResponse,
         CliOptions opts,
-        int commandTimeoutSeconds,
         CancellationToken ct)
     {
-        var loopResult = await chatSession.RunToolCallLoopAsync(
-            initialResponse,
+        Console.WriteLine();
+        var result = await ChatSessionRunner.RunAsync(
+            chatSession,
+            Console.Write,
+            enableToolCalls: true,
             async (round, response) =>
             {
                 var toolCalls = response.ToolCalls;
@@ -120,7 +111,7 @@ public class CliChatRunner(ConfigurationService configService)
                         Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
                 }
 
-                var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
+                var executor = new CommandExecutor(commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
                 await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls,
                     commands,
@@ -135,10 +126,8 @@ public class CliChatRunner(ConfigurationService configService)
             beforeNextCall: null,
             ct);
 
-        if (loopResult.Error is not null)
-            Console.Error.WriteLine($"\n{loopResult.Error}");
-
         Console.WriteLine();
+        return result;
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(

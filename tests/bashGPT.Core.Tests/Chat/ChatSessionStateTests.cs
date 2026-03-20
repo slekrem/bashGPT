@@ -139,6 +139,65 @@ public sealed class ChatSessionStateTests
         Assert.Equal(1, beforeNextCallCount);
     }
 
+    [Fact]
+    public async Task ChatSessionRunner_RunAsync_ReturnsFirstResponseWithoutTools()
+    {
+        var provider = new FakeSessionProvider();
+        provider.Enqueue(new LlmChatResponse("hello", [], new TokenUsage(1, 2)));
+        var session = CreateSession(provider);
+
+        var result = await ChatSessionRunner.RunAsync(
+            session,
+            onToken: null,
+            enableToolCalls: true,
+            executeRoundAsync: (_, _) => Task.CompletedTask,
+            beforeNextCall: null,
+            CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.False(result.UsedToolCalls);
+        Assert.Equal(0, result.ToolCallRounds);
+        Assert.Equal("hello", result.Response.Content);
+    }
+
+    [Fact]
+    public async Task ChatSessionRunner_RunAsync_ExecutesToolLoopWhenEnabled()
+    {
+        var toolCall = new ToolCall("call-1", "bash", """{"command":"pwd"}""");
+        var provider = new FakeSessionProvider();
+        provider.Enqueue(new LlmChatResponse(string.Empty, [toolCall]));
+        provider.Enqueue(new LlmChatResponse("done", []));
+        var session = CreateSession(provider);
+        var rounds = new List<int>();
+
+        var result = await ChatSessionRunner.RunAsync(
+            session,
+            onToken: null,
+            enableToolCalls: true,
+            executeRoundAsync: (round, response) =>
+            {
+                rounds.Add(round);
+                session.Messages.Add(new ChatMessage(ChatRole.Assistant, response.Content, ToolCalls: response.ToolCalls));
+                session.Messages.Add(new ChatMessage(ChatRole.Tool, "ok", ToolCallId: toolCall.Id, ToolName: toolCall.Name));
+                return Task.CompletedTask;
+            },
+            beforeNextCall: null,
+            CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.True(result.UsedToolCalls);
+        Assert.Equal(1, result.ToolCallRounds);
+        Assert.Equal("done", result.Response.Content);
+        Assert.Equal([1], rounds);
+    }
+
+    private static ChatSessionState CreateSession(FakeSessionProvider provider)
+    {
+        var session = new ChatSessionState(provider, []);
+        session.InitializeMessages([], "Hello");
+        return session;
+    }
+
     private sealed class FakeSessionProvider : ILlmProvider
     {
         private readonly Queue<LlmChatResponse> _responses = new();
