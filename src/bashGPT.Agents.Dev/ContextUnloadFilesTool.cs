@@ -4,7 +4,7 @@ using bashGPT.Tools.Abstractions;
 namespace BashGPT.Agents.Dev;
 
 /// <summary>
-/// Agenten-spezifisches Tool: Entfernt Dateipfade aus dem session-spezifischen Kontext-Cache.
+/// Built-in dev agent tool: removes file paths from the session-scoped context cache.
 /// </summary>
 public sealed class ContextUnloadFilesTool : ITool
 {
@@ -39,13 +39,13 @@ public sealed class ContextUnloadFilesTool : ITool
 
         if (matched.Count == 0)
             return Task.FromResult(new ToolResult(Success: false,
-                Content: "Keine der angegebenen Dateien war im Kontext."));
+                Content: "None of the specified files were in the context."));
 
         ContextFileCache.RemoveFiles(matched, call.SessionPath);
 
         return Task.FromResult(new ToolResult(
             Success: true,
-            Content: $"{matched.Count} Datei(en) aus dem Kontext entfernt: {string.Join(", ", matched)}"));
+            Content: $"{matched.Count} file(s) removed from context: {string.Join(", ", matched)}"));
     }
 
     private static bool MatchesPattern(string path, string pattern)
@@ -54,7 +54,7 @@ public sealed class ContextUnloadFilesTool : ITool
         if (string.Equals(path, pattern, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Simple glob: nur ** und * werden unterstützt
+        // Simple glob: only ** and * are supported
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
             .Replace(@"\*\*", ".*")
             .Replace(@"\*", "[^/\\\\]*") + "$";

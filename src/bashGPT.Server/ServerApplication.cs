@@ -3,6 +3,7 @@ using bashGPT.Core.Configuration;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
+using bashGPT.Server.Agents;
 using bashGPT.Tools.Build;
 using bashGPT.Tools.Registration;
 using bashGPT.Tools.Fetch;

@@ -3,7 +3,7 @@ using bashGPT.Tools.Abstractions;
 namespace BashGPT.Agents.Dev;
 
 /// <summary>
-/// Agenten-spezifisches Tool: Löscht den gesamten session-spezifischen Kontext-Cache.
+/// Built-in dev agent tool: clears the entire session-scoped context cache.
 /// </summary>
 public sealed class ContextClearFilesTool : ITool
 {
@@ -20,7 +20,7 @@ public sealed class ContextClearFilesTool : ITool
         return Task.FromResult(new ToolResult(
             Success: true,
             Content: count > 0
-                ? $"Kontext geleert – {count} Datei(en) entfernt."
-                : "Kontext war bereits leer."));
+                ? $"Context cleared — {count} file(s) removed."
+                : "Context was already empty."));
     }
 }
