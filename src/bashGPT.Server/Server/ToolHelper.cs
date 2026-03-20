@@ -4,13 +4,13 @@ using BashGPT.Tools.Registration;
 namespace bashGPT.Server;
 
 /// <summary>
-/// Helper methods for resolving tool names to LLM tool definitions.
+/// Helper methods for resolving runtime tools to provider-side LLM tool definitions.
 /// </summary>
 internal static class ToolHelper
 {
     /// <summary>
-    /// Resolves a list of tool names against the tool registry and returns
-    /// the matching LLM tool definitions.
+     /// Resolves a list of tool names against the tool registry and returns
+    /// the matching provider-side tool definitions.
     /// </summary>
     public static IReadOnlyList<ToolDefinition> Resolve(
         IEnumerable<string>? toolNames,
@@ -28,6 +28,8 @@ internal static class ToolHelper
         return result;
     }
 
+    // Tool contracts stay in bashGPT.Tools. The provider-facing definition is built here
+    // because the LLM schema shape belongs to the server/provider boundary, not to the tool SDK.
     private static ToolDefinition ToLlmDefinition(BashGPT.Tools.Abstractions.ToolDefinition def)
     {
         var required = def.Parameters

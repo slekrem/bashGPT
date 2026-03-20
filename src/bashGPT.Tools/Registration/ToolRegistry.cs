@@ -2,6 +2,9 @@ using BashGPT.Tools.Abstractions;
 
 namespace BashGPT.Tools.Registration;
 
+/// <summary>
+/// Stores the set of runtime tools that are available to the server.
+/// </summary>
 public sealed class ToolRegistry
 {
     private readonly Dictionary<string, ITool> _tools;
@@ -16,8 +19,14 @@ public sealed class ToolRegistry
             Register(tool);
     }
 
+    /// <summary>
+    /// Gets the currently registered tools.
+    /// </summary>
     public IReadOnlyCollection<ITool> Tools => _tools.Values;
 
+    /// <summary>
+    /// Registers a tool by its definition name.
+    /// </summary>
     public void Register(ITool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
@@ -30,5 +39,8 @@ public sealed class ToolRegistry
             throw new InvalidOperationException($"Tool '{name}' is already registered.");
     }
 
+    /// <summary>
+    /// Tries to resolve a tool by name.
+    /// </summary>
     public bool TryGet(string name, out ITool? tool) => _tools.TryGetValue(name, out tool);
 }
