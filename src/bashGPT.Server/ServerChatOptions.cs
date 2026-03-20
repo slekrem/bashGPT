@@ -21,8 +21,6 @@ public record ServerChatOptions(
     string? SessionPath = null
 );
 
-public record LlmExchangeRecord(string? RequestJson, string? ResponseJson);
-
 public record ServerChatResult(
     string Response,
     IReadOnlyList<string> Logs,

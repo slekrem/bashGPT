@@ -17,46 +17,34 @@ public class CliChatRunner(ConfigurationService configService)
 {
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
-        var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
-        if (bootstrap.Error is not null || bootstrap.Config is null || bootstrap.Provider is null)
+        var tools = new[] { CliBashTool.Definition };
+        var bootstrap = await ChatSessionBootstrap.CreateAsync(
+            configService,
+            opts.Model,
+            tools,
+            [],
+            opts.Prompt,
+            toolChoiceFactory: config => (opts.ForceTools ?? config.DefaultForceTools) ? "bash" : null);
+
+        if (bootstrap.Error is not null || bootstrap.Provider is null || bootstrap.Session is null)
         {
             Console.Error.WriteLine(bootstrap.Error ?? "Failed to initialize provider.");
             return 1;
         }
 
-        var config = bootstrap.Config;
         var provider = bootstrap.Provider;
-        var forceTools = opts.ForceTools ?? config.DefaultForceTools;
 
         if (opts.Verbose)
             Console.Error.WriteLine($"[verbose] Provider: {provider.Name}, model: {provider.Model}");
 
-        var messages = new List<ChatMessage>
+        var chatSession = bootstrap.Session;
+
+        var runResult = await RunChatSessionAsync(chatSession, opts, ct);
+        var firstResponse = runResult.Response;
+
+        if (runResult.Error is not null)
         {
-            new(ChatRole.User, opts.Prompt)
-        };
-
-        var tools = new[] { CliBashTool.Definition };
-        var toolChoiceName = forceTools ? "bash" : null;
-
-        Console.WriteLine();
-        var firstResponse = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
-        Console.WriteLine();
-
-        if (firstResponse.ToolCalls.Count > 0)
-        {
-            if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Received tool calls: {firstResponse.ToolCalls.Count}");
-
-            await HandleToolCallsAsync(
-                provider,
-                messages,
-                firstResponse,
-                tools,
-                opts,
-                toolChoiceName,
-                AppDefaults.CommandTimeoutSeconds,
-                ct);
+            Console.Error.WriteLine($"\n{runResult.Error}");
             return 0;
         }
 
@@ -84,103 +72,72 @@ public class CliChatRunner(ConfigurationService configService)
             return 0;
 
         var followUp = CommandExecutor.BuildFollowUpContext(results);
-        messages.Add(new ChatMessage(ChatRole.Assistant, firstResponse.Content));
-        messages.Add(new ChatMessage(ChatRole.User, followUp));
+        chatSession.Messages.Add(new ChatMessage(ChatRole.Assistant, firstResponse.Content));
+        chatSession.Messages.Add(new ChatMessage(ChatRole.User, followUp));
 
         if (opts.Verbose)
             Console.Error.WriteLine("[verbose] Sending follow-up to the LLM...");
 
         Console.WriteLine();
-        await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
+        await StreamAndCollectAsync(chatSession, ct);
         Console.WriteLine();
 
         return 0;
     }
 
-    private static async Task HandleToolCallsAsync(
-        ILlmProvider provider,
-        List<ChatMessage> messages,
-        LlmChatResponse initialResponse,
-        IReadOnlyList<ToolDefinition> tools,
+    private static async Task<ChatSessionRunResult> RunChatSessionAsync(
+        ChatSessionState chatSession,
         CliOptions opts,
-        string? toolChoiceName,
-        int commandTimeoutSeconds,
         CancellationToken ct)
     {
-        var response = initialResponse;
-        var rounds = 0;
-
-        while (response.ToolCalls.Count > 0)
-        {
-            rounds++;
-
-            var toolCalls = response.ToolCalls;
-            if (opts.Verbose)
-                Console.Error.WriteLine($"[verbose] Tool call round {rounds}: {toolCalls.Count} call(s)");
-
-            var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
-            if (opts.Verbose)
+        Console.WriteLine();
+        var result = await ChatSessionRunner.RunAsync(
+            chatSession,
+            Console.Write,
+            enableToolCalls: true,
+            async (round, response) =>
             {
-                foreach (var command in commands)
-                    Console.Error.WriteLine($"[verbose] Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
+                var toolCalls = response.ToolCalls;
+                if (opts.Verbose)
+                    Console.Error.WriteLine($"[verbose] Tool call round {round}: {toolCalls.Count} call(s)");
 
-                foreach (var err in errors)
-                    Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
-            }
+                var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
+                if (opts.Verbose)
+                {
+                    foreach (var command in commands)
+                        Console.Error.WriteLine($"[verbose] Tool '{command.ToolCall.Name}' -> {command.Command.Command}");
 
-            var executor = new CommandExecutor(commandTimeoutSeconds: commandTimeoutSeconds);
-            await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
-                toolCalls,
-                commands,
-                errors,
-                response.Content,
-                messages,
-                executor,
-                ct);
+                    foreach (var err in errors)
+                        Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
+                }
 
-            Console.WriteLine();
-            response = await StreamAndCollectAsync(provider, messages, tools, toolChoiceName, ct);
-            Console.WriteLine();
-        }
+                var executor = new CommandExecutor(commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
+                await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
+                    toolCalls,
+                    commands,
+                    errors,
+                    response.Content,
+                    chatSession.Messages,
+                    executor,
+                    ct);
+
+                Console.WriteLine();
+            },
+            beforeNextCall: null,
+            ct);
+
+        Console.WriteLine();
+        return result;
     }
 
     private static async Task<LlmChatResponse> StreamAndCollectAsync(
-        ILlmProvider provider,
-        List<ChatMessage> messages,
-        IReadOnlyList<ToolDefinition> tools,
-        string? toolChoiceName,
+        ChatSessionState chatSession,
         CancellationToken ct)
     {
-        var sb = new System.Text.StringBuilder();
-        var response = new LlmChatResponse("", []);
-        try
-        {
-            response = await provider.ChatAsync(
-                new LlmChatRequest(
-                    Messages: messages,
-                    Tools: tools,
-                    ToolChoiceName: toolChoiceName,
-                    ParallelToolCalls: false,
-                    Stream: true,
-                    OnToken: token =>
-                    {
-                        Console.Write(token);
-                        sb.Append(token);
-                    }),
-                ct);
-        }
-        catch (LlmProviderException ex)
-        {
-            Console.Error.WriteLine($"\nError: {ex.Message}");
-        }
-        catch (OperationCanceledException)
-        {
-            Console.Error.WriteLine("\nCancelled.");
-        }
+        var response = await chatSession.CallOnceAsync(Console.Write, ct);
+        if (response.Error is not null)
+            Console.Error.WriteLine($"\n{response.Error}");
 
-        return response with
-        {
-            Content = string.IsNullOrEmpty(response.Content) ? sb.ToString() : response.Content
-        };
+        return response.Response;
     }
 }

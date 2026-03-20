@@ -18,160 +18,97 @@ public class ServerChatRunner(
         CancellationToken ct = default)
     {
         var logs = new List<string>();
-        var totalInputTokens = 0;
-        var totalOutputTokens = 0;
-
-        ILlmProvider provider;
-        if (providerOverride is not null)
-        {
-            provider = providerOverride;
-        }
-        else
-        {
-            var bootstrap = await LlmProviderBootstrap.CreateAsync(configService, opts.Model);
-            if (bootstrap.Error is not null || bootstrap.Provider is null)
-            {
-                return new ServerChatResult(
-                    Response: bootstrap.Error ?? "Failed to initialize provider.",
-                    Logs: []);
-            }
-
-            provider = bootstrap.Provider;
-        }
-
-        if (opts.Verbose)
-            logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
-
-        var messages = new List<ChatMessage>();
-        void RefreshSystemMessages()
-        {
-            if (opts.SystemPrompt is null) return;
-            var firstNonSystem = messages.FindIndex(m => m.Role != ChatRole.System);
-            var removeCount    = firstNonSystem >= 0 ? firstNonSystem : messages.Count;
-            if (removeCount > 0) messages.RemoveRange(0, removeCount);
-            var freshPrompts = opts.SystemPrompt().Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
-            for (var i = freshPrompts.Count - 1; i >= 0; i--)
-                messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
-        }
-
-        RefreshSystemMessages();
-        foreach (var msg in opts.History)
-            messages.Add(msg);
-        messages.Add(new ChatMessage(ChatRole.User, opts.Prompt));
 
         var tools = opts.Tools ?? [];
-        var llmExchanges = new List<LlmExchangeRecord>();
-        var exchangeIdx = 0;
+        var bootstrap = await ChatSessionBootstrap.CreateAsync(
+            configService,
+            opts.Model,
+            tools,
+            opts.History,
+            opts.Prompt,
+            systemPrompt: opts.SystemPrompt,
+            llmConfig: opts.LlmConfig,
+            onReasoningToken: opts.OnReasoningToken,
+            onLlmRequestJson: opts.OnLlmRequestJson,
+            onLlmResponseJson: opts.OnLlmResponseJson,
+            providerOverride: providerOverride);
+
+        if (bootstrap.Error is not null || bootstrap.Provider is null || bootstrap.Session is null)
+        {
+            return new ServerChatResult(
+                Response: bootstrap.Error ?? "Failed to initialize provider.",
+                Logs: []);
+        }
+
+        var provider = bootstrap.Provider;
+        if (opts.Verbose)
+            logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
+        var chatSession = bootstrap.Session;
+
         var commandResults = new List<CommandResult>();
         var usedToolCalls = false;
         var conversationDelta = new List<ChatMessage>();
-        LlmChatResponse? lastResponse = null;
-
-        async Task<(LlmChatResponse Response, string? Error)> CallOnce(Action<string>? onToken = null)
-        {
-            var idx = exchangeIdx++;
-            string? reqJson = null;
-            string? resJson = null;
-            var result = await ChatOrchestrator.ChatOnceAsync(
-                provider, messages, tools, null, ct, onToken,
-                onReasoningToken: opts.OnReasoningToken,
-                onRequestJson: async json =>
-                {
-                    reqJson = json;
-                    if (opts.OnLlmRequestJson is not null) await opts.OnLlmRequestJson(idx, json);
-                },
-                onResponseJson: async json =>
-                {
-                    resJson = json;
-                    if (opts.OnLlmResponseJson is not null) await opts.OnLlmResponseJson(idx, json);
-                },
-                llmConfig: opts.LlmConfig);
-            llmExchanges.Add(new LlmExchangeRecord(reqJson, resJson));
-            return result;
-        }
 
         try
         {
-            var response = await CallOnce(opts.OnToken);
-            if (response.Error is not null)
-                return new ServerChatResult(response.Error, []);
-
-            lastResponse = response.Response;
-            totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
-            totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
-
-            if (tools.Count > 0 && toolRegistry is not null)
-            {
-                var round = 0;
-                while (!ct.IsCancellationRequested)
+            var runResult = await ChatSessionRunner.RunAsync(
+                chatSession,
+                opts.OnToken,
+                enableToolCalls: tools.Count > 0 && toolRegistry is not null,
+                async (round, currentResponse) =>
                 {
-                    ct.ThrowIfCancellationRequested();
-                    if (response.Response.ToolCalls.Count == 0) break;
-                    usedToolCalls = true;
-
-                    round++;
                     opts.OnEvent?.Invoke(new SseEvent("round_start", new { round }));
                     commandResults.AddRange(await ServerToolCallOrchestrator.ExecuteRoundAsync(
-                        response.Response.ToolCalls,
-                        response.Response.Content,
-                        messages,
+                        currentResponse.ToolCalls,
+                        currentResponse.Content,
+                        chatSession.Messages,
                         conversationDelta,
-                        toolRegistry,
+                        toolRegistry!,
                         opts.SessionPath,
                         opts.OnEvent,
                         ct));
+                },
+                beforeNextCall: chatSession.RefreshSystemMessages,
+                ct);
 
-                    RefreshSystemMessages();
-                    response = await CallOnce();
-                    if (response.Error is not null) break;
-                    lastResponse = response.Response;
-                    totalInputTokens += response.Response.Usage?.InputTokens ?? 0;
-                    totalOutputTokens += response.Response.Usage?.OutputTokens ?? 0;
-                }
-            }
+            if (runResult.Error is not null)
+                return new ServerChatResult(runResult.Error, []);
+
+            usedToolCalls = runResult.UsedToolCalls;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            var cancelledText = "Cancelled by user.";
-            var cancelledAssistant = new ChatMessage(ChatRole.Assistant, cancelledText);
+            var outcome = chatSession.CreateCancelledOutcome();
+            var cancelledAssistant = new ChatMessage(ChatRole.Assistant, outcome.Response);
             conversationDelta.Add(cancelledAssistant);
 
-            TokenUsage? cancelledUsage = totalInputTokens > 0 || totalOutputTokens > 0
-                ? new TokenUsage(totalInputTokens, totalOutputTokens)
-                : null;
-
             return new ServerChatResult(
-                Response: cancelledText,
+                Response: outcome.Response,
                 Logs: logs,
-                Usage: cancelledUsage,
-                LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+                Usage: outcome.Usage,
+                LlmExchanges: outcome.LlmExchanges,
                 Commands: commandResults.Count > 0 ? commandResults : null,
                 UsedToolCalls: usedToolCalls,
                 ConversationDelta: conversationDelta,
-                FinalStatus: "user_cancelled");
+                FinalStatus: outcome.FinalStatus);
         }
-
-        TokenUsage? BuildUsage() => totalInputTokens > 0 || totalOutputTokens > 0
-            ? new TokenUsage(totalInputTokens, totalOutputTokens)
-            : null;
-
-        var finalResponse = lastResponse?.Content ?? string.Empty;
-        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, finalResponse);
-        conversationDelta.Add(finalAssistantMessage);
 
         var finalStatus = commandResults.Any(r => string.Equals(ClassifyCommandStatus(r), "timeout", StringComparison.Ordinal))
             ? "timeout"
             : "completed";
+        var completedOutcome = chatSession.CreateCompletedOutcome(finalStatus);
+        var finalAssistantMessage = new ChatMessage(ChatRole.Assistant, completedOutcome.Response);
+        conversationDelta.Add(finalAssistantMessage);
 
         return new ServerChatResult(
-            Response: finalResponse,
+            Response: completedOutcome.Response,
             Logs: logs,
-            Usage: BuildUsage(),
-            LlmExchanges: llmExchanges.Count > 0 ? llmExchanges : null,
+            Usage: completedOutcome.Usage,
+            LlmExchanges: completedOutcome.LlmExchanges,
             Commands: commandResults.Count > 0 ? commandResults : null,
             UsedToolCalls: usedToolCalls,
             ConversationDelta: conversationDelta,
-            FinalStatus: finalStatus);
+            FinalStatus: completedOutcome.FinalStatus);
     }
 
     private static string ClassifyCommandStatus(CommandResult result)
