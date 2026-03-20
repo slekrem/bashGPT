@@ -3,15 +3,15 @@ using System.Text;
 using System.Text.Json;
 using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev;
 
 /// <summary>
-/// Agenten-spezifisches Tool: Lädt Dateiinhalte anhand von Glob-Mustern in den Kontext.
-/// Nutzt git ls-files, sodass .gitignore automatisch respektiert wird.
+/// Built-in dev agent tool: loads file contents matching glob patterns into the context.
+/// Uses git ls-files internally so .gitignore is respected automatically.
 /// </summary>
 public sealed class ContextLoadFilesTool : ITool
 {
-    private const int MaxFileSizeBytes = 131_072; // 128 KB pro Datei
+    private const int MaxFileSizeBytes = 131_072; // 128 KB per file
 
     public ToolDefinition Definition { get; } = new(
         Name: "context_load_files",
@@ -54,7 +54,7 @@ public sealed class ContextLoadFilesTool : ITool
                     var info = new FileInfo(path);
                     if (info.Length > MaxFileSizeBytes)
                     {
-                        sb.AppendLine($"## `{path}`\n\n> Datei zu groß ({info.Length / 1024} KB), übersprungen.\n");
+                        sb.AppendLine($"## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.\n");
                         continue;
                     }
 
@@ -63,20 +63,20 @@ public sealed class ContextLoadFilesTool : ITool
                 }
                 catch (Exception ex)
                 {
-                    sb.AppendLine($"## `{path}`\n\n> Fehler beim Lesen: {ex.Message}\n");
+                    sb.AppendLine($"## `{path}`\n\n> Error reading file: {ex.Message}\n");
                 }
             }
         }
 
         if (loadedPaths.Count == 0)
-            return Task.FromResult(new ToolResult(Success: false, Content: "Keine Dateien für die angegebenen Muster gefunden."));
+            return Task.FromResult(new ToolResult(Success: false, Content: "No files found for the given patterns."));
 
-        // Pfade im Session-Cache speichern → DevAgent.SystemPrompt lädt sie bei jedem Request frisch.
+        // Persist paths in the session cache so DevAgent.SystemPrompt picks them up on every request.
         ContextFileCache.AddFiles(loadedPaths, call.SessionPath);
 
         return Task.FromResult(new ToolResult(
             Success: true,
-            Content: $"{loadedPaths.Count} Datei(en) in den Kontext geladen: {string.Join(", ", loadedPaths)}"));
+            Content: $"{loadedPaths.Count} file(s) loaded into context: {string.Join(", ", loadedPaths)}"));
     }
 
     private static string[] ParsePatterns(string json)
@@ -103,7 +103,7 @@ public sealed class ContextLoadFilesTool : ITool
             return [.. list];
         }
 
-        // Fallback: einzelner Pattern-String
+        // Fallback: single pattern string
         if (patternsEl.ValueKind == JsonValueKind.String)
         {
             var s = patternsEl.GetString();

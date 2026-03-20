@@ -1,9 +1,9 @@
 using System.Runtime.InteropServices;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using BashGPT.Agents;
+using bashGPT.Agents;
 
-namespace BashGPT.Agents.Shell;
+namespace bashGPT.Agents.Shell;
 
 /// <summary>
 /// Shell assistant focused on terminal tasks and shell commands.

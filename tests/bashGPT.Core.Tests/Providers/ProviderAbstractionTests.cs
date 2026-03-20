@@ -3,7 +3,7 @@ using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
 using bashGPT.Core.Configuration;
 
-namespace BashGPT.Core.Tests.Providers;
+namespace bashGPT.Core.Tests.Providers;
 
 public class ProviderAbstractionTests
 {

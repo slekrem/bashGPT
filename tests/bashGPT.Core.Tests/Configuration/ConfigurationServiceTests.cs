@@ -1,6 +1,6 @@
 using bashGPT.Core.Configuration;
 
-namespace BashGPT.Core.Tests.Configuration;
+namespace bashGPT.Core.Tests.Configuration;
 
 public class ConfigurationServiceTests : IDisposable
 {

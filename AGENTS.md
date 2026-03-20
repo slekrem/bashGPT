@@ -5,7 +5,7 @@
 - `src/bashGPT.Core/` contains shared domain logic (configuration, providers, shell, CLI runners, session storage).
 - `src/bashGPT.Cli/` contains the CLI executable and command-line parsing.
 - `src/bashGPT.Server/` contains the server executable and HTTP/UI host.
-- `src/bashGPT.Agents/` contains the `AgentBase` abstraction, `AgentRegistry`, and `GenericAgent`.
+- `src/bashGPT.Agents/` contains the `AgentBase` abstraction and `AgentRegistry` — the public SDK surface for custom agents.
 - `src/bashGPT.Agents.Shell/` contains the Shell agent (`shell`).
 - `src/bashGPT.Agents.Dev/` contains the Dev agent (`dev`) with filesystem, git, build, and test tools.
 - `src/bashGPT.Tools/` contains the tool abstraction (`ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`).
@@ -15,9 +15,9 @@
 - `src/bashGPT.Tools.Build/` contains the `build_run` tool.
 - `src/bashGPT.Tools.Testing/` contains the `test_run` tool.
 - `src/bashGPT.Tools.Fetch/` contains the `fetch` tool (HTTP GET with HTML extraction).
-- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — Kernprojekte
-- `tests/bashGPT.Agents.Tests/` — Agenten-Tests
-- `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — Tool-Tests
+- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — core project tests
+- `tests/bashGPT.Agents.Tests/` — agent tests
+- `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — tool tests
 
 ## Build, Test, and Development Commands
 
@@ -47,7 +47,7 @@
 
 ## Commit & Pull Request Guidelines
 
-- Commit messages follow a conventional pattern like `feat: <summary>` (often German). Use a short, descriptive summary.
+- Commit messages follow a conventional pattern like `feat: <summary>`. Use a short, descriptive summary in English.
 - PRs should include:
   - A brief description of the change.
   - Test results (command run and outcome).
@@ -84,11 +84,11 @@ public sealed class MyAgent : AgentBase
     // One or more system-prompt strings sent to the LLM per request
     public override IReadOnlyList<string> SystemPrompt =>
     [
-        "Du bist ein spezialisierter Assistent für ...",
+        "You are a specialized assistant for ...",
     ];
 
-    // Optional: LLM-Parameter überschreiben (alle Felder optional)
-    // Vollständige AgentLlmConfig-Felder:
+    // Optional: override LLM parameters (all fields are optional).
+    // Available AgentLlmConfig fields:
     //   Model, Temperature, TopP, NumCtx, MaxTokens, Seed,
     //   ReasoningEffort, ParallelToolCalls, Stream,
     //   FrequencyPenalty, PresencePenalty, Stop, ResponseFormat
@@ -98,11 +98,11 @@ public sealed class MyAgent : AgentBase
         Stream:      true
     );
 
-    // Markdown shown in the Web UI info panel (LLM config is appended automatically)
+    // Markdown shown in the Web UI info panel (LLM config section is appended automatically)
     protected override string GetAgentMarkdown() => """
         # My Agent
 
-        Beschreibung des Agenten.
+        Short description of what this agent does.
         """;
 }
 ```
@@ -129,6 +129,6 @@ public interface ITool
 - `ToolResult` carries the string output returned to the LLM as a tool-result message.
 - `ToolCall.SessionPath` is the path to the current session directory (set automatically by the server); tools that need session-scoped persistence (like context_* tools) use it.
 - Valid `ToolParameter.Type` values: `"string"`, `"integer"`, `"object"`, `"array"` — passed directly to the LLM as JSON Schema.
-- Note: `ToolCall` in `BashGPT.Tools.Abstractions` (`Name`, `ArgumentsJson`, `SessionPath`) differs from `BashGPT.Providers.ToolCall` (`Id`, `Name`, `ArgumentsJson`, `Index`) — the server converts between them.
+- Note: `ToolCall` in `bashGPT.Tools.Abstractions` (`Name`, `ArgumentsJson`, `SessionPath`) differs from `bashGPT.Providers.ToolCall` (`Id`, `Name`, `ArgumentsJson`, `Index`) — the server converts between them.
 - Register the tool in the `ToolRegistry` during server startup (`src/bashGPT.Server/Program.cs`).
 - Add the tool's name to `EnabledTools` in any agent that should be able to use it.

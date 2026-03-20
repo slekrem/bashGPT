@@ -1,46 +1,71 @@
 using System.Text;
 
-namespace BashGPT.Agents;
+namespace bashGPT.Agents;
 
 /// <summary>
-/// Abstrakte Basisklasse für alle Chat-Agenten.
-/// Jeder Agent definiert sich vollständig durch Code – keine JSON-Konfiguration.
-/// Aus der Klassendefinition werden sowohl das LLM-System-Prompt als auch
-/// das Info-Panel der Web-UI abgeleitet.
+/// Abstract base class for all chat agents.
+/// Each agent is defined entirely in code — no JSON configuration required.
+/// The class definition drives both the LLM system prompt and the info panel shown in the web UI.
 /// </summary>
+/// <remarks>
+/// <para><b>How to create a custom agent:</b></para>
+/// <para>
+/// Subclass <see cref="AgentBase"/>, implement the required abstract members, and register
+/// your agent with <see cref="AgentRegistry"/>. No other wiring is needed.
+/// </para>
+/// <code>
+/// public sealed class MyAgent : AgentBase
+/// {
+///     public override string Id           => "my-agent";
+///     public override string Name         => "My Agent";
+///     public override IReadOnlyList&lt;string&gt; EnabledTools  => ["shell_exec"];
+///     public override IReadOnlyList&lt;string&gt; SystemPrompt  => ["You are my custom agent."];
+///     protected override string GetAgentMarkdown()        => "# My Agent\n\nDoes awesome things.";
+/// }
+/// </code>
+/// <para><b>Extension points:</b></para>
+/// <list type="bullet">
+///   <item><term><see cref="Id"/></term><description>Unique, stable identifier — never change this after deployment.</description></item>
+///   <item><term><see cref="Name"/></term><description>Human-readable display name shown in the UI.</description></item>
+///   <item><term><see cref="EnabledTools"/></term><description>Tool names available to this agent. Must match registered tool names.</description></item>
+///   <item><term><see cref="SystemPrompt"/></term><description>One or more system messages sent to the LLM at the start of every request. Can be dynamic (computed properties).</description></item>
+///   <item><term><see cref="LlmConfig"/></term><description>Optional: override temperature, top-p, context size, etc. Return null to use the server default.</description></item>
+///   <item><term><see cref="GetAgentMarkdown"/></term><description>Markdown shown in the info panel. The LLM configuration table is appended automatically.</description></item>
+/// </list>
+/// </remarks>
 public abstract class AgentBase
 {
-    /// <summary>Eindeutige, stabile Kennung des Agenten (z. B. "dev", "shell").</summary>
+    /// <summary>Unique, stable identifier for the agent (e.g. "dev", "shell").</summary>
     public abstract string Id { get; }
 
-    /// <summary>Anzeigename des Agenten in der UI.</summary>
+    /// <summary>Display name shown in the UI.</summary>
     public abstract string Name { get; }
 
-    /// <summary>Liste der Tool-Namen, die für diesen Agenten aktiv sind.</summary>
+    /// <summary>Names of the tools that are active for this agent.</summary>
     public abstract IReadOnlyList<string> EnabledTools { get; }
 
     /// <summary>
-    /// System-Prompts, die dem LLM bei jedem Chat übergeben werden.
-    /// Jeder Eintrag wird als separate System-Nachricht übermittelt.
+    /// System prompts sent to the LLM at the start of every chat.
+    /// Each entry is transmitted as a separate system message.
     /// </summary>
     public abstract IReadOnlyList<string> SystemPrompt { get; }
 
     /// <summary>
-    /// Optionale LLM-Konfiguration des Agenten (Modell, Temperatur, Top-P, etc.).
-    /// Wird automatisch als Abschnitt im Info-Panel angezeigt.
+    /// Optional LLM configuration for this agent (model, temperature, top-p, etc.).
+    /// Automatically included as a section in the info panel.
     /// </summary>
     public virtual AgentLlmConfig? LlmConfig => null;
 
     /// <summary>
-    /// Agentenspezifischer Markdown-Inhalt für das Info-Panel
-    /// (ohne LLM-Konfiguration — dieser Abschnitt wird automatisch ergänzt).
+    /// Agent-specific markdown content for the info panel,
+    /// excluding the LLM configuration section which is appended automatically.
     /// </summary>
     protected abstract string GetAgentMarkdown();
 
     /// <summary>
-    /// Gibt das vollständige Info-Panel-Markdown zurück.
-    /// Wenn <paramref name="effectiveConfig"/> angegeben ist, werden diese Werte angezeigt
-    /// (z. B. bereits mit Provider-Defaults gemergt). Andernfalls wird <see cref="LlmConfig"/> verwendet.
+    /// Returns the full info-panel markdown for this agent.
+    /// When <paramref name="effectiveConfig"/> is provided those values are used
+    /// (e.g. already merged with provider defaults); otherwise <see cref="LlmConfig"/> is used.
     /// </summary>
     public string GetInfoPanelMarkdown(AgentLlmConfig? effectiveConfig = null)
     {
@@ -53,7 +78,7 @@ public abstract class AgentBase
             sb.AppendLine();
             sb.AppendLine("## LLM Configuration");
             sb.AppendLine();
-            sb.AppendLine("| Parameter | Wert |");
+            sb.AppendLine("| Parameter | Value |");
             sb.AppendLine("|---|---|");
 
             if (cfg.Model is not null)

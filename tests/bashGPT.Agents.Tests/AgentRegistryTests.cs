@@ -1,6 +1,6 @@
-using BashGPT.Agents;
+using bashGPT.Agents;
 
-namespace BashGPT.Agents.Tests;
+namespace bashGPT.Agents.Tests;
 
 file sealed class FakeAgent(string id, string name) : AgentBase
 {
@@ -52,5 +52,37 @@ public class AgentRegistryTests
         var registry = new AgentRegistry(agents);
 
         Assert.Equal(2, registry.All.Count);
+    }
+
+    [Fact]
+    public void Constructor_DuplicateId_ThrowsArgumentException()
+    {
+        var agents = new AgentBase[]
+        {
+            new FakeAgent("dev", "Dev-Agent"),
+            new FakeAgent("dev", "Dev-Agent Duplicate"),
+        };
+
+        Assert.Throws<ArgumentException>(() => new AgentRegistry(agents));
+    }
+
+    [Fact]
+    public void Constructor_DuplicateIdCaseInsensitive_ThrowsArgumentException()
+    {
+        var agents = new AgentBase[]
+        {
+            new FakeAgent("dev", "Dev-Agent"),
+            new FakeAgent("DEV", "Dev-Agent Upper"),
+        };
+
+        Assert.Throws<ArgumentException>(() => new AgentRegistry(agents));
+    }
+
+    [Fact]
+    public void Constructor_EmptyAgents_CreatesEmptyRegistry()
+    {
+        var registry = new AgentRegistry([]);
+
+        Assert.Empty(registry.All);
     }
 }

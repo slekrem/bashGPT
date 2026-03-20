@@ -1,6 +1,6 @@
-using BashGPT.Agents.Shell;
+using bashGPT.Agents.Shell;
 
-namespace BashGPT.Agents.Tests;
+namespace bashGPT.Agents.Tests;
 
 public class ShellAgentTests
 {

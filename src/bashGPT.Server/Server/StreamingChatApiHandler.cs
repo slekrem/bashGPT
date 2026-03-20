@@ -3,9 +3,9 @@ using System.Text.Json;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
-using BashGPT.Agents;
-using BashGPT.Agents.Dev;
-using BashGPT.Shell;
+using bashGPT.Agents;
+using bashGPT.Agents.Dev;
+using bashGPT.Shell;
 using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;

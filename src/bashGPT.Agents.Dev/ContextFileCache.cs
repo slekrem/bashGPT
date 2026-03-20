@@ -1,12 +1,12 @@
 using System.Text;
 
-namespace BashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev;
 
 /// <summary>
-/// Verwaltet eine persistente Liste von Dateipfaden, die der Dev-Agent als Kontext laden soll.
-/// Gespeichert als "context-files" im Session-Ordner.
-/// Der aktuelle Session-Pfad wird über <see cref="CurrentSessionPath"/> per AsyncLocal gesetzt,
-/// sodass <see cref="DevAgent.SystemPrompt"/> ihn beim Aufbau des System-Prompts kennt.
+/// Manages a persistent list of file paths that the dev agent loads into context.
+/// Stored as "context-files" in the session directory.
+/// The current session path is provided via <see cref="CurrentSessionPath"/> using AsyncLocal,
+/// so <see cref="DevAgent.SystemPrompt"/> can access it when building the system prompt.
 /// </summary>
 public static class ContextFileCache
 {
@@ -15,7 +15,7 @@ public static class ContextFileCache
     private static readonly AsyncLocal<string?> _currentSessionPath = new();
 
     /// <summary>
-    /// Muss vom Server-Handler gesetzt werden, bevor <c>agent.SystemPrompt</c> ausgewertet wird.
+    /// Must be set by the server handler before <c>agent.SystemPrompt</c> is evaluated.
     /// </summary>
     public static string? CurrentSessionPath
     {
@@ -31,7 +31,7 @@ public static class ContextFileCache
         return Path.Combine(dir, CacheFileName);
     }
 
-    /// <summary>Fügt neue Pfade hinzu (Duplikate werden ignoriert).</summary>
+    /// <summary>Adds new paths to the cache, ignoring duplicates.</summary>
     public static void AddFiles(IEnumerable<string> paths, string? sessionPath = null)
     {
         var existing = ReadFiles(sessionPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -42,7 +42,7 @@ public static class ContextFileCache
         File.AppendAllLines(cachePath, newPaths);
     }
 
-    /// <summary>Gibt alle gespeicherten Dateipfade zurück.</summary>
+    /// <summary>Returns all stored file paths.</summary>
     public static IReadOnlyList<string> ReadFiles(string? sessionPath = null)
     {
         var cachePath = GetCachePath(sessionPath);
@@ -53,7 +53,7 @@ public static class ContextFileCache
             .ToList();
     }
 
-    /// <summary>Entfernt bestimmte Pfade aus dem Cache.</summary>
+    /// <summary>Removes specific paths from the cache.</summary>
     public static void RemoveFiles(IEnumerable<string> paths, string? sessionPath = null)
     {
         var toRemove = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -68,8 +68,8 @@ public static class ContextFileCache
     }
 
     /// <summary>
-    /// Gibt den Inhalt einer Datei als formatierten Markdown-Block zurück,
-    /// inklusive Zeilennummern (rechtsbündig, tabulatorgetrennt).
+    /// Returns the content of a file as a formatted markdown block
+    /// including right-aligned, tab-separated line numbers.
     /// </summary>
     internal static string FormatFileBlock(string path, string content)
     {
@@ -84,7 +84,7 @@ public static class ContextFileCache
         return sb.ToString();
     }
 
-    /// <summary>Löscht den Cache.</summary>
+    /// <summary>Deletes the cache file.</summary>
     public static void Clear(string? sessionPath = null)
     {
         var cachePath = GetCachePath(sessionPath);

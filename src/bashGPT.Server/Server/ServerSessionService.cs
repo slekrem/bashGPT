@@ -2,7 +2,7 @@ using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Storage;
-using BashGPT.Shell;
+using bashGPT.Shell;
 
 namespace bashGPT.Server;
 

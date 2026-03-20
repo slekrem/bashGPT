@@ -2,7 +2,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
 
-namespace BashGPT.Core.Tests.Providers;
+namespace bashGPT.Core.Tests.Providers;
 
 public sealed class LlmProviderBootstrapTests
 {

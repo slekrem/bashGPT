@@ -1,10 +1,13 @@
-namespace BashGPT.Agents;
+using bashGPT.Agents;
+using bashGPT.Core.Models.Providers;
+
+namespace bashGPT.Server.Agents;
 
 /// <summary>
-/// Default agent for general chat without agent-specific context.
-/// Displayed in the info panel when no specialized agent is selected.
+/// Default agent used for general-purpose chat without agent-specific context.
+/// This is a built-in server default, not part of the public agent SDK surface.
 /// </summary>
-public sealed class GenericAgent : AgentBase
+internal sealed class GenericAgent : AgentBase
 {
     public override string Id => "generic";
 

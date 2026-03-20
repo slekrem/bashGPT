@@ -1,6 +1,6 @@
-using BashGPT.Agents.Dev;
+using bashGPT.Agents.Dev;
 
-namespace BashGPT.Agents.Tests;
+namespace bashGPT.Agents.Tests;
 
 public class DevAgentTests
 {
