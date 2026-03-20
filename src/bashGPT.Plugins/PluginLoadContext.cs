@@ -21,10 +21,12 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
 {
     private readonly AssemblyDependencyResolver _resolver;
 
-    public PluginLoadContext(string mainPluginDllPath) : base(isCollectible: false)
+    public PluginLoadContext(string mainPluginDllPath) : base(isCollectible: true)
     {
         _resolver = new AssemblyDependencyResolver(mainPluginDllPath);
     }
+
+    public Assembly LoadPluginAssembly(string mainPluginDllPath) => LoadAssemblyFromPath(mainPluginDllPath);
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
@@ -38,12 +40,33 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         }
 
         var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-        return assemblyPath != null ? LoadFromAssemblyPath(assemblyPath) : null;
+        return assemblyPath != null ? LoadAssemblyFromPath(assemblyPath) : null;
     }
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
         var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
         return libraryPath != null ? LoadUnmanagedDllFromPath(libraryPath) : IntPtr.Zero;
+    }
+
+    private Assembly LoadAssemblyFromPath(string assemblyPath)
+    {
+        using var assemblyStream = new FileStream(
+            assemblyPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+
+        var symbolsPath = Path.ChangeExtension(assemblyPath, ".pdb");
+        if (!File.Exists(symbolsPath))
+            return LoadFromStream(assemblyStream);
+
+        using var symbolsStream = new FileStream(
+            symbolsPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+
+        return LoadFromStream(assemblyStream, symbolsStream);
     }
 }

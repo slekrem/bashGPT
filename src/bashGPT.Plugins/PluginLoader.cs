@@ -89,7 +89,7 @@ public static class PluginLoader
         try
         {
             var context = new PluginLoadContext(dllPath);
-            assembly = context.LoadFromAssemblyPath(dllPath);
+            assembly = context.LoadPluginAssembly(dllPath);
         }
         catch (Exception ex)
         {
