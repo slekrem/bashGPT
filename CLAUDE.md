@@ -58,6 +58,8 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 | `bashGPT.Tools.Build` | `build_run` |
 | `bashGPT.Tools.Testing` | `test_run` |
 | `bashGPT.Tools.Fetch` | `fetch` |
+| `bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
+| `bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
 | `bashGPT.Web` | Lit/TypeScript frontend source |
 
 Current test projects:
@@ -72,6 +74,7 @@ Current test projects:
 - `tests/bashGPT.Tools.Build.Tests`
 - `tests/bashGPT.Tools.Testing.Tests`
 - `tests/bashGPT.Tools.Fetch.Tests`
+- `tests/bashGPT.Plugins.Tests`
 
 ### Main execution flows
 
@@ -201,6 +204,27 @@ Sessions live under `~/.config/bashgpt/sessions/`:
 - `<id>/requests/` for recorded request/debug artifacts
 
 `SessionStore` writes atomically and keeps at most 20 sessions.
+
+### Plugin discovery
+
+External tools and agents are loaded at startup from `~/.config/bashgpt/plugins/`.
+
+**Directory layout:**
+```
+~/.config/bashgpt/plugins/
+  MyPlugin/
+    MyPlugin.dll       ← main plugin assembly (name must match subdirectory)
+    SomeDep.dll        ← plugin-private dependency (optional)
+```
+
+**Discovery rules:**
+- Each subdirectory is one plugin. The main DLL must match the subdirectory name (e.g. `MyPlugin/MyPlugin.dll`). Falls back to the first `*.dll` found if the convention is not followed.
+- Public, non-abstract `ITool` and `AgentBase` classes with a public parameterless constructor are instantiated automatically.
+- Built-ins always win on name/ID collision — duplicates are logged to stderr and skipped.
+- Per-plugin `AssemblyLoadContext` isolates dependency graphs; shared contracts (`bashGPT.Tools`, `bashGPT.Agents`) fall back to the host version to preserve type identity.
+- Plugin assemblies are fully trusted and run in the same process with no sandboxing.
+
+Both the Server (`ServerApplication.LoadPlugins`) and the CLI (`CliApplication.LoadPlugins`) perform discovery at startup. Non-fatal loading errors are written to stderr and never abort the process.
 
 ### Configuration
 

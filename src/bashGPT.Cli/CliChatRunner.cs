@@ -6,6 +6,7 @@ using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers;
 using bashGPT.Cli.Shell;
 using bashGPT.Shell;
+using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Cli;
 
@@ -13,13 +14,31 @@ namespace bashGPT.Cli;
 /// Processes chat requests in CLI mode by streaming tokens to the console
 /// and executing shell commands automatically.
 /// </summary>
-public class CliChatRunner(ConfigurationService configService)
+public class CliChatRunner
 {
+    private readonly ConfigurationService _configService;
+    private readonly IReadOnlyDictionary<string, ITool> _pluginTools;
+
+    public CliChatRunner(ConfigurationService configService, IReadOnlyList<ITool>? pluginTools = null)
+    {
+        _configService = configService;
+        _pluginTools = pluginTools is { Count: > 0 }
+            ? pluginTools.ToDictionary(t => t.Definition.Name, StringComparer.Ordinal)
+            : new Dictionary<string, ITool>();
+    }
+
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)
     {
-        var tools = new[] { CliBashTool.Definition };
+        var pluginToolDefs = _pluginTools.Values
+            .Select(t => ToProviderDefinition(t.Definition))
+            .ToArray();
+
+        var tools = pluginToolDefs.Length > 0
+            ? [CliBashTool.Definition, .. pluginToolDefs]
+            : new[] { CliBashTool.Definition };
+
         var bootstrap = await ChatSessionBootstrap.CreateAsync(
-            configService,
+            _configService,
             opts.Model,
             tools,
             [],
@@ -85,7 +104,7 @@ public class CliChatRunner(ConfigurationService configService)
         return 0;
     }
 
-    private static async Task<ChatSessionRunResult> RunChatSessionAsync(
+    private async Task<ChatSessionRunResult> RunChatSessionAsync(
         ChatSessionState chatSession,
         CliOptions opts,
         CancellationToken ct)
@@ -101,7 +120,11 @@ public class CliChatRunner(ConfigurationService configService)
                 if (opts.Verbose)
                     Console.Error.WriteLine($"[verbose] Tool call round {round}: {toolCalls.Count} call(s)");
 
-                var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(toolCalls);
+                // Separate tool calls: plugin tools are executed directly; everything else is treated as a bash call.
+                var pluginCalls = toolCalls.Where(tc => _pluginTools.ContainsKey(tc.Name)).ToList();
+                var bashCalls = toolCalls.Where(tc => !_pluginTools.ContainsKey(tc.Name)).ToList();
+
+                var (commands, errors) = CliToolCallOrchestrator.ParseToolCalls(bashCalls);
                 if (opts.Verbose)
                 {
                     foreach (var command in commands)
@@ -109,9 +132,14 @@ public class CliChatRunner(ConfigurationService configService)
 
                     foreach (var err in errors)
                         Console.Error.WriteLine($"[verbose] Tool call error ({err.ToolCall.Name}): {err.Error}");
+
+                    foreach (var call in pluginCalls)
+                        Console.Error.WriteLine($"[verbose] Plugin tool '{call.Name}'");
                 }
 
                 var executor = new CommandExecutor(commandTimeoutSeconds: AppDefaults.CommandTimeoutSeconds);
+
+                // Execute bash tool calls and build assistant + bash result messages.
                 await CliToolCallOrchestrator.ExecuteToolCallRoundAsync(
                     toolCalls,
                     commands,
@@ -120,6 +148,28 @@ public class CliChatRunner(ConfigurationService configService)
                     chatSession.Messages,
                     executor,
                     ct);
+
+                // Execute plugin tool calls and append their result messages.
+                foreach (var call in pluginCalls)
+                {
+                    var tool = _pluginTools[call.Name];
+                    var toolCall = new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson);
+                    string resultContent;
+                    try
+                    {
+                        var toolResult = await tool.ExecuteAsync(toolCall, ct);
+                        resultContent = toolResult.Content;
+                    }
+                    catch (Exception ex)
+                    {
+                        resultContent = $"Error: {ex.Message}";
+                    }
+
+                    chatSession.Messages.Add(ChatMessage.ToolResult(
+                        resultContent,
+                        toolCallId: call.Id,
+                        toolName: call.Name));
+                }
 
                 Console.WriteLine();
             },
@@ -139,5 +189,22 @@ public class CliChatRunner(ConfigurationService configService)
             Console.Error.WriteLine($"\n{response.Error}");
 
         return response.Response;
+    }
+
+    private static ProviderToolDefinition ToProviderDefinition(ToolDefinition definition)
+    {
+        var required = definition.Parameters
+            .Where(p => p.Required)
+            .Select(p => p.Name)
+            .ToArray();
+
+        var properties = definition.Parameters.ToDictionary(
+            p => p.Name,
+            p => (object)new { type = p.Type, description = p.Description });
+
+        return new ProviderToolDefinition(
+            Name: definition.Name,
+            Description: definition.Description,
+            Parameters: new { type = "object", properties, required });
     }
 }

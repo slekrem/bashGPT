@@ -3,8 +3,9 @@ using bashGPT.Core.Configuration;
 using bashGPT.Server;
 
 var configService = ServerApplication.CreateConfigurationService();
-var toolRegistry = ServerApplication.CreateToolRegistry();
-var serverHost = ServerApplication.CreateServerHost(configService, toolRegistry);
+var pluginResult = ServerApplication.LoadPlugins();
+var toolRegistry = ServerApplication.CreateToolRegistry(pluginResult.Tools);
+var serverHost = ServerApplication.CreateServerHost(configService, toolRegistry, pluginResult.Agents);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {

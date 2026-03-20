@@ -18,6 +18,9 @@ public static class AppBootstrap
     public static string GetDefaultConfigFilePath() =>
         Path.Combine(GetDefaultConfigDir(), "config.json");
 
+    public static string GetPluginsDir(string? configDir = null) =>
+        Path.Combine(configDir ?? GetDefaultConfigDir(), "plugins");
+
     public static string GetSessionsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "sessions");
 
