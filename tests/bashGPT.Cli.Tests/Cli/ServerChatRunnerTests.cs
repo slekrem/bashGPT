@@ -2,7 +2,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Server;
-using BashGPT.Tools.Execution;
+using BashGPT.Tools.Registration;
 
 namespace bashGPT.Cli.Tests;
 

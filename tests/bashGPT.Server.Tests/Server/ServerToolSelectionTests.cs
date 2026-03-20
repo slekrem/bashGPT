@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using bashGPT.Server;
-using BashGPT.Tools.Execution;
+using BashGPT.Tools.Registration;
 using BashGPT.Tools.Fetch;
 using BashGPT.Tools.Filesystem;
 using BashGPT.Tools.Shell;

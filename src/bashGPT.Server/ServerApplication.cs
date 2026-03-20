@@ -4,7 +4,7 @@ using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
 using BashGPT.Tools.Build;
-using BashGPT.Tools.Execution;
+using BashGPT.Tools.Registration;
 using BashGPT.Tools.Fetch;
 using BashGPT.Tools.Filesystem;
 using BashGPT.Tools.Git;

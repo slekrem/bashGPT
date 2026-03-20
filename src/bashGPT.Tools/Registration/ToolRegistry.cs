@@ -1,6 +1,6 @@
 using BashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Execution;
+namespace BashGPT.Tools.Registration;
 
 public sealed class ToolRegistry
 {
@@ -9,7 +9,9 @@ public sealed class ToolRegistry
     public ToolRegistry(IEnumerable<ITool>? tools = null)
     {
         _tools = new Dictionary<string, ITool>(StringComparer.Ordinal);
-        if (tools is null) return;
+        if (tools is null)
+            return;
+
         foreach (var tool in tools)
             Register(tool);
     }
@@ -19,9 +21,11 @@ public sealed class ToolRegistry
     public void Register(ITool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
+
         var name = tool.Definition.Name;
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Tool name must not be empty.", nameof(tool));
+
         if (!_tools.TryAdd(name, tool))
             throw new InvalidOperationException($"Tool '{name}' is already registered.");
     }

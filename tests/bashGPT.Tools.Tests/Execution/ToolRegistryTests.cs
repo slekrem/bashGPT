@@ -1,5 +1,5 @@
 using BashGPT.Tools.Builtins;
-using BashGPT.Tools.Execution;
+using BashGPT.Tools.Registration;
 
 namespace BashGPT.Tools.Tests.Execution;
 
