@@ -1,4 +1,4 @@
-namespace BashGPT.Agents;
+namespace bashGPT.Agents;
 
 /// <summary>
 /// In-memory registry of all registered chat agents.

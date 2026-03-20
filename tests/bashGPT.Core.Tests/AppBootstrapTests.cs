@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using bashGPT.Core;
 using bashGPT.Core.Storage;
 
-namespace BashGPT.Core.Tests;
+namespace bashGPT.Core.Tests;
 
 public class AppBootstrapTests
 {

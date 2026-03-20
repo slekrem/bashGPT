@@ -1,6 +1,6 @@
-using BashGPT.Agents;
+using bashGPT.Agents;
 
-namespace BashGPT.Agents.Tests;
+namespace bashGPT.Agents.Tests;
 
 file sealed class FakeAgent(string id, string name) : AgentBase
 {

@@ -1,6 +1,6 @@
 using bashGPT.Core.Models.Providers;
 
-namespace BashGPT.Core.Tests.Providers;
+namespace bashGPT.Core.Tests.Providers;
 
 public sealed class ToolCallArgumentsTests
 {

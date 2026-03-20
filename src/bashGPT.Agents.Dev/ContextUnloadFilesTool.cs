@@ -1,7 +1,7 @@
 using System.Text.Json;
 using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev;
 
 /// <summary>
 /// Built-in dev agent tool: removes file paths from the session-scoped context cache.

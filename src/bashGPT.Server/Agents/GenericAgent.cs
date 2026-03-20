@@ -1,4 +1,4 @@
-using BashGPT.Agents;
+using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 
 namespace bashGPT.Server.Agents;

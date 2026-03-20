@@ -2,7 +2,7 @@ using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 
-namespace BashGPT.Core.Tests.Chat;
+namespace bashGPT.Core.Tests.Chat;
 
 public sealed class ChatSessionStateTests
 {

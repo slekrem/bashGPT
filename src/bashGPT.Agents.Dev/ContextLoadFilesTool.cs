@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev;
 
 /// <summary>
 /// Built-in dev agent tool: loads file contents matching glob patterns into the context.

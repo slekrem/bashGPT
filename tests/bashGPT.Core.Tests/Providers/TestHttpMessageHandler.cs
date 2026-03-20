@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace BashGPT.Core.Tests.Providers;
+namespace bashGPT.Core.Tests.Providers;
 
 /// <summary>
 /// Returns the same response for every request.

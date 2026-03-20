@@ -1,8 +1,8 @@
-using BashGPT.Agents;
-using BashGPT.Agents.Dev;
-using BashGPT.Agents.Shell;
+using bashGPT.Agents;
+using bashGPT.Agents.Dev;
+using bashGPT.Agents.Shell;
 
-namespace BashGPT.Agents.Tests;
+namespace bashGPT.Agents.Tests;
 
 file sealed class CustomAgent : AgentBase
 {

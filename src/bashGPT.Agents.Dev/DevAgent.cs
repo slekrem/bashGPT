@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Text;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using BashGPT.Agents;
+using bashGPT.Agents;
 
-namespace BashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev;
 
 /// <summary>
 /// Specialized development agent with access to filesystem, git, build, and test tools.

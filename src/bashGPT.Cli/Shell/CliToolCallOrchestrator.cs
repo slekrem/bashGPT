@@ -1,5 +1,5 @@
 using bashGPT.Core.Models.Providers;
-using BashGPT.Shell;
+using bashGPT.Shell;
 
 namespace bashGPT.Cli.Shell;
 
