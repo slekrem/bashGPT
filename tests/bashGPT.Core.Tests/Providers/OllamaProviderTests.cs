@@ -9,7 +9,7 @@ namespace BashGPT.Core.Tests.Providers;
 
 public class OllamaProviderTests
 {
-    private static readonly ToolDefinition BashTool = new(
+    private static readonly ProviderToolDefinition BashTool = new(
         "bash",
         "Executes a shell command",
         new

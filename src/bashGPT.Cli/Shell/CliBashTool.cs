@@ -4,7 +4,7 @@ namespace bashGPT.Cli.Shell;
 
 internal static class CliBashTool
 {
-    public static readonly ToolDefinition Definition = new(
+    public static readonly ProviderToolDefinition Definition = new(
         Name: "bash",
         Description: "Executes a shell command",
         Parameters: new

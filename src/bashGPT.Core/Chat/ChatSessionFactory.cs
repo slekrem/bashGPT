@@ -7,7 +7,7 @@ public static class ChatSessionFactory
 {
     public static ChatSessionState Create(
         ILlmProvider provider,
-        IReadOnlyList<ToolDefinition> tools,
+        IReadOnlyList<ProviderToolDefinition> tools,
         IEnumerable<ChatMessage> history,
         string prompt,
         string? toolChoiceName = null,

@@ -12,14 +12,14 @@ internal static class ToolDefinitionMapper
     /// Resolves a list of tool names against the runtime registry and returns
     /// the provider-facing tool definitions.
     /// </summary>
-    public static IReadOnlyList<ToolDefinition> ResolveDefinitions(
+    public static IReadOnlyList<ProviderToolDefinition> ResolveDefinitions(
         IEnumerable<string>? toolNames,
         ToolRegistry? registry)
     {
         if (toolNames is null || registry is null)
             return [];
 
-        var result = new List<ToolDefinition>();
+        var result = new List<ProviderToolDefinition>();
         foreach (var name in toolNames)
         {
             if (registry.TryGet(name, out var tool) && tool is not null)
@@ -31,7 +31,7 @@ internal static class ToolDefinitionMapper
 
     // Tool contracts stay in bashGPT.Tools. The provider-facing schema belongs
     // to the server/provider boundary, so the conversion lives here.
-    private static ToolDefinition ToProviderDefinition(bashGPT.Tools.Abstractions.ToolDefinition definition)
+    private static ProviderToolDefinition ToProviderDefinition(bashGPT.Tools.Abstractions.ToolDefinition definition)
     {
         var required = definition.Parameters
             .Where(parameter => parameter.Required)
@@ -53,7 +53,7 @@ internal static class ToolDefinitionMapper
                     description = parameter.Description
                 });
 
-        return new ToolDefinition(
+        return new ProviderToolDefinition(
             Name: definition.Name,
             Description: definition.Description,
             Parameters: new { type = "object", properties, required });

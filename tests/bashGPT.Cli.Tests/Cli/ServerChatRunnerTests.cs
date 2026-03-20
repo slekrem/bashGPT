@@ -178,7 +178,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Hallo",
             History: [],
@@ -206,7 +206,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use the tool",
             History: [],
@@ -234,7 +234,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use a tool",
             History: [],
@@ -267,7 +267,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry();
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("unbekannt", "Unknown", new { }) };
+        var tools = new[] { new ProviderToolDefinition("unbekannt", "Unknown", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use an unknown tool",
             History: [],
@@ -297,7 +297,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Loop",
             History: [],
@@ -322,7 +322,7 @@ public sealed class ServerChatRunnerTests
 
         var sut = new ServerChatRunner(new ConfigurationService(), provider);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Hallo",
             History: [],
@@ -349,7 +349,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use tool",
             History: [],

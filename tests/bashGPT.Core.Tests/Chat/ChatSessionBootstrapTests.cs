@@ -27,7 +27,7 @@ public sealed class ChatSessionBootstrapTests
             var result = await ChatSessionBootstrap.CreateAsync(
                 configService,
                 modelOverride: null,
-                tools: [new ToolDefinition("bash", "Shell", new { })],
+                tools: [new ProviderToolDefinition("bash", "Shell", new { })],
                 history: [],
                 prompt: "Hello",
                 toolChoiceFactory: config => config.DefaultForceTools ? "bash" : null);

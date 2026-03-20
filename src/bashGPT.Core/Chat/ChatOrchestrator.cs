@@ -20,7 +20,7 @@ public static class ChatOrchestrator
     public static async Task<(LlmChatResponse Response, string? Error)> ChatOnceAsync(
         ILlmProvider provider,
         List<ChatMessage> messages,
-        IReadOnlyList<ToolDefinition> tools,
+        IReadOnlyList<ProviderToolDefinition> tools,
         string? toolChoiceName,
         CancellationToken ct,
         Action<string>? onToken = null,

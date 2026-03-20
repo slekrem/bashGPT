@@ -5,7 +5,7 @@ namespace bashGPT.Core.Chat;
 
 public sealed class ChatSessionState(
     ILlmProvider provider,
-    IReadOnlyList<ToolDefinition> tools,
+    IReadOnlyList<ProviderToolDefinition> tools,
     string? toolChoiceName = null,
     Func<IReadOnlyList<string>>? systemPrompt = null,
     AgentLlmConfig? llmConfig = null,
@@ -15,7 +15,7 @@ public sealed class ChatSessionState(
 {
     public ILlmProvider Provider { get; } = provider;
     public List<ChatMessage> Messages { get; } = [];
-    public IReadOnlyList<ToolDefinition> Tools { get; } = tools;
+    public IReadOnlyList<ProviderToolDefinition> Tools { get; } = tools;
     public string? ToolChoiceName { get; } = toolChoiceName;
     public List<LlmExchangeRecord> LlmExchanges { get; } = [];
     public LlmChatResponse? LastResponse { get; private set; }

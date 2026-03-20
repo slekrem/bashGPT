@@ -87,7 +87,7 @@ internal static class OllamaRequestMapper
         return message;
     }
 
-    private static OpenAiCompatibleTool MapTool(ToolDefinition tool) =>
+    private static OpenAiCompatibleTool MapTool(ProviderToolDefinition tool) =>
         new()
         {
             Type = "function",
