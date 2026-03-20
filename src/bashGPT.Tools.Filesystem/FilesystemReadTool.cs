@@ -1,7 +1,7 @@
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Filesystem;
+namespace bashGPT.Tools.Filesystem;
 
 public sealed class FilesystemReadTool : ITool
 {

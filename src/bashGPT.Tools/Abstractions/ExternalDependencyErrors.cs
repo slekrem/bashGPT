@@ -1,7 +1,10 @@
 using System.ComponentModel;
 
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
+/// <summary>
+/// Describes a missing external executable required by a tool.
+/// </summary>
 public sealed class MissingExecutableException : Exception
 {
     public MissingExecutableException(string executable, string nextStep, Exception innerException)
@@ -21,6 +24,9 @@ public sealed class MissingExecutableException : Exception
 
 public static class ExternalDependencyErrors
 {
+    /// <summary>
+    /// Converts common process-launch failures into a stable missing-dependency exception.
+    /// </summary>
     public static MissingExecutableException? TryCreateMissingExecutableException(
         string executable,
         string nextStep,

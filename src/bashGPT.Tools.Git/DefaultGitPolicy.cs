@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Git;
+namespace bashGPT.Tools.Git;
 
 /// <summary>
 /// Read-only by default. Write-ops (add, commit, checkout) are blocked.

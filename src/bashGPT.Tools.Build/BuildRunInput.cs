@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Build;
+namespace bashGPT.Tools.Build;
 
 public sealed record BuildRunInput(
     string Runner,

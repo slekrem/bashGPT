@@ -2,7 +2,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Server;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Cli.Tests;
 
@@ -178,7 +178,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Hallo",
             History: [],
@@ -206,7 +206,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use the tool",
             History: [],
@@ -234,7 +234,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use a tool",
             History: [],
@@ -267,7 +267,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry();
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("unbekannt", "Unknown", new { }) };
+        var tools = new[] { new ProviderToolDefinition("unbekannt", "Unknown", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use an unknown tool",
             History: [],
@@ -297,7 +297,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Loop",
             History: [],
@@ -322,7 +322,7 @@ public sealed class ServerChatRunnerTests
 
         var sut = new ServerChatRunner(new ConfigurationService(), provider);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Hallo",
             History: [],
@@ -349,7 +349,7 @@ public sealed class ServerChatRunnerTests
         var registry = new ToolRegistry([fakeTool]);
         var sut = new ServerChatRunner(new ConfigurationService(), provider, registry);
 
-        var tools = new[] { new ToolDefinition("my_tool", "A tool", new { }) };
+        var tools = new[] { new ProviderToolDefinition("my_tool", "A tool", new { }) };
         var opts = new ServerChatOptions(
             Prompt: "Use tool",
             History: [],
@@ -385,29 +385,29 @@ public sealed class ServerChatRunnerTests
     }
 }
 
-internal sealed class FakeTool : BashGPT.Tools.Abstractions.ITool
+internal sealed class FakeTool : bashGPT.Tools.Abstractions.ITool
 {
     private readonly string _returnValue;
     private readonly Exception? _throwException;
 
     public int CallCount { get; private set; }
 
-    public BashGPT.Tools.Abstractions.ToolDefinition Definition { get; }
+    public bashGPT.Tools.Abstractions.ToolDefinition Definition { get; }
 
     public FakeTool(string name, string returnValue = "Tool result", Exception? throwException = null)
     {
         _returnValue = returnValue;
         _throwException = throwException;
-        Definition = new BashGPT.Tools.Abstractions.ToolDefinition(name, "Fake tool for tests", []);
+        Definition = new bashGPT.Tools.Abstractions.ToolDefinition(name, "Fake tool for tests", []);
     }
 
-    public Task<BashGPT.Tools.Abstractions.ToolResult> ExecuteAsync(
-        BashGPT.Tools.Abstractions.ToolCall call, CancellationToken ct)
+    public Task<bashGPT.Tools.Abstractions.ToolResult> ExecuteAsync(
+        bashGPT.Tools.Abstractions.ToolCall call, CancellationToken ct)
     {
         CallCount++;
         if (_throwException is not null)
             throw _throwException;
 
-        return Task.FromResult(new BashGPT.Tools.Abstractions.ToolResult(true, _returnValue));
+        return Task.FromResult(new bashGPT.Tools.Abstractions.ToolResult(true, _returnValue));
     }
 }

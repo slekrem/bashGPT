@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Filesystem;
+namespace bashGPT.Tools.Filesystem;
 
 public sealed class FilesystemSearchTool : ITool
 {

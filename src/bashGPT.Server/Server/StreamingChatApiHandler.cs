@@ -6,7 +6,7 @@ using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Shell;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
@@ -65,7 +65,7 @@ internal sealed class StreamingChatApiHandler(
                 ? effectiveToolNames
                 : toolSelectionPolicy.FilterRequestedToolNames(effectiveToolNames);
 
-            var resolvedTools = ToolHelper.Resolve(selectableToolNames, toolRegistry);
+            var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry);
 
             var now = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];

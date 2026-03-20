@@ -1,7 +1,7 @@
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 using BashGPT.Shell;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 

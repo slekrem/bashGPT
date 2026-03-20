@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Git;
+namespace bashGPT.Tools.Git;
 
 /// <summary>
 /// Allows all read and write operations. Use only when explicitly configured.

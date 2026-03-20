@@ -10,7 +10,7 @@ public static class ChatSessionBootstrap
     public static async Task<ChatSessionBootstrapResult> CreateAsync(
         ConfigurationService configService,
         string? modelOverride,
-        IReadOnlyList<ToolDefinition> tools,
+        IReadOnlyList<ProviderToolDefinition> tools,
         IEnumerable<ChatMessage> history,
         string prompt,
         Func<AppConfig, string?>? toolChoiceFactory = null,

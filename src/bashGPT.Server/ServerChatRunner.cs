@@ -4,7 +4,7 @@ using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
 using BashGPT.Shell;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 

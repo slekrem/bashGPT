@@ -1,5 +1,6 @@
 using bashGPT.Server;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Abstractions;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server.Tests;
 
@@ -14,6 +15,25 @@ public sealed class ServerApplicationTests
         Assert.True(registry.TryGet("shell_exec", out _));
         Assert.True(registry.TryGet("fetch", out _));
         Assert.True(registry.TryGet("filesystem_read", out _));
+    }
+
+    [Fact]
+    public void CreateDefaultTools_ReturnsExpectedBuiltInTools()
+    {
+        var tools = ServerApplication.CreateDefaultTools();
+
+        Assert.Contains(tools, tool => tool.Definition.Name == "shell_exec");
+        Assert.Contains(tools, tool => tool.Definition.Name == "fetch");
+        Assert.Contains(tools, tool => tool.Definition.Name == "filesystem_read");
+    }
+
+    [Fact]
+    public void CreateToolRegistry_WithAdditionalTools_RegistersCustomTools()
+    {
+        var registry = ServerApplication.CreateToolRegistry([new FakeTool("custom_tool")]);
+
+        Assert.True(registry.TryGet("custom_tool", out var tool));
+        Assert.NotNull(tool);
     }
 
     [Fact]
@@ -37,5 +57,13 @@ public sealed class ServerApplicationTests
 
         Assert.NotNull(host);
         Assert.IsType<ServerHost>(host);
+    }
+
+    private sealed class FakeTool(string name) : ITool
+    {
+        public ToolDefinition Definition { get; } = new(name, "Fake custom tool", []);
+
+        public Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct) =>
+            Task.FromResult(new ToolResult(true, "ok"));
     }
 }

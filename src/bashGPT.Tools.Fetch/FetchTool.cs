@@ -4,9 +4,9 @@ using System.Text;
 using System.Text.Json;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Fetch;
+namespace bashGPT.Tools.Fetch;
 
 public sealed class FetchTool : ITool
 {

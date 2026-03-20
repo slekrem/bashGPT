@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Git;
+namespace bashGPT.Tools.Git;
 
 internal static class GitRunner
 {

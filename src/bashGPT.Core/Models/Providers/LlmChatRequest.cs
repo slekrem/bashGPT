@@ -2,7 +2,7 @@ namespace bashGPT.Core.Models.Providers;
 
 public record LlmChatRequest(
     IReadOnlyList<ChatMessage> Messages,
-    IReadOnlyList<ToolDefinition>? Tools = null,
+    IReadOnlyList<ProviderToolDefinition>? Tools = null,
     string? ToolChoiceName = null,
     bool? ParallelToolCalls = null,
     bool Stream = true,

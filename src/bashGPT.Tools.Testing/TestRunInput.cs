@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Testing;
+namespace bashGPT.Tools.Testing;
 
 public sealed record TestRunInput(
     string Runner,

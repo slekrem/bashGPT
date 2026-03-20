@@ -1,7 +1,7 @@
-using BashGPT.Tools.Builtins;
-using BashGPT.Tools.Execution;
+using bashGPT.Tools.Builtins;
+using bashGPT.Tools.Registration;
 
-namespace BashGPT.Tools.Tests.Execution;
+namespace bashGPT.Tools.Tests.Execution;
 
 public sealed class ToolRegistryTests
 {

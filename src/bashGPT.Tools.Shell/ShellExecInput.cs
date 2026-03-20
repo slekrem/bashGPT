@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell;
 
 public sealed record ShellExecInput(
     string Command,
