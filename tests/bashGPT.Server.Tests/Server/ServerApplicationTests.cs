@@ -1,5 +1,5 @@
 using bashGPT.Server;
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server.Tests;
 

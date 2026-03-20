@@ -3,13 +3,13 @@ using bashGPT.Core.Configuration;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Agents.Shell;
-using BashGPT.Tools.Build;
-using BashGPT.Tools.Registration;
-using BashGPT.Tools.Fetch;
-using BashGPT.Tools.Filesystem;
-using BashGPT.Tools.Git;
-using BashGPT.Tools.Shell;
-using BashGPT.Tools.Testing;
+using bashGPT.Tools.Build;
+using bashGPT.Tools.Registration;
+using bashGPT.Tools.Fetch;
+using bashGPT.Tools.Filesystem;
+using bashGPT.Tools.Git;
+using bashGPT.Tools.Shell;
+using bashGPT.Tools.Testing;
 
 namespace bashGPT.Server;
 

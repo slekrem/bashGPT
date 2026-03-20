@@ -3,10 +3,10 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using bashGPT.Server;
-using BashGPT.Tools.Registration;
-using BashGPT.Tools.Fetch;
-using BashGPT.Tools.Filesystem;
-using BashGPT.Tools.Shell;
+using bashGPT.Tools.Registration;
+using bashGPT.Tools.Fetch;
+using bashGPT.Tools.Filesystem;
+using bashGPT.Tools.Shell;
 
 namespace bashGPT.Server.Tests;
 

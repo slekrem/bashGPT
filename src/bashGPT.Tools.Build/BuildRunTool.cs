@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Build;
+namespace bashGPT.Tools.Build;
 
 public sealed class BuildRunTool : ITool
 {

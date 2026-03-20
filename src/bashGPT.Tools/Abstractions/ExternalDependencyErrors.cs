@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
 /// <summary>
 /// Describes a missing external executable required by a tool.

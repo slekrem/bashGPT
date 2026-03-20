@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using BashGPT.Shell;
 
-namespace BashGPT.Tools.Shell.Tests;
+namespace bashGPT.Tools.Shell.Tests;
 
 public class CommandExecutorTests
 {

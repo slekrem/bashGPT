@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell;
 
 public sealed class ShellExecTool : ITool
 {

@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
-using BashGPT.Tools.Fetch;
+using bashGPT.Tools.Abstractions;
+using bashGPT.Tools.Fetch;
 
 namespace bashGPT.Tools.Fetch.Tests;
 

@@ -56,7 +56,7 @@ public interface ITool
 Create a class library that references `bashGPT.Tools`, then implement `ITool`.
 
 ```csharp
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
 namespace MyCompany.BashGptTools;
 
@@ -84,7 +84,7 @@ public sealed class HelloTool : ITool
 Register your tool in a `ToolRegistry` and provide that registry to the server runtime.
 
 ```csharp
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Registration;
 
 var toolRegistry = new ToolRegistry([
     new HelloTool(),

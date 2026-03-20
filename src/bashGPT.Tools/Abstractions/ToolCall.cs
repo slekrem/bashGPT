@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
 /// <summary>
 /// Represents a concrete runtime invocation of a tool.

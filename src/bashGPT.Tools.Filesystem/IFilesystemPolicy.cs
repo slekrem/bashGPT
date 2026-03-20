@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Filesystem;
+namespace bashGPT.Tools.Filesystem;
 
 public interface IFilesystemPolicy
 {

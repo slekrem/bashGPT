@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Testing;
+namespace bashGPT.Tools.Testing;
 
 /// <summary>
 /// Fallback parser for runners without structured output support (e.g. npm, pytest).

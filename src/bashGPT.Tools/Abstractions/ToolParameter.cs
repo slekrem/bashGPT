@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
 /// <summary>
 /// Describes a single tool parameter that is exposed to the model.

@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell;
 
 public interface IShellExecPolicy
 {

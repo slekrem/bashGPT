@@ -1,6 +1,6 @@
 using bashGPT.Core.Models.Providers;
 using BashGPT.Shell;
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
@@ -73,7 +73,7 @@ internal static class ServerToolCallOrchestrator
             try
             {
                 var result = await tool.ExecuteAsync(
-                    new BashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", sessionPath), ct);
+                    new bashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", sessionPath), ct);
 
                 return (
                     result.Content,

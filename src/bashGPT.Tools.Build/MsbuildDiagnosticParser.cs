@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace BashGPT.Tools.Build;
+namespace bashGPT.Tools.Build;
 
 /// <summary>
 /// Parses MSBuild diagnostic lines from `dotnet build` output.

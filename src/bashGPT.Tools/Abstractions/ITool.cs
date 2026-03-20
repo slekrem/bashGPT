@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
 /// <summary>
 /// Defines a runtime tool that can be exposed to an LLM through the server.

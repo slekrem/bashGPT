@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace BashGPT.Tools.Testing;
+namespace bashGPT.Tools.Testing;
 
 /// <summary>
 /// Parses output from `dotnet test` (TRX/console logger).

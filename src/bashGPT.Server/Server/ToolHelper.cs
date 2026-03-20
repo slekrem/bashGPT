@@ -1,5 +1,5 @@
 using bashGPT.Core.Models.Providers;
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
@@ -30,7 +30,7 @@ internal static class ToolHelper
 
     // Tool contracts stay in bashGPT.Tools. The provider-facing definition is built here
     // because the LLM schema shape belongs to the server/provider boundary, not to the tool SDK.
-    private static ToolDefinition ToLlmDefinition(BashGPT.Tools.Abstractions.ToolDefinition def)
+    private static ToolDefinition ToLlmDefinition(bashGPT.Tools.Abstractions.ToolDefinition def)
     {
         var required = def.Parameters
             .Where(p => p.Required)

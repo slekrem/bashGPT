@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Filesystem;
+namespace bashGPT.Tools.Filesystem;
 
 /// <summary>
 /// Erlaubt Read/Write nur innerhalb konfigurierter Root-Verzeichnisse.

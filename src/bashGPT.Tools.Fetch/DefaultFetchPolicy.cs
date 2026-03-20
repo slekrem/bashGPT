@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Fetch;
+namespace bashGPT.Tools.Fetch;
 
 public sealed class DefaultFetchPolicy : IFetchPolicy
 {

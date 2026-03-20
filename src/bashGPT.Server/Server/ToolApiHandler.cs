@@ -1,6 +1,6 @@
 using System.Net;
-using BashGPT.Tools.Abstractions;
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Abstractions;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 

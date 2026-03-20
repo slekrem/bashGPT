@@ -8,7 +8,7 @@ using bashGPT.Core.Storage;
 using BashGPT.Agents;
 using BashGPT.Agents.Dev;
 using BashGPT.Shell;
-using BashGPT.Tools.Registration;
+using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 

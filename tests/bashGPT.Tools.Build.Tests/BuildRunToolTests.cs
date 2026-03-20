@@ -1,6 +1,6 @@
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
-using BashGPT.Tools.Build;
+using bashGPT.Tools.Abstractions;
+using bashGPT.Tools.Build;
 
 namespace bashGPT.Tools.Build.Tests;
 

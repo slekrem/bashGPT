@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
 namespace BashGPT.Agents.Dev;
 

@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Abstractions;
+namespace bashGPT.Tools.Abstractions;
 
 /// <summary>
 /// Represents the output of a tool execution.

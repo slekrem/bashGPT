@@ -1,4 +1,4 @@
-namespace BashGPT.Tools.Git;
+namespace bashGPT.Tools.Git;
 
 public interface IGitPolicy
 {

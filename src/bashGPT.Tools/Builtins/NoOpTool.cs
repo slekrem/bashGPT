@@ -1,6 +1,6 @@
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Builtins;
+namespace bashGPT.Tools.Builtins;
 
 public sealed class NoOpTool : ITool
 {

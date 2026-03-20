@@ -1,6 +1,6 @@
-using BashGPT.Tools.Abstractions;
+using bashGPT.Tools.Abstractions;
 
-namespace BashGPT.Tools.Registration;
+namespace bashGPT.Tools.Registration;
 
 /// <summary>
 /// Stores the set of runtime tools that are available to the server.
