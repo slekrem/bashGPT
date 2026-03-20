@@ -10,6 +10,7 @@ using bashGPT.Tools.Filesystem;
 using bashGPT.Tools.Git;
 using bashGPT.Tools.Shell;
 using bashGPT.Tools.Testing;
+using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Server;
 
@@ -17,8 +18,8 @@ internal static class ServerApplication
 {
     public static ConfigurationService CreateConfigurationService() => new();
 
-    public static ToolRegistry CreateToolRegistry() =>
-        new([
+    public static IReadOnlyList<ITool> CreateDefaultTools() =>
+    [
             new ShellExecTool(),
             new FetchTool(),
             new FilesystemReadTool(),
@@ -36,7 +37,20 @@ internal static class ServerApplication
             new ContextLoadFilesTool(),
             new ContextUnloadFilesTool(),
             new ContextClearFilesTool(),
-        ]);
+    ];
+
+    public static ToolRegistry CreateToolRegistry(IEnumerable<ITool>? additionalTools = null)
+    {
+        var registry = new ToolRegistry(CreateDefaultTools());
+
+        if (additionalTools is null)
+            return registry;
+
+        foreach (var tool in additionalTools)
+            registry.Register(tool);
+
+        return registry;
+    }
 
     public static AgentRegistry CreateAgentRegistry() =>
         new([new GenericAgent(), new DevAgent(), new ShellAgent()]);
