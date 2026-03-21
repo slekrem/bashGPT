@@ -29,7 +29,7 @@ Additional local dependencies depending on usage:
 - `pytest` only if you want to use the `pytest` runner in `test_run` (`pytest --version`)
 
 Check versions:
-- CLI: `dotnet run --project src/bashGPT.Cli -- --version`
+- CLI: `dotnet run --project src/06_app/bashGPT.Cli -- --version`
 - Server: `GET /api/version`
 
 ```bash
@@ -40,16 +40,16 @@ dotnet build
 ## Quick Start
 ```bash
 # Simple request
-dotnet run --project src/bashGPT.Cli -- "show all .cs files"
+dotnet run --project src/06_app/bashGPT.Cli -- "show all .cs files"
 
 # Choose provider
-dotnet run --project src/bashGPT.Cli -- --provider ollama "list all tests"
+dotnet run --project src/06_app/bashGPT.Cli -- --provider ollama "list all tests"
 
 # Override model
-dotnet run --project src/bashGPT.Cli -- --model llama3.2 "show changed files"
+dotnet run --project src/06_app/bashGPT.Cli -- --model llama3.2 "show changed files"
 
 # Explicitly enforce tool calls (optional)
-dotnet run --project src/bashGPT.Cli -- --force-tools "analyze this directory"
+dotnet run --project src/06_app/bashGPT.Cli -- --force-tools "analyze this directory"
 ```
 
 ## Configuration
@@ -57,14 +57,14 @@ By default, the config file is stored at `~/.config/bashgpt/config.json`.
 
 ```bash
 # Show configuration
-dotnet run --project src/bashGPT.Cli -- config list
+dotnet run --project src/06_app/bashGPT.Cli -- config list
 
 # Set provider
-dotnet run --project src/bashGPT.Cli -- config set defaultProvider ollama
+dotnet run --project src/06_app/bashGPT.Cli -- config set defaultProvider ollama
 
 # Set Ollama URL and model
-dotnet run --project src/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
-dotnet run --project src/bashGPT.Cli -- config set ollama.model llama3.2
+dotnet run --project src/06_app/bashGPT.Cli -- config set ollama.baseUrl http://localhost:11434
+dotnet run --project src/06_app/bashGPT.Cli -- config set ollama.model llama3.2
 ```
 
 Environment variable overrides:
@@ -75,34 +75,34 @@ Environment variable overrides:
 ## Execution Modes
 ```bash
 # Show commands without executing them
-dotnet run --project src/bashGPT.Cli -- --dry-run "delete all tmp files"
+dotnet run --project src/06_app/bashGPT.Cli -- --dry-run "delete all tmp files"
 
 # Pure chat, do not execute commands
-dotnet run --project src/bashGPT.Cli -- --no-exec "how do I find large files?"
+dotnet run --project src/06_app/bashGPT.Cli -- --no-exec "how do I find large files?"
 
 # Execute without confirmation
-dotnet run --project src/bashGPT.Cli -- --auto-exec "git status"
+dotnet run --project src/06_app/bashGPT.Cli -- --auto-exec "git status"
 ```
 
 ## Context Controls
 ```bash
 # Do not send shell context
-dotnet run --project src/bashGPT.Cli -- --no-context "how do I create a new branch?"
+dotnet run --project src/06_app/bashGPT.Cli -- --no-context "how do I create a new branch?"
 
 # Include directory contents
-dotnet run --project src/bashGPT.Cli -- --include-dir "show important files"
+dotnet run --project src/06_app/bashGPT.Cli -- --include-dir "show important files"
 ```
 
 ## Server Mode
 ```bash
 # Start the local server on http://127.0.0.1:5050 and open the browser
-dotnet run --project src/bashGPT.Server
+dotnet run --project src/06_app/bashGPT.Server
 
 # Use a custom port without automatically opening the browser
-dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
+dotnet run --project src/06_app/bashGPT.Server -- --port 6060 --no-browser
 
 # Start the server with explicit model selection
-dotnet run --project src/bashGPT.Server -- --provider ollama --model llama3.2 --verbose
+dotnet run --project src/06_app/bashGPT.Server -- --provider ollama --model llama3.2 --verbose
 ```
 
 Available server flags: `--provider`, `--model`, `--port`, `--no-browser`, `--verbose`.
@@ -139,7 +139,7 @@ dotnet test --collect:"XPlat Code Coverage"
 For a reproducible launch check on a clean checkout:
 - `dotnet build -m:1 /nodeReuse:false`
 - `dotnet test -m:1 /nodeReuse:false`
-- optionally, in `src/bashGPT.Web`: `npm test`
+- optionally, in `src/06_app/bashGPT.Web`: `npm test`
 
 ## Open-Source Launch Checklist
 Ready for a public release when:

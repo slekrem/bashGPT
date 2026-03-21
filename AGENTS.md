@@ -2,28 +2,31 @@
 
 ## Project Structure & Module Organization
 
-- `src/bashGPT.Core/` contains shared domain logic (configuration, providers, shell, CLI runners, session storage).
-- `src/bashGPT.Cli/` contains the CLI executable and command-line parsing.
-- `src/bashGPT.Server/` contains the server executable and HTTP/UI host.
-- `src/bashGPT.Agents/` contains the `AgentBase` abstraction and `AgentRegistry` — the public SDK surface for custom agents.
-- `src/bashGPT.Agents.Shell/` contains the Shell agent (`shell`).
-- `src/bashGPT.Agents.Dev/` contains the Dev agent (`dev`) with filesystem, git, build, and test tools.
-- `src/bashGPT.Tools/` contains the tool abstraction (`ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`).
-- `src/bashGPT.Tools.Shell/` contains the `shell_exec` tool.
-- `src/bashGPT.Tools.Filesystem/` contains `filesystem_read`, `filesystem_write`, `filesystem_search`.
-- `src/bashGPT.Tools.Git/` contains `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout`.
-- `src/bashGPT.Tools.Build/` contains the `build_run` tool.
-- `src/bashGPT.Tools.Testing/` contains the `test_run` tool.
-- `src/bashGPT.Tools.Fetch/` contains the `fetch` tool (HTTP GET with HTML extraction).
-- `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/` — core project tests
-- `tests/bashGPT.Agents.Tests/` — agent tests
-- `tests/bashGPT.Tools.Tests/`, `tests/bashGPT.Tools.Shell.Tests/`, `tests/bashGPT.Tools.Filesystem.Tests/`, `tests/bashGPT.Tools.Git.Tests/`, `tests/bashGPT.Tools.Build.Tests/`, `tests/bashGPT.Tools.Testing.Tests/`, `tests/bashGPT.Tools.Fetch.Tests/` — tool tests
+- `src/01_core/bashGPT.Core/` contains shared domain logic (configuration, providers, shell, CLI runners, session storage).
+- `src/02_abstractions/bashGPT.Agents/` contains the `AgentBase` abstraction and `AgentRegistry` — the public SDK surface for custom agents.
+- `src/02_abstractions/bashGPT.Tools/` contains the tool abstraction (`ITool`, `ToolRegistry`, `ToolDefinition`, `ToolCall`, `ToolResult`).
+- `src/03_tools/bashGPT.Tools.Shell/` contains the `shell_exec` tool.
+- `src/03_tools/bashGPT.Tools.Filesystem/` contains `filesystem_read`, `filesystem_write`, `filesystem_search`.
+- `src/03_tools/bashGPT.Tools.Git/` contains `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout`.
+- `src/03_tools/bashGPT.Tools.Build/` contains the `build_run` tool.
+- `src/03_tools/bashGPT.Tools.Testing/` contains the `test_run` tool.
+- `src/03_tools/bashGPT.Tools.Fetch/` contains the `fetch` tool (HTTP GET with HTML extraction).
+- `src/04_agents/bashGPT.Agents.Shell/` contains the Shell agent (`shell`).
+- `src/04_agents/bashGPT.Agents.Dev/` contains the Dev agent (`dev`) with filesystem, git, build, and test tools.
+- `src/05_plugins/bashGPT.Plugins/` contains the plugin loader for external tools and agents.
+- `src/06_app/bashGPT.Cli/` contains the CLI executable and command-line parsing.
+- `src/06_app/bashGPT.Server/` contains the server executable and HTTP/UI host.
+- `tests/01_core/bashGPT.Core.Tests/` — core tests
+- `tests/02_abstractions/bashGPT.Agents.Tests/`, `tests/02_abstractions/bashGPT.Tools.Tests/` — abstraction tests
+- `tests/03_tools/bashGPT.Tools.*.Tests/` — tool tests
+- `tests/05_plugins/bashGPT.Plugins.Tests/` — plugin tests
+- `tests/06_app/bashGPT.Cli.Tests/`, `tests/06_app/bashGPT.Server.Tests/` — app tests
 
 ## Build, Test, and Development Commands
 
 - `dotnet build` builds the solution (also builds the frontend bundle).
-- `dotnet run --project src/bashGPT.Cli -- "<prompt>"` runs the CLI with a prompt.
-- `dotnet run --project src/bashGPT.Server` starts the local server UI.
+- `dotnet run --project src/06_app/bashGPT.Cli -- "<prompt>"` runs the CLI with a prompt.
+- `dotnet run --project src/06_app/bashGPT.Server` starts the local server UI.
 - `dotnet test` runs all tests.
 - `dotnet test --collect:"XPlat Code Coverage"` generates coverage via coverlet.
 - `./scripts/coverage-report.sh` regenerates coverage from scratch and creates an HTML report.
@@ -58,7 +61,7 @@
 - Default config is stored at `~/.config/bashgpt/config.json`.
 - Sessions are stored under `~/.config/bashgpt/sessions/` (max. 20 sessions, two-layer layout: `index.json` + per-session `<id>/content.json`).
 - Environment overrides include `BASHGPT_PROVIDER`, `BASHGPT_OLLAMA_URL`, and `BASHGPT_OLLAMA_MODEL`.
-- Prefer updating config via the CLI: `dotnet run --project src/bashGPT.Cli -- config set <key> <value>`.
+- Prefer updating config via the CLI: `dotnet run --project src/06_app/bashGPT.Cli -- config set <key> <value>`.
 - A legacy `~/.config/bashgpt/agents.json` file may exist from older versions — it is no longer read or written by the current code-first agent system and can be safely ignored or deleted.
 - **Tool resolution priority** when a chat request arrives: `agent.EnabledTools` → `session.EnabledTools` → `body.enabledTools` (first non-empty list wins). Resolved via `ToolHelper.Resolve()`.
 - The server backend does **not** evaluate `execMode` from chat requests — tool behaviour is fixed per tool implementation (no interactive terminal in browser context).
@@ -66,7 +69,7 @@
 
 ## Implementing a New Agent
 
-Agents are defined in code by subclassing `AgentBase` (in `src/bashGPT.Agents/`). No JSON configuration is needed — the class definition drives both the LLM system prompt and the Web UI info panel.
+Agents are defined in code by subclassing `AgentBase` (in `src/02_abstractions/bashGPT.Agents/`). No JSON configuration is needed — the class definition drives both the LLM system prompt and the Web UI info panel.
 
 ```csharp
 public sealed class MyAgent : AgentBase
@@ -107,7 +110,7 @@ public sealed class MyAgent : AgentBase
 }
 ```
 
-Register the agent in the server startup (e.g., `src/bashGPT.Server/Program.cs`) by adding it to the `AgentRegistry`:
+Register the agent in the server startup (e.g., `src/06_app/bashGPT.Server/Program.cs`) by adding it to the `AgentRegistry`:
 
 ```csharp
 var agentRegistry = new AgentRegistry([new ShellAgent(), new DevAgent(), new MyAgent()]);
@@ -115,7 +118,7 @@ var agentRegistry = new AgentRegistry([new ShellAgent(), new DevAgent(), new MyA
 
 ## Implementing a New Tool
 
-Tools implement `ITool` (in `src/bashGPT.Tools/Abstractions/ITool.cs`):
+Tools implement `ITool` (in `src/02_abstractions/bashGPT.Tools/Abstractions/ITool.cs`):
 
 ```csharp
 public interface ITool
@@ -130,5 +133,5 @@ public interface ITool
 - `ToolCall.SessionPath` is the path to the current session directory (set automatically by the server); tools that need session-scoped persistence (like context_* tools) use it.
 - Valid `ToolParameter.Type` values: `"string"`, `"integer"`, `"object"`, `"array"` — passed directly to the LLM as JSON Schema.
 - Note: `ToolCall` in `bashGPT.Tools.Abstractions` (`Name`, `ArgumentsJson`, `SessionPath`) differs from `bashGPT.Providers.ToolCall` (`Id`, `Name`, `ArgumentsJson`, `Index`) — the server converts between them.
-- Register the tool in the `ToolRegistry` during server startup (`src/bashGPT.Server/Program.cs`).
+- Register the tool in the `ToolRegistry` during server startup (`src/06_app/bashGPT.Server/Program.cs`).
 - Add the tool's name to `EnabledTools` in any agent that should be able to use it.

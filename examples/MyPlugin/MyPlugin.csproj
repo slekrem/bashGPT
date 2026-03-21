@@ -17,8 +17,8 @@
       Only reference the public SDK packages.
       Do NOT reference bashGPT.Server, bashGPT.Cli, or any built-in agent/tool packages.
     -->
-    <ProjectReference Include="..\..\src\bashGPT.Tools\bashGPT.Tools.csproj" />
-    <ProjectReference Include="..\..\src\bashGPT.Agents\bashGPT.Agents.csproj" />
+    <ProjectReference Include="..\..\src\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj" />
+    <ProjectReference Include="..\..\src\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
   </ItemGroup>
 
 </Project>
