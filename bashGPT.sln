@@ -5,61 +5,61 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Core", "src\bashGPT.Core\bashGPT.Core.csproj", "{B3EF65AD-2707-41F3-964B-8A24F8B95F90}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Core", "src\01_core\bashGPT.Core\bashGPT.Core.csproj", "{B3EF65AD-2707-41F3-964B-8A24F8B95F90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents", "src\bashGPT.Agents\bashGPT.Agents.csproj", "{A5D1C9F2-8D3E-4A6B-9C1F-7E8F4B2A3D5E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents", "src\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj", "{A5D1C9F2-8D3E-4A6B-9C1F-7E8F4B2A3D5E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Cli", "src\bashGPT.Cli\bashGPT.Cli.csproj", "{CF14B9C3-F650-476A-8E0C-6CA2D1B326CE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Cli", "src\06_app\bashGPT.Cli\bashGPT.Cli.csproj", "{CF14B9C3-F650-476A-8E0C-6CA2D1B326CE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Server", "src\bashGPT.Server\bashGPT.Server.csproj", "{0E9B833D-01E7-4580-A054-F96165205044}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Server", "src\06_app\bashGPT.Server\bashGPT.Server.csproj", "{0E9B833D-01E7-4580-A054-F96165205044}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Core.Tests", "tests\bashGPT.Core.Tests\bashGPT.Core.Tests.csproj", "{71D1232F-BFC8-4954-8811-D4242349C19D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Core.Tests", "tests\01_core\bashGPT.Core.Tests\bashGPT.Core.Tests.csproj", "{71D1232F-BFC8-4954-8811-D4242349C19D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Tests", "tests\bashGPT.Agents.Tests\bashGPT.Agents.Tests.csproj", "{B7F2D4E1-9A3C-4F8B-8E7D-6C5B4A3F2E1D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Tests", "tests\02_abstractions\bashGPT.Agents.Tests\bashGPT.Agents.Tests.csproj", "{B7F2D4E1-9A3C-4F8B-8E7D-6C5B4A3F2E1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Cli.Tests", "tests\bashGPT.Cli.Tests\bashGPT.Cli.Tests.csproj", "{223A2984-3D68-4EDA-A730-662B877E00D5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Cli.Tests", "tests\06_app\bashGPT.Cli.Tests\bashGPT.Cli.Tests.csproj", "{223A2984-3D68-4EDA-A730-662B877E00D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Server.Tests", "tests\bashGPT.Server.Tests\bashGPT.Server.Tests.csproj", "{81754111-C528-493E-BF13-B82C1C318CA3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Server.Tests", "tests\06_app\bashGPT.Server.Tests\bashGPT.Server.Tests.csproj", "{81754111-C528-493E-BF13-B82C1C318CA3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools", "src\bashGPT.Tools\bashGPT.Tools.csproj", "{E2114861-83A3-4838-8E36-1428C1B01A92}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools", "src\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj", "{E2114861-83A3-4838-8E36-1428C1B01A92}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Tests", "tests\bashGPT.Tools.Tests\bashGPT.Tools.Tests.csproj", "{1E81591F-841E-4CE3-8FA0-542E46CEC9C5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Tests", "tests\02_abstractions\bashGPT.Tools.Tests\bashGPT.Tools.Tests.csproj", "{1E81591F-841E-4CE3-8FA0-542E46CEC9C5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Shell", "src\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj", "{C6E984B1-ABBE-4CE9-AD7E-7DB9B39E6773}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Shell", "src\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj", "{C6E984B1-ABBE-4CE9-AD7E-7DB9B39E6773}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Shell.Tests", "tests\bashGPT.Tools.Shell.Tests\bashGPT.Tools.Shell.Tests.csproj", "{19619551-95E8-4FE9-92F8-1E2B1DB3CA32}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Shell.Tests", "tests\03_tools\bashGPT.Tools.Shell.Tests\bashGPT.Tools.Shell.Tests.csproj", "{19619551-95E8-4FE9-92F8-1E2B1DB3CA32}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Fetch", "src\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj", "{6661D51D-7702-49CB-9C4E-BCBA5A3937BE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Fetch", "src\03_tools\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj", "{6661D51D-7702-49CB-9C4E-BCBA5A3937BE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Fetch.Tests", "tests\bashGPT.Tools.Fetch.Tests\bashGPT.Tools.Fetch.Tests.csproj", "{C1F0FE48-3EE2-4C0F-9007-9AE863DE07C0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Fetch.Tests", "tests\03_tools\bashGPT.Tools.Fetch.Tests\bashGPT.Tools.Fetch.Tests.csproj", "{C1F0FE48-3EE2-4C0F-9007-9AE863DE07C0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Filesystem", "src\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj", "{31E6EE10-7D51-4A18-8BB3-18075C80EAAE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Filesystem", "src\03_tools\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj", "{31E6EE10-7D51-4A18-8BB3-18075C80EAAE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Filesystem.Tests", "tests\bashGPT.Tools.Filesystem.Tests\bashGPT.Tools.Filesystem.Tests.csproj", "{96A12366-59E8-4D34-8C01-80809208BED9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Filesystem.Tests", "tests\03_tools\bashGPT.Tools.Filesystem.Tests\bashGPT.Tools.Filesystem.Tests.csproj", "{96A12366-59E8-4D34-8C01-80809208BED9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Git", "src\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj", "{3CC7B026-3FE3-4783-A107-62248EC4E4E8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Git", "src\03_tools\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj", "{3CC7B026-3FE3-4783-A107-62248EC4E4E8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Git.Tests", "tests\bashGPT.Tools.Git.Tests\bashGPT.Tools.Git.Tests.csproj", "{EB00B69F-7E23-4E2A-9D3C-FDE82AE725C4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Git.Tests", "tests\03_tools\bashGPT.Tools.Git.Tests\bashGPT.Tools.Git.Tests.csproj", "{EB00B69F-7E23-4E2A-9D3C-FDE82AE725C4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Testing", "src\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj", "{EE9AA89C-C541-4B9E-8EC2-50ABEB25D268}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Testing", "src\03_tools\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj", "{EE9AA89C-C541-4B9E-8EC2-50ABEB25D268}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Testing.Tests", "tests\bashGPT.Tools.Testing.Tests\bashGPT.Tools.Testing.Tests.csproj", "{CD6595F9-F0AB-4C16-A3A9-29D178FFC06A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Testing.Tests", "tests\03_tools\bashGPT.Tools.Testing.Tests\bashGPT.Tools.Testing.Tests.csproj", "{CD6595F9-F0AB-4C16-A3A9-29D178FFC06A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Build", "src\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj", "{E427775D-F04F-4314-9771-2FE435DF530C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Build", "src\03_tools\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj", "{E427775D-F04F-4314-9771-2FE435DF530C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Build.Tests", "tests\bashGPT.Tools.Build.Tests\bashGPT.Tools.Build.Tests.csproj", "{BEBB336B-A378-428D-9669-54590F17B2A7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Tools.Build.Tests", "tests\03_tools\bashGPT.Tools.Build.Tests\bashGPT.Tools.Build.Tests.csproj", "{BEBB336B-A378-428D-9669-54590F17B2A7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Dev", "src\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj", "{6EF29448-80EA-4AF9-8071-6E6FF61DF538}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Dev", "src\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj", "{6EF29448-80EA-4AF9-8071-6E6FF61DF538}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Shell", "src\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj", "{68F80A15-A193-40E1-946E-74035B9EBB29}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Agents.Shell", "src\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj", "{68F80A15-A193-40E1-946E-74035B9EBB29}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins", "src\bashGPT.Plugins\bashGPT.Plugins.csproj", "{D4F16A3B-9E72-4C85-B3A1-F8D2C6E94071}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins", "src\05_plugins\bashGPT.Plugins\bashGPT.Plugins.csproj", "{D4F16A3B-9E72-4C85-B3A1-F8D2C6E94071}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins.TestFixtures", "src\bashGPT.Plugins.TestFixtures\bashGPT.Plugins.TestFixtures.csproj", "{E7C29B4D-1F83-4A96-C4B2-09E3D7F05182}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins.TestFixtures", "src\05_plugins\bashGPT.Plugins.TestFixtures\bashGPT.Plugins.TestFixtures.csproj", "{E7C29B4D-1F83-4A96-C4B2-09E3D7F05182}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins.Tests", "tests\bashGPT.Plugins.Tests\bashGPT.Plugins.Tests.csproj", "{F8D3AC5E-2094-4BA7-D5C3-1AF4E800629F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bashGPT.Plugins.Tests", "tests\05_plugins\bashGPT.Plugins.Tests\bashGPT.Plugins.Tests.csproj", "{F8D3AC5E-2094-4BA7-D5C3-1AF4E800629F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

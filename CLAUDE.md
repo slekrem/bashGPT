@@ -15,25 +15,25 @@ dotnet test --configuration Release
 dotnet test --filter "DisplayName~StreamAsync_StopsAtDone"
 dotnet test --filter "FullyQualifiedName~DevAgent"
 dotnet test --filter "FullyQualifiedName~ShellAgent"
-dotnet test tests/bashGPT.Tools.Git.Tests/bashGPT.Tools.Git.Tests.csproj
+dotnet test tests/03_tools/bashGPT.Tools.Git.Tests/bashGPT.Tools.Git.Tests.csproj
 
 # Run CLI
-dotnet run --project src/bashGPT.Cli -- "zeige alle .cs Dateien"
+dotnet run --project src/06_app/bashGPT.Cli -- "zeige alle .cs Dateien"
 
 # Run server UI
-dotnet run --project src/bashGPT.Server
-dotnet run --project src/bashGPT.Server -- --port 6060 --no-browser
+dotnet run --project src/06_app/bashGPT.Server
+dotnet run --project src/06_app/bashGPT.Server -- --port 6060 --no-browser
 
 # Frontend only
-cd src/bashGPT.Web && npm test
-cd src/bashGPT.Web && npm run build
-cd src/bashGPT.Web && npm run dev
+cd src/06_app/bashGPT.Web && npm test
+cd src/06_app/bashGPT.Web && npm run build
+cd src/06_app/bashGPT.Web && npm run dev
 
 # Coverage report
 ./scripts/coverage-report.sh
 ```
 
-`src/bashGPT.Server/bashGPT.Server.csproj` embeds `src/bashGPT.Web/dist/index.html` and `src/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
+`src/06_app/bashGPT.Server/bashGPT.Server.csproj` embeds `src/06_app/bashGPT.Web/dist/index.html` and `src/06_app/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
 
 ## Architecture
 
@@ -43,38 +43,38 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 
 ### Project structure
 
-| Project | Purpose |
-|---|---|
-| `bashGPT.Core` | shared configuration, providers, shell/context, CLI/server runners, storage |
-| `bashGPT.Cli` | CLI host based on `System.CommandLine` |
-| `bashGPT.Server` | embedded HTTP/UI host and API handlers |
-| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, shared agent config types — public plugin SDK |
-| `bashGPT.Agents.Shell` | Shell agent with `shell_exec` |
-| `bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
-| `bashGPT.Tools` | tool abstractions and `ToolRegistry` |
-| `bashGPT.Tools.Shell` | `shell_exec` |
-| `bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
-| `bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
-| `bashGPT.Tools.Build` | `build_run` |
-| `bashGPT.Tools.Testing` | `test_run` |
-| `bashGPT.Tools.Fetch` | `fetch` |
-| `bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
-| `bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
-| `bashGPT.Web` | Lit/TypeScript frontend source |
+| Project | Path | Purpose |
+|---|---|---|
+| `bashGPT.Core` | `src/01_core/bashGPT.Core` | shared configuration, providers, shell/context, CLI/server runners, storage |
+| `bashGPT.Agents` | `src/02_abstractions/bashGPT.Agents` | `AgentBase`, `AgentRegistry`, shared agent config types — public plugin SDK |
+| `bashGPT.Tools` | `src/02_abstractions/bashGPT.Tools` | tool abstractions and `ToolRegistry` |
+| `bashGPT.Tools.Build` | `src/03_tools/bashGPT.Tools.Build` | `build_run` |
+| `bashGPT.Tools.Fetch` | `src/03_tools/bashGPT.Tools.Fetch` | `fetch` |
+| `bashGPT.Tools.Filesystem` | `src/03_tools/bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
+| `bashGPT.Tools.Git` | `src/03_tools/bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
+| `bashGPT.Tools.Shell` | `src/03_tools/bashGPT.Tools.Shell` | `shell_exec` |
+| `bashGPT.Tools.Testing` | `src/03_tools/bashGPT.Tools.Testing` | `test_run` |
+| `bashGPT.Agents.Dev` | `src/04_agents/bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
+| `bashGPT.Agents.Shell` | `src/04_agents/bashGPT.Agents.Shell` | Shell agent with `shell_exec` |
+| `bashGPT.Plugins` | `src/05_plugins/bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
+| `bashGPT.Plugins.TestFixtures` | `src/05_plugins/bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
+| `bashGPT.Cli` | `src/06_app/bashGPT.Cli` | CLI host based on `System.CommandLine` |
+| `bashGPT.Server` | `src/06_app/bashGPT.Server` | embedded HTTP/UI host and API handlers |
+| `bashGPT.Web` | `src/06_app/bashGPT.Web` | Lit/TypeScript frontend source |
 
 Current test projects:
-- `tests/bashGPT.Core.Tests`
-- `tests/bashGPT.Cli.Tests`
-- `tests/bashGPT.Server.Tests`
-- `tests/bashGPT.Agents.Tests`
-- `tests/bashGPT.Tools.Tests`
-- `tests/bashGPT.Tools.Shell.Tests`
-- `tests/bashGPT.Tools.Filesystem.Tests`
-- `tests/bashGPT.Tools.Git.Tests`
-- `tests/bashGPT.Tools.Build.Tests`
-- `tests/bashGPT.Tools.Testing.Tests`
-- `tests/bashGPT.Tools.Fetch.Tests`
-- `tests/bashGPT.Plugins.Tests`
+- `tests/01_core/bashGPT.Core.Tests`
+- `tests/02_abstractions/bashGPT.Agents.Tests`
+- `tests/02_abstractions/bashGPT.Tools.Tests`
+- `tests/03_tools/bashGPT.Tools.Build.Tests`
+- `tests/03_tools/bashGPT.Tools.Fetch.Tests`
+- `tests/03_tools/bashGPT.Tools.Filesystem.Tests`
+- `tests/03_tools/bashGPT.Tools.Git.Tests`
+- `tests/03_tools/bashGPT.Tools.Shell.Tests`
+- `tests/03_tools/bashGPT.Tools.Testing.Tests`
+- `tests/05_plugins/bashGPT.Plugins.Tests`
+- `tests/06_app/bashGPT.Cli.Tests`
+- `tests/06_app/bashGPT.Server.Tests`
 
 ### Main execution flows
 
@@ -112,22 +112,22 @@ Server-side settings are intentionally simpler than before:
 
 | Class | Path | Purpose |
 |---|---|---|
-| `CliChatRunner` | `src/bashGPT.Core/Cli/CliChatRunner.cs` | CLI prompt flow and command execution |
-| `ServerChatRunner` | `src/bashGPT.Core/Cli/ServerChatRunner.cs` | server chat loop with sessions, agents, tools |
-| `ChatOrchestrator` | `src/bashGPT.Core/Cli/ChatOrchestrator.cs` | shared request orchestration helpers |
-| `ConfigurationService` | `src/bashGPT.Core/Configuration/ConfigurationService.cs` | `config.json` load/save and env overrides |
-| `ProviderFactory` | `src/bashGPT.Core/Providers/ProviderFactory.cs` | creates the active Ollama provider |
-| `OllamaProvider` | `src/bashGPT.Core/Providers/OllamaProvider.cs` | OpenAI-compatible Ollama integration |
-| `ShellContextCollector` | `src/bashGPT.Core/Shell/ShellContextCollector.cs` | shell/git/system context for prompts |
-| `CommandExecutor` | `src/bashGPT.Core/Shell/CommandExecutor.cs` | shell command execution with guardrails |
-| `SessionStore` | `src/bashGPT.Core/Storage/SessionStore.cs` | thread-safe session persistence |
-| `ServerHost` | `src/bashGPT.Server/Server/ServerHost.cs` | HTTP listener and routing |
-| `AgentBase` | `src/bashGPT.Agents/AgentBase.cs` | code-first base type for agents |
-| `AgentRegistry` | `src/bashGPT.Agents/AgentRegistry.cs` | in-memory agent lookup |
-| `ContextFileCache` | `src/bashGPT.Agents.Dev/ContextFileCache.cs` | loaded-file cache for dev agent |
-| `ToolRegistry` | `src/bashGPT.Tools/Execution/ToolRegistry.cs` | available `ITool` implementations |
-| `RunningChatRegistry` | `src/bashGPT.Server/Server/RunningChatRegistry.cs` | request cancellation support |
-| `LegacyHistory` | `src/bashGPT.Server/Server/LegacyHistory.cs` | compatibility layer for `/api/history` and `/api/reset` |
+| `CliChatRunner` | `src/01_core/bashGPT.Core/Cli/CliChatRunner.cs` | CLI prompt flow and command execution |
+| `ServerChatRunner` | `src/01_core/bashGPT.Core/Cli/ServerChatRunner.cs` | server chat loop with sessions, agents, tools |
+| `ChatOrchestrator` | `src/01_core/bashGPT.Core/Cli/ChatOrchestrator.cs` | shared request orchestration helpers |
+| `ConfigurationService` | `src/01_core/bashGPT.Core/Configuration/ConfigurationService.cs` | `config.json` load/save and env overrides |
+| `ProviderFactory` | `src/01_core/bashGPT.Core/Providers/ProviderFactory.cs` | creates the active Ollama provider |
+| `OllamaProvider` | `src/01_core/bashGPT.Core/Providers/OllamaProvider.cs` | OpenAI-compatible Ollama integration |
+| `ShellContextCollector` | `src/01_core/bashGPT.Core/Shell/ShellContextCollector.cs` | shell/git/system context for prompts |
+| `CommandExecutor` | `src/01_core/bashGPT.Core/Shell/CommandExecutor.cs` | shell command execution with guardrails |
+| `SessionStore` | `src/01_core/bashGPT.Core/Storage/SessionStore.cs` | thread-safe session persistence |
+| `ServerHost` | `src/06_app/bashGPT.Server/Server/ServerHost.cs` | HTTP listener and routing |
+| `AgentBase` | `src/02_abstractions/bashGPT.Agents/AgentBase.cs` | code-first base type for agents |
+| `AgentRegistry` | `src/02_abstractions/bashGPT.Agents/AgentRegistry.cs` | in-memory agent lookup |
+| `ContextFileCache` | `src/04_agents/bashGPT.Agents.Dev/ContextFileCache.cs` | loaded-file cache for dev agent |
+| `ToolRegistry` | `src/02_abstractions/bashGPT.Tools/Registration/ToolRegistry.cs` | available `ITool` implementations |
+| `RunningChatRegistry` | `src/06_app/bashGPT.Server/Server/RunningChatRegistry.cs` | request cancellation support |
+| `LegacyHistory` | `src/06_app/bashGPT.Server/Server/LegacyHistory.cs` | compatibility layer for `/api/history` and `/api/reset` |
 
 ### Agents
 

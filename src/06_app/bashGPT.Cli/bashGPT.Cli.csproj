@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\01_core\bashGPT.Core\bashGPT.Core.csproj" />
+    <ProjectReference Include="..\..\05_plugins\bashGPT.Plugins\bashGPT.Plugins.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
+    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
+    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
+  </ItemGroup>
+
+</Project>
