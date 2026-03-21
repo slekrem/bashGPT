@@ -12,7 +12,7 @@ Agents are plain C# classes that subclass `AgentBase`. Each agent defines:
 - an optional **LLM configuration** (temperature, context size, etc.)
 - a **markdown info panel** shown in the browser UI
 
-No JSON configuration, no plugin loading, no reflection — just code.
+No JSON configuration required — just code.
 
 ## Minimal example
 
@@ -87,19 +87,40 @@ public override IReadOnlyList<string> SystemPrompt =>
 
 ## Registering the agent
 
-Pass your agent to `AgentRegistry` during server startup. The registry enforces
-unique IDs and throws `ArgumentException` if a duplicate is detected.
+There are two ways to register a custom agent:
 
-```csharp
-// src/bashGPT.Server/ServerApplication.cs
-public static AgentRegistry CreateAgentRegistry() =>
-    new([new DevAgent(), new ShellAgent(), new MyAgent()]);
+### Option A — Plugin directory (recommended for external agents)
+
+Build your agent as a class library and drop the DLL into the plugin directory.
+bashGPT discovers it automatically at startup without any code changes:
+
+```
+~/.config/bashgpt/plugins/
+  MyPlugin/
+    MyPlugin.dll
 ```
 
-> **Note:** `GenericAgent` is an `internal` built-in default inside `bashGPT.Server` and is
-> not part of the public agent SDK. External consumers only work with the public types in
-> `bashGPT.Agents` (`AgentBase`, `AgentRegistry`) and the public built-in agents
-> (`DevAgent`, `ShellAgent`).
+See [docs/plugins.md](plugins.md) for the full plugin development guide, including
+directory layout, build instructions, versioning, and the security model.
+
+### Option B — Code registration (for built-in or fork-based agents)
+
+Fork the repository and add your agent to the built-in list in `ServerApplication`:
+
+```csharp
+// src/bashGPT.Server/ServerApplication.cs  (fork only — do not modify for external plugins)
+private static readonly AgentBase[] _builtins =
+[
+    new GenericAgent(),   // internal to bashGPT.Server
+    new DevAgent(),
+    new ShellAgent(),
+    new MyAgent(),        // ← add here
+];
+```
+
+> **Note:** `GenericAgent` is `internal` to `bashGPT.Server` and is not part of the public
+> agent SDK. It cannot be referenced from an external project. External consumers subclass
+> `AgentBase` from `bashGPT.Agents` and deploy via the plugin directory (Option A).
 
 ## Adding custom tools
 

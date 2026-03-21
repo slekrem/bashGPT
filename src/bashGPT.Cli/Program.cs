@@ -14,7 +14,8 @@ if (args is ["--version"])
 }
 
 var configService = CliApplication.CreateConfigurationService();
-var cliRunner = CliApplication.CreateChatRunner(configService);
+var pluginResult = CliApplication.LoadPlugins();
+var cliRunner = CliApplication.CreateChatRunner(configService, pluginResult.Tools);
 
 var modelOpt = new Option<string?>("--model", "-m")
 {
