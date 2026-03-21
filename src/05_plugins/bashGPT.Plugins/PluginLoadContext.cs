@@ -17,65 +17,47 @@ namespace bashGPT.Plugins;
 /// used by the host — a prerequisite for the <c>is</c> / <c>IsAssignableFrom</c>
 /// checks performed by <see cref="PluginLoader"/>.
 /// <para>
-/// <b>Lifecycle:</b> This context is created with <c>isCollectible: true</c>,
-/// making it eligible for GC once all references to its types and instances are
-/// released. <c>Unload()</c> is intentionally never called — the instantiated
-/// <see cref="bashGPT.Tools.Abstractions.ITool"/> and
-/// <see cref="bashGPT.Agents.AgentBase"/> objects hold live references that keep
-/// the context alive for the duration of the host process. This is the intended
-/// lifetime: plugins are loaded once at startup and remain active until shutdown.
+/// <b>Lifecycle:</b> This context is created with <c>isCollectible: false</c>.
+/// Plugins are loaded once at startup and remain active until shutdown — there
+/// is no need for unloading. Using a non-collectible context also avoids
+/// restrictions that collectible contexts impose on certain assemblies.
 /// </para>
 /// </remarks>
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {
+    // Assemblies that must always come from the host to preserve type identity.
+    // Plugins that physically ship copies of these DLLs must still use the host version.
+    private static readonly HashSet<string> SharedAssemblyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "bashGPT.Tools",
+        "bashGPT.Agents",
+        "bashGPT.Core",
+    };
+
     private readonly AssemblyDependencyResolver _resolver;
 
-    public PluginLoadContext(string mainPluginDllPath) : base(isCollectible: true)
+    public PluginLoadContext(string mainPluginDllPath) : base(isCollectible: false)
     {
         _resolver = new AssemblyDependencyResolver(mainPluginDllPath);
     }
 
-    public Assembly LoadPluginAssembly(string mainPluginDllPath) => LoadAssemblyFromPath(mainPluginDllPath);
+    public Assembly LoadPluginAssembly(string mainPluginDllPath) =>
+        LoadFromAssemblyPath(mainPluginDllPath);
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        // If the assembly is already loaded in the default context,
-        // return null so the shared version is used.
-        // This prevents duplicate type identities for bashGPT.Tools, bashGPT.Agents, etc.
-        foreach (var loaded in Default.Assemblies)
-        {
-            if (string.Equals(loaded.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase))
-                return null;
-        }
+        // Shared contracts must always come from the host to preserve type identity.
+        // Returning null delegates resolution to the default context.
+        if (SharedAssemblyNames.Contains(assemblyName.Name ?? string.Empty))
+            return null;
 
         var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-        return assemblyPath != null ? LoadAssemblyFromPath(assemblyPath) : null;
+        return assemblyPath != null ? LoadFromAssemblyPath(assemblyPath) : null;
     }
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
         var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
         return libraryPath != null ? LoadUnmanagedDllFromPath(libraryPath) : IntPtr.Zero;
-    }
-
-    private Assembly LoadAssemblyFromPath(string assemblyPath)
-    {
-        using var assemblyStream = new FileStream(
-            assemblyPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete);
-
-        var symbolsPath = Path.ChangeExtension(assemblyPath, ".pdb");
-        if (!File.Exists(symbolsPath))
-            return LoadFromStream(assemblyStream);
-
-        using var symbolsStream = new FileStream(
-            symbolsPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete);
-
-        return LoadFromStream(assemblyStream, symbolsStream);
     }
 }
