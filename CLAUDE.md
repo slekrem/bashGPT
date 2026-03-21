@@ -52,10 +52,10 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 | `bashGPT.Tools.Fetch` | `src/03_tools/bashGPT.Tools.Fetch` | `fetch` |
 | `bashGPT.Tools.Filesystem` | `src/03_tools/bashGPT.Tools.Filesystem` | `filesystem_read`, `filesystem_write`, `filesystem_search` |
 | `bashGPT.Tools.Git` | `src/03_tools/bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
-| `bashGPT.Tools.Shell` | `src/03_tools/bashGPT.Tools.Shell` | `shell_exec` |
+| `bashGPT.Tools.Shell` | `src/03_tools/bashGPT.Tools.Shell` | `shell_exec` (generic), `bash_exec`, `cmd_exec`, `pwsh_exec` — all extend `ShellExecBase` |
 | `bashGPT.Tools.Testing` | `src/03_tools/bashGPT.Tools.Testing` | `test_run` |
 | `bashGPT.Agents.Dev` | `src/04_agents/bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
-| `bashGPT.Agents.Shell` | `src/04_agents/bashGPT.Agents.Shell` | Shell agent with `shell_exec` |
+| `bashGPT.Agents.Shell` | `src/04_agents/bashGPT.Agents.Shell` | Shell agent — detects active shell at startup, owns and executes its tool directly |
 | `bashGPT.Plugins` | `src/05_plugins/bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
 | `bashGPT.Plugins.TestFixtures` | `src/05_plugins/bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
 | `bashGPT.Cli` | `src/06_app/bashGPT.Cli` | CLI host based on `System.CommandLine` |
@@ -139,12 +139,19 @@ Agents are defined in code, not JSON. The server registers:
 `AgentBase` drives:
 - stable agent id
 - display name
-- enabled tool set
+- owned tools (`GetOwnedTools()`) — tool instances the agent owns and executes without the registry
+- enabled tool set (`EnabledTools`) — auto-derived from owned tools; override to add registry tools
+- tool execution (`TryHandleToolCallAsync()`) — routes to owned tools first, falls back to registry
 - one or more system prompt messages
 - optional `AgentLlmConfig`
 - markdown info panel for the UI
 
 `GetInfoPanelMarkdown()` automatically appends the effective LLM config.
+
+**Agent tool ownership model:**
+- **Self-contained agents** (e.g. `ShellAgent`) implement `GetOwnedTools()` — no registry dependency
+- **Hybrid agents** (e.g. `DevAgent`) implement `GetOwnedTools()` for private tools and override `EnabledTools` to add registry tool names
+- **Generic agents** use only the registry — `GetOwnedTools()` returns empty, `EnabledTools` is driven by user selection
 
 ### Tools
 
@@ -163,6 +170,7 @@ Important details:
 - `BashGPT.Providers.ToolCall` is the LLM/provider-side tool-call model
 - server code converts between the two
 - the browser UI only exposes a safe default subset of tools for manual selection; agents can still have broader fixed tool sets
+- `ShellExecBase` is the abstract base for all shell execution tools; concrete variants live in `Shells/`
 
 ### HTTP API
 
