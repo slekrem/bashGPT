@@ -1,3 +1,4 @@
+using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Tools.Registration;
@@ -14,7 +15,8 @@ internal static class ServerToolCallOrchestrator
         ToolRegistry toolRegistry,
         string? sessionPath,
         Action<SseEvent>? onEvent,
-        CancellationToken ct)
+        CancellationToken ct,
+        AgentBase? agent = null)
     {
         var assistantToolCallMessage = ChatMessage.AssistantWithToolCalls(
             toolCalls,
@@ -34,7 +36,7 @@ internal static class ServerToolCallOrchestrator
                 : call.Name;
             onEvent?.Invoke(new SseEvent("tool_call", new { name = call.Name, command = commandLabel }));
 
-            var (toolResult, commandResult) = await ExecuteToolCallAsync(call, commandLabel, toolRegistry, sessionPath, ct);
+            var (toolResult, commandResult) = await ExecuteToolCallAsync(call, commandLabel, toolRegistry, sessionPath, ct, agent);
 
             commandResults.Add(commandResult);
             onEvent?.Invoke(new SseEvent("command_result", new
@@ -66,8 +68,16 @@ internal static class ServerToolCallOrchestrator
         string commandLabel,
         ToolRegistry toolRegistry,
         string? sessionPath,
-        CancellationToken ct)
+        CancellationToken ct,
+        AgentBase? agent = null)
     {
+        if (agent is not null)
+        {
+            var agentResult = await agent.TryHandleToolCallAsync(call.Name, call.ArgumentsJson ?? "{}", sessionPath, ct);
+            if (agentResult is not null)
+                return (agentResult, BuildCommandResult(call.Name, commandLabel, agentResult, true));
+        }
+
         if (toolRegistry.TryGet(call.Name, out var tool) && tool is not null)
         {
             try

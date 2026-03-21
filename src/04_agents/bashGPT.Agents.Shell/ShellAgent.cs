@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using bashGPT.Core.Models.Providers;
-using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Agents;
+using bashGPT.Tools.Shell;
+using ToolCall = bashGPT.Tools.Abstractions.ToolCall;
 
 namespace bashGPT.Agents.Shell;
 
@@ -10,6 +10,8 @@ namespace bashGPT.Agents.Shell;
 /// </summary>
 public sealed class ShellAgent : AgentBase
 {
+    private readonly ShellExecTool _shellExecTool = new();
+
     public override string Id => "shell";
 
     public override string Name => "Shell-Agent";
@@ -49,6 +51,18 @@ public sealed class ShellAgent : AgentBase
         - Date/Time:   {DateTime.Now:dd.MM.yyyy HH:mm:ss zzz}
         """,
     ];
+
+    public override async Task<string?> TryHandleToolCallAsync(
+        string toolName,
+        string argumentsJson,
+        string? sessionPath,
+        CancellationToken ct)
+    {
+        if (toolName != "shell_exec") return null;
+        var result = await _shellExecTool.ExecuteAsync(
+            new ToolCall(toolName, argumentsJson, sessionPath), ct);
+        return result.Content;
+    }
 
     protected override string GetAgentMarkdown() =>
         $"""

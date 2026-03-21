@@ -1,3 +1,4 @@
+using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers.Abstractions;
@@ -18,7 +19,8 @@ public record ServerChatOptions(
     IReadOnlyList<ProviderToolDefinition>? Tools = null,
     Func<string?, IReadOnlyList<string>>? SystemPrompt = null,
     AgentLlmConfig? LlmConfig = null,
-    string? SessionPath = null
+    string? SessionPath = null,
+    AgentBase? Agent = null
 );
 
 public record ServerChatResult(

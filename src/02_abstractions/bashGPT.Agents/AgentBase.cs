@@ -59,6 +59,16 @@ public abstract class AgentBase
     public virtual IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) => SystemPrompt;
 
     /// <summary>
+    /// Attempts to handle a tool call directly within the agent.
+    /// Returns the tool result string when handled, or <c>null</c> to fall back to the global tool registry.
+    /// </summary>
+    public virtual Task<string?> TryHandleToolCallAsync(
+        string toolName,
+        string argumentsJson,
+        string? sessionPath,
+        CancellationToken ct) => Task.FromResult<string?>(null);
+
+    /// <summary>
     /// Optional LLM configuration for this agent (model, temperature, top-p, etc.).
     /// Automatically included as a section in the info panel.
     /// </summary>

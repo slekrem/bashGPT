@@ -66,7 +66,8 @@ internal sealed class ChatApiHandler(
                 : null,
             Tools: resolvedTools.Count > 0 ? resolvedTools : null,
             SystemPrompt: agent is not null ? sp => agent.GetSystemPrompt(sp) : null,
-            SessionPath: _sessionService.GetSessionPath(sessionId));
+            SessionPath: _sessionService.GetSessionPath(sessionId),
+            Agent: agent);
 
         var result = await handler.RunServerChatAsync(chatOpts, ct);
 
