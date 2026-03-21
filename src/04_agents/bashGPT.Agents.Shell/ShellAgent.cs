@@ -27,21 +27,34 @@ public sealed class ShellAgent : AgentBase
 
     public override IReadOnlyList<string> SystemPrompt =>
     [
-        """
-        You are a shell executor. Run commands and stay quiet afterward.
+        BuildRolePrompt(),
+        BuildContextPrompt(),
+    ];
 
-        Output rules:
-        - Do NOT write a follow-up response after a tool call. The output is already visible.
-        - Do not explain, suggest, or comment.
-        - If you run multiple steps, execute them back-to-back without extra text between them.
-        - Only if something fails or you need a decision: one plain-text line, nothing more.
+    private static string BuildRolePrompt()
+    {
+        var os    = GetOsDescription();
+        var shell = GetShell();
+        return $"""
+            You are a shell executor on {os} using {shell}.
+            Run commands and stay quiet afterward.
 
-        Execution rules:
-        - Use only non-interactive commands (no vim, top, htop, less, tail -f).
-        - Keep output short with head, tail, grep, and similar filters. Never dump huge raw output.
-        - On macOS use full paths for system tools, for example /usr/bin/log show or /usr/sbin/system_profiler.
-        - Destructive actions such as rm -rf or disk formatting require explicit confirmation.
-        """,
+            Output rules:
+            - Do NOT write a follow-up response after a tool call. The output is already visible.
+            - Do not explain, suggest, or comment.
+            - If you run multiple steps, execute them back-to-back without extra text between them.
+            - Only if something fails or you need a decision: one plain-text line, nothing more.
+
+            Execution rules:
+            - Use only non-interactive commands (no vim, top, htop, less, tail -f).
+            - Keep output short with head, tail, grep, and similar filters. Never dump huge raw output.
+            - Always use the correct syntax for {shell}.
+            {GetPlatformHints()}
+            - Destructive actions such as rm -rf or disk formatting require explicit confirmation.
+            """;
+    }
+
+    private static string BuildContextPrompt() =>
         $"""
         System context:
         - User:        {Environment.UserName}
@@ -50,8 +63,7 @@ public sealed class ShellAgent : AgentBase
         - Shell:       {GetShell()}
         - Directory:   {Directory.GetCurrentDirectory()}
         - Date/Time:   {DateTime.Now:dd.MM.yyyy HH:mm:ss zzz}
-        """,
-    ];
+        """;
 
     public override IReadOnlyList<ITool> GetOwnedTools() => [_shellExecTool];
 
@@ -97,6 +109,22 @@ public sealed class ShellAgent : AgentBase
         - Keep output focused with `head`, `grep`, and similar filters
         - Do not run destructive actions without explicit confirmation
         """;
+
+    private static string GetPlatformHints()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var shell = GetShell();
+            if (shell.Contains("bash", StringComparison.OrdinalIgnoreCase))
+                return "- You are running bash on Windows; use Unix paths and bash syntax, not cmd.exe or PowerShell.";
+            if (shell.Contains("powershell", StringComparison.OrdinalIgnoreCase) || shell.Contains("pwsh", StringComparison.OrdinalIgnoreCase))
+                return "- Use PowerShell cmdlets and syntax (e.g. Get-ChildItem, Select-String). Avoid bash/Unix-only commands.";
+            return "- Use cmd.exe syntax. Avoid bash/Unix-only commands.";
+        }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return "- Use full paths for system tools, for example /usr/bin/log show or /usr/sbin/system_profiler.";
+        return "- Prefer standard POSIX commands for maximum compatibility.";
+    }
 
     private static string GetOsDescription()
     {
