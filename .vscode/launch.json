@@ -5,7 +5,7 @@
             "name": "bashGPT.Cli",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/src/bashGPT.Cli/bin/Debug/net9.0/bashGPT.Cli.dll",
+            "program": "${workspaceFolder}/src/06_app/bashGPT.Cli/bin/Debug/net9.0/bashGPT.Cli.dll",
             "cwd": "${workspaceFolder}",
             "args": [
                 "zeige alle .cs dateien"
@@ -17,7 +17,7 @@
             "name": "bashGPT.Server",
             "type": "coreclr",
             "request": "launch",
-            "program": "${workspaceFolder}/src/bashGPT.Server/bin/Debug/net9.0/bashGPT.Server.dll",
+            "program": "${workspaceFolder}/src/06_app/bashGPT.Server/bin/Debug/net9.0/bashGPT.Server.dll",
             "cwd": "${workspaceFolder}",
             "args": [
                 "--no-browser"
