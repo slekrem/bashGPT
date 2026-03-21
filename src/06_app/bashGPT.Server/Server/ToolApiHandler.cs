@@ -4,7 +4,7 @@ using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
-internal sealed class ToolApiHandler(ToolRegistry? toolRegistry, ServerToolSelectionPolicy toolSelectionPolicy)
+internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
 {
     public async Task HandleAsync(HttpListenerResponse response, CancellationToken ct)
     {
@@ -15,7 +15,6 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry, ServerToolSelec
         }
 
         var tools = toolRegistry.Tools
-            .Where(IsSelectable)
             .Select(t => new
         {
             name        = t.Definition.Name,
@@ -31,6 +30,4 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry, ServerToolSelec
 
         await ApiResponse.WriteJsonAsync(response, new { tools });
     }
-
-    private bool IsSelectable(ITool tool) => toolSelectionPolicy.IsAllowed(tool.Definition.Name);
 }
