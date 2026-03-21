@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Text;
+using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Agents;
+using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Agents.Dev;
 
@@ -15,8 +16,18 @@ public sealed class DevAgent : AgentBase
 
     public override string Name => "Dev-Agent";
 
+    // Context tools are owned directly — no registry needed.
+    public override IReadOnlyList<ITool> GetOwnedTools() =>
+    [
+        new ContextLoadFilesTool(),
+        new ContextUnloadFilesTool(),
+        new ContextClearFilesTool(),
+    ];
+
+    // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
+        .. base.EnabledTools,   // owned: context_load_files, context_unload_files, context_clear_files
         "fetch",
         "filesystem_read",
         "filesystem_write",
@@ -31,9 +42,6 @@ public sealed class DevAgent : AgentBase
         "test_run",
         "build_run",
         "shell_exec",
-        "context_load_files",
-        "context_unload_files",
-        "context_clear_files",
     ];
 
     public override AgentLlmConfig LlmConfig => new(
