@@ -125,7 +125,7 @@ cp bin/Release/net9.0/MyPlugin.deps.json ~/.config/bashgpt/plugins/MyPlugin/
 Start the server and check `/api/tools` and `/api/agents`:
 
 ```bash
-dotnet run --project src/bashGPT.Server -- --no-browser
+dotnet run --project src/06_app/bashGPT.Server -- --no-browser
 curl http://localhost:5050/api/tools | jq '.[] | .name'
 curl http://localhost:5050/api/agents | jq '.[].id'
 ```

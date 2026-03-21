@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\01_core\bashGPT.Core\bashGPT.Core.csproj" />
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
+    <ProjectReference Include="..\..\05_plugins\bashGPT.Plugins\bashGPT.Plugins.csproj" />
+    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
+    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\bashGPT.Web\dist\index.html" LogicalName="bashGPT.Web.index.html" />
+    <EmbeddedResource Include="..\bashGPT.Web\dist\bundle.js" LogicalName="bashGPT.Web.bundle.js" />
+  </ItemGroup>
+
+  <Target Name="RestoreWebFrontendDependencies"
+          Inputs="$(MSBuildProjectDirectory)/../bashGPT.Web/package.json;$(MSBuildProjectDirectory)/../bashGPT.Web/package-lock.json"
+          Outputs="$(MSBuildProjectDirectory)/../bashGPT.Web/node_modules/.package-lock.stamp">
+    <PropertyGroup>
+      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(WebFrontendDir)/package-lock.json')"
+           Text="package-lock.json fehlt im Web-Frontend. Für reproduzierbare Builds wird ein Lockfile benötigt." />
+
+    <Exec Command="npm ci" WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)" />
+
+    <Touch Files="$(WebFrontendDir)/node_modules/.package-lock.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies">
+    <PropertyGroup>
+      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
+      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
+    </PropertyGroup>
+
+    <Exec Command="sh -c 'echo CWD=$PWD; npm --version | sed &quot;s/^/NPM=/&quot;; echo NODE_ENV=$NODE_ENV; if [ -x node_modules/.bin/tsc ]; then echo TSC_BEFORE=found; else echo TSC_BEFORE=missing; fi'"
+          WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)"
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+          ContinueOnError="true"
+          ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagBefore" />
+    </Exec>
+    <Message Text="[WebBuild] $(_DiagBefore)" Importance="high"
+             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+
+    <Exec Command="node -e &quot;const v=process.versions.node; const p=v.split('.').map(Number); const maj=p[0]||0, min=p[1]||0; const ok=(maj===20&amp;&amp;min&gt;=19)||(maj===22&amp;&amp;min&gt;=12)||(maj&gt;22); console.log('NODE='+v); if(!ok){ console.error('Node.js >= 20.19 (or >= 22.12) is required by Vite 7.'); process.exit(42); }&quot;"
+          WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)"
+          IgnoreExitCode="true"
+          ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_NodeCheckOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_NodeCheckExitCode" />
+    </Exec>
+    <Message Text="[WebBuild] $(_NodeCheckOutput)" Importance="high" />
+    <Error Condition="'$(_NodeCheckExitCode)' != '' and '$(_NodeCheckExitCode)' != '0'"
+           Text="Frontend-Build abgebrochen: Node.js >= 20.19 (oder >= 22.12) erforderlich. Bitte Node auf der Build-Maschine aktualisieren." />
+
+    <Exec Command="sh -c 'if [ -x node_modules/.bin/tsc ]; then ls -la node_modules/.bin/tsc; echo TSC_AFTER=found; else echo TSC_AFTER=missing; fi'"
+          WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)"
+          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+          ContinueOnError="true"
+          ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagAfter" />
+    </Exec>
+    <Message Text="[WebBuild] $(_DiagAfter)" Importance="high"
+             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+
+    <Exec Command="npm run build" WorkingDirectory="$(WebFrontendDir)"
+          EnvironmentVariables="$(NpmEnvPath)" />
+  </Target>
+
+</Project>

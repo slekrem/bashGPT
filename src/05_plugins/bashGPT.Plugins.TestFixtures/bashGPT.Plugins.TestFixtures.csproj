@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj" />
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
+  </ItemGroup>
+
+</Project>
