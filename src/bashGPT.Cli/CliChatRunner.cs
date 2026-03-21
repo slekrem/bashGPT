@@ -22,9 +22,21 @@ public class CliChatRunner
     public CliChatRunner(ConfigurationService configService, IReadOnlyList<ITool>? pluginTools = null)
     {
         _configService = configService;
-        _pluginTools = pluginTools is { Count: > 0 }
-            ? pluginTools.ToDictionary(t => t.Definition.Name, StringComparer.Ordinal)
-            : new Dictionary<string, ITool>();
+        if (pluginTools is { Count: > 0 })
+        {
+            var dict = new Dictionary<string, ITool>(StringComparer.Ordinal);
+            foreach (var tool in pluginTools)
+            {
+                if (!dict.TryAdd(tool.Definition.Name, tool))
+                    Console.Error.WriteLine(
+                        $"[plugin] Tool '{tool.Definition.Name}' is a duplicate and was skipped.");
+            }
+            _pluginTools = dict;
+        }
+        else
+        {
+            _pluginTools = new Dictionary<string, ITool>();
+        }
     }
 
     public async Task<int> RunAsync(CliOptions opts, CancellationToken ct = default)

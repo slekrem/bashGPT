@@ -71,15 +71,15 @@ internal static class ServerApplication
         if (additionalAgents is null)
             return new AgentRegistry(builtins);
 
-        var builtinIds = new HashSet<string>(builtins.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
+        var seenIds = new HashSet<string>(builtins.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
         var pluginAgents = new List<AgentBase>();
 
         foreach (var agent in additionalAgents)
         {
-            if (builtinIds.Contains(agent.Id))
+            if (!seenIds.Add(agent.Id))
             {
                 Console.Error.WriteLine(
-                    $"[plugin] Agent '{agent.Id}' conflicts with a built-in agent and was skipped.");
+                    $"[plugin] Agent '{agent.Id}' conflicts with an existing agent and was skipped.");
                 continue;
             }
 
