@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using bashGPT.Shell;
+using bashGPT.Core.Shell;
 
 namespace bashGPT.Tools.Shell.Tests;
 

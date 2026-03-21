@@ -6,7 +6,6 @@ using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
 using bashGPT.Core.Serialization;
-using bashGPT.Shell;
 
 namespace bashGPT.Server;
 

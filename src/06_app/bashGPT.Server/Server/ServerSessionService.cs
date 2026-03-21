@@ -2,7 +2,6 @@ using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Storage;
-using bashGPT.Shell;
 
 namespace bashGPT.Server;
 
@@ -97,16 +96,8 @@ internal sealed class ServerSessionService(
         await sessionRequestStore.SaveRequestAsync(sessionId, requestRecord);
     }
 
-    private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<CommandResult>? commands)
-        => commands is not { Count: > 0 }
-            ? null
-            : commands.Select(c => new SessionCommand
-            {
-                Command = c.Command,
-                ExitCode = c.ExitCode,
-                Output = c.Output,
-                WasExecuted = c.WasExecuted,
-            }).ToList();
+    private static List<SessionCommand>? ToSessionCommands(IReadOnlyList<SessionCommand>? commands)
+        => commands is not { Count: > 0 } ? null : commands.ToList();
 
     private static List<ChatMessage> BuildConversationDelta(ServerChatResult result)
     {

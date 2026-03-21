@@ -1,7 +1,7 @@
 using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
-using bashGPT.Shell;
 
 namespace bashGPT.Server;
 
@@ -16,7 +16,7 @@ public record ServerChatOptions(
     Func<int, string, Task>? OnLlmRequestJson = null,
     Func<int, string, Task>? OnLlmResponseJson = null,
     IReadOnlyList<ProviderToolDefinition>? Tools = null,
-    Func<IReadOnlyList<string>>? SystemPrompt = null,
+    Func<string?, IReadOnlyList<string>>? SystemPrompt = null,
     AgentLlmConfig? LlmConfig = null,
     string? SessionPath = null
 );
@@ -26,7 +26,7 @@ public record ServerChatResult(
     IReadOnlyList<string> Logs,
     TokenUsage? Usage = null,
     IReadOnlyList<LlmExchangeRecord>? LlmExchanges = null,
-    IReadOnlyList<CommandResult>? Commands = null,
+    IReadOnlyList<SessionCommand>? Commands = null,
     bool UsedToolCalls = false,
     IReadOnlyList<ChatMessage>? ConversationDelta = null,
     string FinalStatus = "completed"

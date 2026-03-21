@@ -15,10 +15,84 @@
   <ItemGroup>
     <ProjectReference Include="..\..\01_core\bashGPT.Core\bashGPT.Core.csproj" />
     <ProjectReference Include="..\..\05_plugins\bashGPT.Plugins\bashGPT.Plugins.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
     <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
-    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
-    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
+    <ProjectReference Include="..\..\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj" />
   </ItemGroup>
+
+  <!-- Default plugins: build each project but do not link against it. -->
+  <!-- The compiled DLLs are installed into the user config plugins directory on build. -->
+  <ItemGroup>
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj" />
+    <BundledPlugin Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
+    <BundledPlugin Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <_ConfigPluginsDir Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(APPDATA)\bashgpt\plugins</_ConfigPluginsDir>
+    <_ConfigPluginsDir Condition="!$([MSBuild]::IsOSPlatform('Windows'))">$(HOME)/.config/bashgpt/plugins</_ConfigPluginsDir>
+    <!-- Tracks which plugin directories were installed by this project so that
+         renamed or removed plugins can be cleaned up on the next build. -->
+    <_BundledPluginsManifest>$(_ConfigPluginsDir)\.bundled-plugins-cli.txt</_BundledPluginsManifest>
+  </PropertyGroup>
+
+  <Target Name="BuildPlugins" BeforeTargets="Build">
+    <MSBuild Projects="@(BundledPlugin)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true"
+             BuildInParallel="true" />
+  </Target>
+
+  <Target Name="InstallPlugins" AfterTargets="Build" DependsOnTargets="BuildPlugins">
+    <MSBuild Projects="@(BundledPlugin)"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginDll" />
+    </MSBuild>
+
+    <!-- Attach PluginName metadata (one entry per plugin) for directory operations. -->
+    <ItemGroup>
+      <_BundledPluginDllWithName Include="%(_BundledPluginDll.Identity)"
+                                 PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+    </ItemGroup>
+
+    <!-- Read the previous manifest to remove directories of renamed/removed plugins. -->
+    <ReadLinesFromFile File="$(_BundledPluginsManifest)" Condition="Exists('$(_BundledPluginsManifest)')">
+      <Output TaskParameter="Lines" ItemName="_PreviousBundledPluginName" />
+    </ReadLinesFromFile>
+    <RemoveDir Directories="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\" />
+
+    <!-- Remove current plugin directories so no stale files survive within a plugin. -->
+    <RemoveDir Directories="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\" />
+
+    <ItemGroup>
+      <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll"
+                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginPdbs    Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.pdb"
+                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginDeps    Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.deps.json"
+                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_BundledPluginSiblings)"
+          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginSiblings.PluginName)\"
+          SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(_BundledPluginPdbs)"
+          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginPdbs.PluginName)\"
+          SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(_BundledPluginDeps)"
+          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginDeps.PluginName)\"
+          SkipUnchangedFiles="false" />
+
+    <!-- Update manifest with the current set of bundled plugin names. -->
+    <ItemGroup>
+      <_CurrentPluginNameLine Include="%(_BundledPluginDllWithName.PluginName)" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_BundledPluginsManifest)" Lines="@(_CurrentPluginNameLine)" Overwrite="true" />
+  </Target>
 
 </Project>

@@ -8,24 +8,13 @@ namespace bashGPT.Server.Tests;
 public sealed class ServerApplicationTests
 {
     [Fact]
-    public void CreateToolRegistry_ReturnsRegistryWithExpectedDefaultTools()
+    public void CreateToolRegistry_ReturnsEmptyRegistryByDefault()
     {
         var registry = ServerApplication.CreateToolRegistry();
 
         Assert.NotNull(registry);
-        Assert.True(registry.TryGet("shell_exec", out _));
-        Assert.True(registry.TryGet("fetch", out _));
-        Assert.True(registry.TryGet("filesystem_read", out _));
-    }
-
-    [Fact]
-    public void CreateDefaultTools_ReturnsExpectedBuiltInTools()
-    {
-        var tools = ServerApplication.CreateDefaultTools();
-
-        Assert.Contains(tools, tool => tool.Definition.Name == "shell_exec");
-        Assert.Contains(tools, tool => tool.Definition.Name == "fetch");
-        Assert.Contains(tools, tool => tool.Definition.Name == "filesystem_read");
+        // Tools are now loaded as plugins, not built-ins.
+        Assert.False(registry.TryGet("shell_exec", out _));
     }
 
     [Fact]
@@ -38,24 +27,27 @@ public sealed class ServerApplicationTests
     }
 
     [Fact]
-    public void CreateToolRegistry_WithDuplicateBuiltInToolName_SkipsDuplicate()
+    public void CreateToolRegistry_WithDuplicateToolName_SkipsDuplicate()
     {
-        var registry = ServerApplication.CreateToolRegistry([new FakeTool("shell_exec")]);
+        var registry = ServerApplication.CreateToolRegistry([
+            new FakeTool("my_tool"),
+            new FakeTool("my_tool"),
+        ]);
 
-        // Built-in must still be present; no exception is thrown.
-        Assert.True(registry.TryGet("shell_exec", out var tool));
+        Assert.True(registry.TryGet("my_tool", out var tool));
         Assert.NotNull(tool);
     }
 
     [Fact]
-    public void CreateAgentRegistry_ReturnsRegistryWithExpectedAgents()
+    public void CreateAgentRegistry_ReturnsRegistryWithGenericBuiltin()
     {
         var registry = ServerApplication.CreateAgentRegistry();
 
         Assert.NotNull(registry);
         Assert.NotNull(registry.Find("generic"));
-        Assert.NotNull(registry.Find("dev"));
-        Assert.NotNull(registry.Find("shell"));
+        // dev and shell are now loaded as plugins, not built-ins.
+        Assert.Null(registry.Find("dev"));
+        Assert.Null(registry.Find("shell"));
     }
 
     [Fact]
@@ -64,7 +56,6 @@ public sealed class ServerApplicationTests
         var registry = ServerApplication.CreateAgentRegistry([new FakeAgent("plugin-agent")]);
 
         Assert.NotNull(registry.Find("plugin-agent"));
-        // Built-ins must still be present.
         Assert.NotNull(registry.Find("generic"));
     }
 
@@ -73,7 +64,6 @@ public sealed class ServerApplicationTests
     {
         var registry = ServerApplication.CreateAgentRegistry([new FakeAgent("generic")]);
 
-        // Built-in generic must still be present; no exception is thrown.
         Assert.NotNull(registry.Find("generic"));
     }
 

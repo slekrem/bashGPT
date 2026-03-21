@@ -15,13 +15,17 @@ internal static class CliApplication
         new(configService, pluginTools);
 
     /// <summary>
-    /// Scans the plugin directory and returns all discovered tools and agents.
-    /// Non-fatal loading errors are written to <see cref="Console.Error"/>.
+    /// Scans the user config plugins directory, loads all plugins, and reports
+    /// non-fatal loading errors to stderr.
     /// </summary>
-    public static PluginLoadResult LoadPlugins(string? pluginDir = null)
+    public static PluginLoadResult LoadPlugins(string? userPluginDir = null)
     {
-        var dir = pluginDir ?? AppBootstrap.GetPluginsDir();
-        var result = PluginLoader.LoadFromDirectory(dir);
+        var dirs = new[]
+        {
+            userPluginDir ?? AppBootstrap.GetPluginsDir(),
+        };
+
+        var result = PluginLoader.LoadFromDirectories(dirs);
 
         foreach (var error in result.Errors)
             Console.Error.WriteLine($"[plugin] {Path.GetFileName(error.Source)}: {error.Message}");

@@ -8,8 +8,15 @@ public sealed class PluginLoaderTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
+        if (!Directory.Exists(_tempDir))
+            return;
+
+        try
+        {
             Directory.Delete(_tempDir, recursive: true);
+        }
+        catch (UnauthorizedAccessException) { /* loaded assemblies are locked on Windows */ }
+        catch (IOException) { /* same */ }
     }
 
     [Fact]
@@ -98,13 +105,61 @@ public sealed class PluginLoaderTests : IDisposable
         Assert.NotEmpty(result.Tools);
     }
 
+    [Fact]
+    public void LoadFromDirectories_NonExistentDirectories_ReturnsEmptyResult()
+    {
+        var result = PluginLoader.LoadFromDirectories([
+            Path.Combine(_tempDir, "missing-a"),
+            Path.Combine(_tempDir, "missing-b"),
+        ]);
+
+        Assert.Empty(result.Tools);
+        Assert.Empty(result.Agents);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void LoadFromDirectories_MergesToolsAndAgentsAcrossDirectories()
+    {
+        var dirA = Path.Combine(_tempDir, "dirA");
+        var dirB = Path.Combine(_tempDir, "dirB");
+        Directory.CreateDirectory(dirB); // valid but empty
+
+        CopyFixtureAssembly(dirA);
+
+        var resultFromA = PluginLoader.LoadFromDirectory(dirA);
+        var resultFromBoth = PluginLoader.LoadFromDirectories([dirA, dirB]);
+
+        // Merged result must contain at least everything that dirA alone provides.
+        Assert.True(resultFromBoth.Tools.Count >= resultFromA.Tools.Count);
+        Assert.True(resultFromBoth.Agents.Count >= resultFromA.Agents.Count);
+        Assert.Empty(resultFromBoth.Errors);
+    }
+
+    [Fact]
+    public void LoadFromDirectories_OneValidOneNonExistent_ReturnsResultsFromValidOnly()
+    {
+        var validDir = Path.Combine(_tempDir, "valid");
+        CopyFixtureAssembly(validDir);
+
+        var result = PluginLoader.LoadFromDirectories([
+            validDir,
+            Path.Combine(_tempDir, "missing"),
+        ]);
+
+        Assert.NotEmpty(result.Tools);
+        Assert.NotEmpty(result.Agents);
+        Assert.Empty(result.Errors);
+    }
+
     // Copies the TestFixtures assembly into a subdirectory matching the discovery convention.
-    private void CopyFixtureAssembly()
+    // baseDir defaults to _tempDir.
+    private void CopyFixtureAssembly(string? baseDir = null)
     {
         var fixtureDllPath = typeof(FakeToolFixture).Assembly.Location;
         var fixtureDir = Path.GetDirectoryName(fixtureDllPath)!;
         var pluginName = Path.GetFileNameWithoutExtension(fixtureDllPath);
-        var pluginDir = Path.Combine(_tempDir, pluginName);
+        var pluginDir = Path.Combine(baseDir ?? _tempDir, pluginName);
         Directory.CreateDirectory(pluginDir);
 
         // Copy the fixture DLL and all its dependencies so that AssemblyDependencyResolver

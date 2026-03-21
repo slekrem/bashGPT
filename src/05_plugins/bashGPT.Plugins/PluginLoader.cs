@@ -38,6 +38,27 @@ namespace bashGPT.Plugins;
 public static class PluginLoader
 {
     /// <summary>
+    /// Scans multiple plugin directories and merges all discovered tools, agents, and errors.
+    /// Directories that do not exist are silently skipped.
+    /// </summary>
+    public static PluginLoadResult LoadFromDirectories(IEnumerable<string> pluginDirectories)
+    {
+        var tools = new List<ITool>();
+        var agents = new List<AgentBase>();
+        var errors = new List<PluginLoadError>();
+
+        foreach (var dir in pluginDirectories)
+        {
+            var result = LoadFromDirectory(dir);
+            tools.AddRange(result.Tools);
+            agents.AddRange(result.Agents);
+            errors.AddRange(result.Errors);
+        }
+
+        return new PluginLoadResult(tools, agents, errors);
+    }
+
+    /// <summary>
     /// Scans <paramref name="pluginDirectory"/> for plugin subdirectories and returns all
     /// discovered tools and agents together with any non-fatal loading errors.
     /// </summary>
@@ -129,7 +150,18 @@ public static class PluginLoader
     {
         try
         {
-            if (Activator.CreateInstance(type) is T instance)
+            var ctor = type.GetConstructors()
+                .FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
+
+            if (ctor is null)
+            {
+                errors.Add(new PluginLoadError(dllPath,
+                    $"Type '{type.FullName}' has no callable constructor (all parameters must have default values)."));
+                return;
+            }
+
+            var args = ctor.GetParameters().Select(p => p.DefaultValue).ToArray();
+            if (ctor.Invoke(args) is T instance)
                 list.Add(instance);
             else
                 errors.Add(new PluginLoadError(dllPath,

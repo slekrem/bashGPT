@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace bashGPT.Shell;
+namespace bashGPT.Core.Shell;
 
 public record CommandResult(string Command, int ExitCode, string Output, bool WasExecuted);
 
