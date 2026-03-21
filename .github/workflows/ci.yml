@@ -25,14 +25,14 @@ jobs:
         with:
           node-version: '20.19.0'
           cache: 'npm'
-          cache-dependency-path: src/bashGPT.Web/package-lock.json
+          cache-dependency-path: src/06_app/bashGPT.Web/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: src/bashGPT.Web
+        working-directory: src/06_app/bashGPT.Web
         run: npm ci
 
       - name: Build frontend
-        working-directory: src/bashGPT.Web
+        working-directory: src/06_app/bashGPT.Web
         run: npm run build
 
       - name: Restore .NET dependencies
