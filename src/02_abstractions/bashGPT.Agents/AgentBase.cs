@@ -1,4 +1,5 @@
 using System.Text;
+using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Agents;
 
@@ -57,6 +58,14 @@ public abstract class AgentBase
     /// <paramref name="sessionPath"/> and delegates to <see cref="SystemPrompt"/>.
     /// </summary>
     public virtual IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) => SystemPrompt;
+
+    /// <summary>
+    /// Returns the tool instances owned by this agent.
+    /// These are used to resolve tool definitions for the LLM and to execute tool calls
+    /// without relying on the global tool registry.
+    /// The default implementation returns an empty list.
+    /// </summary>
+    public virtual IReadOnlyList<ITool> GetOwnedTools() => [];
 
     /// <summary>
     /// Attempts to handle a tool call directly within the agent.

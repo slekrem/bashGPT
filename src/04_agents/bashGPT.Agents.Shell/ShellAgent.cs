@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using bashGPT.Core.Models.Providers;
+using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Shell;
 using ToolCall = bashGPT.Tools.Abstractions.ToolCall;
 
@@ -52,15 +53,17 @@ public sealed class ShellAgent : AgentBase
         """,
     ];
 
+    public override IReadOnlyList<ITool> GetOwnedTools() => [_shellExecTool];
+
     public override async Task<string?> TryHandleToolCallAsync(
         string toolName,
         string argumentsJson,
         string? sessionPath,
         CancellationToken ct)
     {
-        if (toolName != "shell_exec") return null;
-        var result = await _shellExecTool.ExecuteAsync(
-            new ToolCall(toolName, argumentsJson, sessionPath), ct);
+        var tool = GetOwnedTools().FirstOrDefault(t => t.Definition.Name == toolName);
+        if (tool is null) return null;
+        var result = await tool.ExecuteAsync(new ToolCall(toolName, argumentsJson, sessionPath), ct);
         return result.Content;
     }
 

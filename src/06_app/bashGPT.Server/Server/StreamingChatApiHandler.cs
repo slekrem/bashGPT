@@ -63,7 +63,7 @@ internal sealed class StreamingChatApiHandler(
                 ? effectiveToolNames
                 : toolSelectionPolicy.FilterRequestedToolNames(effectiveToolNames);
 
-            var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry);
+            var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry, agent);
 
             var now = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
