@@ -16,6 +16,15 @@ namespace bashGPT.Plugins;
 /// <c>AgentBase</c> instances from plugins are the same type objects as those
 /// used by the host — a prerequisite for the <c>is</c> / <c>IsAssignableFrom</c>
 /// checks performed by <see cref="PluginLoader"/>.
+/// <para>
+/// <b>Lifecycle:</b> This context is created with <c>isCollectible: true</c>,
+/// making it eligible for GC once all references to its types and instances are
+/// released. <c>Unload()</c> is intentionally never called — the instantiated
+/// <see cref="bashGPT.Tools.Abstractions.ITool"/> and
+/// <see cref="bashGPT.Agents.AgentBase"/> objects hold live references that keep
+/// the context alive for the duration of the host process. This is the intended
+/// lifetime: plugins are loaded once at startup and remain active until shutdown.
+/// </para>
 /// </remarks>
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {

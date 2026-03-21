@@ -153,6 +153,7 @@ public class CliChatRunner
                 foreach (var call in pluginCalls)
                 {
                     var tool = _pluginTools[call.Name];
+                    // SessionPath is null: the CLI has no session model, so there is no session directory.
                     var toolCall = new Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson);
                     string resultContent;
                     try

@@ -26,6 +26,11 @@ internal static class CliApplication
         foreach (var error in result.Errors)
             Console.Error.WriteLine($"[plugin] {Path.GetFileName(error.Source)}: {error.Message}");
 
+        // The CLI has no agent-selection model, so plugin agents cannot be activated.
+        if (result.Agents.Count > 0)
+            Console.Error.WriteLine(
+                $"[plugin] {result.Agents.Count} agent(s) discovered but ignored — agents are only supported by the server.");
+
         return result;
     }
 }

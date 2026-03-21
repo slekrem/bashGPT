@@ -17,6 +17,16 @@ and restart the server or CLI.
 
 Both the embedded server (`bashgpt-server`) and the CLI (`bashgpt`) scan this directory.
 
+> **Host support matrix**
+>
+> | Extension type | Server | CLI |
+> |---|---|---|
+> | `ITool` | ✅ discovered and callable | ✅ discovered and callable |
+> | `AgentBase` | ✅ discovered and selectable | ⚠️ discovered but ignored — the CLI has no agent-selection model |
+>
+> If your plugin contains only agents and you deploy it for the CLI, the agents are
+> silently skipped. A warning is written to stderr so you can detect this case.
+
 ---
 
 ## Quickstart

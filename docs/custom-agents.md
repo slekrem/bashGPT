@@ -105,20 +105,22 @@ directory layout, build instructions, versioning, and the security model.
 
 ### Option B — Code registration (for built-in or fork-based agents)
 
-Fork the repository and pass your agent directly during server startup:
+Fork the repository and add your agent to the built-in list in `ServerApplication`:
 
 ```csharp
-// src/bashGPT.Server/ServerApplication.cs
-public static AgentRegistry CreateAgentRegistry(IEnumerable<AgentBase>? additionalAgents = null) =>
-    // additionalAgents are already handled by the plugin loader;
-    // add your agent to the builtins array for hard-coded registration:
-    new([new GenericAgent(), new DevAgent(), new ShellAgent(), new MyAgent()]);
+// src/bashGPT.Server/ServerApplication.cs  (fork only — do not modify for external plugins)
+private static readonly AgentBase[] _builtins =
+[
+    new GenericAgent(),   // internal to bashGPT.Server
+    new DevAgent(),
+    new ShellAgent(),
+    new MyAgent(),        // ← add here
+];
 ```
 
-> **Note:** `GenericAgent` is an `internal` built-in default inside `bashGPT.Server` and is
-> not part of the public agent SDK. External consumers only work with the public types in
-> `bashGPT.Agents` (`AgentBase`, `AgentRegistry`) and the public built-in agents
-> (`DevAgent`, `ShellAgent`).
+> **Note:** `GenericAgent` is `internal` to `bashGPT.Server` and is not part of the public
+> agent SDK. It cannot be referenced from an external project. External consumers subclass
+> `AgentBase` from `bashGPT.Agents` and deploy via the plugin directory (Option A).
 
 ## Adding custom tools
 
