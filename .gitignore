@@ -485,6 +485,6 @@ $RECYCLE.BIN/
 *.swp
 
 # bashGPT.Web (frontend build artifacts)
-src/bashGPT.Web/dist/
-src/bashGPT.Web/dist-ssr/
-src/bashGPT.Web/*.local
+src/06_app/bashGPT.Web/dist/
+src/06_app/bashGPT.Web/dist-ssr/
+src/06_app/bashGPT.Web/*.local
