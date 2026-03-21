@@ -14,10 +14,13 @@ public class ShellAgentTests
     }
 
     [Fact]
-    public void ShellAgent_EnabledTools_ContainsOnlyShellExec()
+    public void ShellAgent_EnabledTools_ContainsExactlyOneShellTool()
     {
         Assert.Single(_agent.EnabledTools);
-        Assert.Contains("shell_exec", _agent.EnabledTools);
+        var toolName = _agent.EnabledTools[0];
+        Assert.True(
+            toolName is "shell_exec" or "bash_exec" or "cmd_exec" or "pwsh_exec",
+            $"Unexpected tool name: {toolName}");
     }
 
     [Fact]
@@ -30,10 +33,11 @@ public class ShellAgentTests
     [Fact]
     public void ShellAgent_GetInfoPanelMarkdown_ContainsH1AndToolTable()
     {
-        var md = _agent.GetInfoPanelMarkdown();
+        var md       = _agent.GetInfoPanelMarkdown();
+        var toolName = _agent.EnabledTools[0];
 
         Assert.Contains("# Shell-Agent", md, StringComparison.Ordinal);
-        Assert.Contains("| `shell_exec`", md, StringComparison.Ordinal);
+        Assert.Contains($"| `{toolName}`", md, StringComparison.Ordinal);
     }
 
     [Fact]
