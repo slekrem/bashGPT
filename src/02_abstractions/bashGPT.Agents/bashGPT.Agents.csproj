@@ -1,14 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- NuGet packaging -->
+    <IsPackable>true</IsPackable>
+    <PackageId>bashGPT.Agents</PackageId>
+    <Title>bashGPT Agent SDK</Title>
+    <Description>Abstractions and base types for implementing agents for the bashGPT server. Subclass AgentBase to create a self-contained agent with its own tools, system prompts, and LLM configuration.</Description>
+    <Authors>Stefan Merkel</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/slekrem/bashGPT</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>bashgpt;llm;agent;plugin;ollama</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\01_core\bashGPT.Core\bashGPT.Core.csproj" />
     <ProjectReference Include="..\bashGPT.Tools\bashGPT.Tools.csproj" />
+    <None Include="..\..\..\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\..\README.md')" />
   </ItemGroup>
 
 </Project>
