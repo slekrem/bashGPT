@@ -48,7 +48,7 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 | `bashGPT.Core` | shared configuration, providers, shell/context, CLI/server runners, storage |
 | `bashGPT.Cli` | CLI host based on `System.CommandLine` |
 | `bashGPT.Server` | embedded HTTP/UI host and API handlers |
-| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, `GenericAgent`, shared agent config types |
+| `bashGPT.Agents` | `AgentBase`, `AgentRegistry`, shared agent config types — public plugin SDK |
 | `bashGPT.Agents.Shell` | Shell agent with `shell_exec` |
 | `bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
 | `bashGPT.Tools` | tool abstractions and `ToolRegistry` |
