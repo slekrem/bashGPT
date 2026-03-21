@@ -13,7 +13,7 @@ namespace bashGPT.Server.Tests;
 public sealed class ServerToolSelectionTests
 {
     [Fact]
-    public async Task Get_Tools_OnlyReturnsDefaultSelectableTools()
+    public async Task Get_Tools_ReturnsAllRegisteredTools()
     {
         var handler = new FakePromptHandler();
         var registry = new ToolRegistry([
@@ -37,7 +37,7 @@ public sealed class ServerToolSelectionTests
 
         Assert.Contains("filesystem_read", toolNames);
         Assert.Contains("fetch", toolNames);
-        Assert.DoesNotContain("shell_exec", toolNames);
+        Assert.Contains("shell_exec", toolNames);
     }
 
     [Fact]

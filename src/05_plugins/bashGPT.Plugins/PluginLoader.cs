@@ -150,7 +150,18 @@ public static class PluginLoader
     {
         try
         {
-            if (Activator.CreateInstance(type) is T instance)
+            var ctor = type.GetConstructors()
+                .FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
+
+            if (ctor is null)
+            {
+                errors.Add(new PluginLoadError(dllPath,
+                    $"Type '{type.FullName}' has no callable constructor (all parameters must have default values)."));
+                return;
+            }
+
+            var args = ctor.GetParameters().Select(p => p.DefaultValue).ToArray();
+            if (ctor.Invoke(args) is T instance)
                 list.Add(instance);
             else
                 errors.Add(new PluginLoadError(dllPath,
