@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
+    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
   </ItemGroup>
 
 </Project>

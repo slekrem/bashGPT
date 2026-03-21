@@ -63,7 +63,7 @@ internal sealed class StreamingChatApiHandler(
                 ? effectiveToolNames
                 : toolSelectionPolicy.FilterRequestedToolNames(effectiveToolNames);
 
-            var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry);
+            var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry, agent);
 
             var now = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
@@ -85,7 +85,8 @@ internal sealed class StreamingChatApiHandler(
                 Tools: resolvedTools.Count > 0 ? resolvedTools : null,
                 SystemPrompt: agent is not null ? sp => agent.GetSystemPrompt(sp) : null,
                 LlmConfig: agent?.LlmConfig,
-                SessionPath: _sessionService.GetSessionPath(sessionId));
+                SessionPath: _sessionService.GetSessionPath(sessionId),
+                Agent: agent);
 
             var result = await handler.RunServerChatAsync(chatOpts, requestCts.Token);
 

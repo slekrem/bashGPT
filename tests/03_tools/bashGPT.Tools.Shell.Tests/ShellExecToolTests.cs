@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Runtime.InteropServices;
 using bashGPT.Tools.Abstractions;
-using bashGPT.Tools.Shell;
+using bashGPT.Tools.Shell.Shells;
 
 namespace bashGPT.Tools.Shell.Tests;
 

@@ -67,7 +67,8 @@ public class ServerChatRunner(
                         toolRegistry!,
                         opts.SessionPath,
                         opts.OnEvent,
-                        ct));
+                        ct,
+                        opts.Agent));
                 },
                 beforeNextCall: chatSession.RefreshSystemMessages,
                 ct);
