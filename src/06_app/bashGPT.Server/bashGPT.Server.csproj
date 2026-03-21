@@ -16,16 +16,50 @@
     <ProjectReference Include="..\..\01_core\bashGPT.Core\bashGPT.Core.csproj" />
     <ProjectReference Include="..\..\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />
     <ProjectReference Include="..\..\05_plugins\bashGPT.Plugins\bashGPT.Plugins.csproj" />
-    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
-    <ProjectReference Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
     <ProjectReference Include="..\..\02_abstractions\bashGPT.Tools\bashGPT.Tools.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj" />
-    <ProjectReference Include="..\..\03_tools\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj" />
   </ItemGroup>
+
+  <!-- Bundled plugins: build each project but do not link against it. -->
+  <!-- The compiled DLLs are copied into plugins\<Name>\ next to the app binary. -->
+  <ItemGroup>
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Shell\bashGPT.Tools.Shell.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Fetch\bashGPT.Tools.Fetch.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Filesystem\bashGPT.Tools.Filesystem.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Git\bashGPT.Tools.Git.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Testing\bashGPT.Tools.Testing.csproj" />
+    <BundledPlugin Include="..\..\03_tools\bashGPT.Tools.Build\bashGPT.Tools.Build.csproj" />
+    <BundledPlugin Include="..\..\04_agents\bashGPT.Agents.Dev\bashGPT.Agents.Dev.csproj" />
+    <BundledPlugin Include="..\..\04_agents\bashGPT.Agents.Shell\bashGPT.Agents.Shell.csproj" />
+  </ItemGroup>
+
+  <Target Name="BuildBundledPlugins" BeforeTargets="Build">
+    <MSBuild Projects="@(BundledPlugin)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             BuildInParallel="true" />
+  </Target>
+
+  <Target Name="CopyBundledPlugins" AfterTargets="Build" DependsOnTargets="BuildBundledPlugins">
+    <MSBuild Projects="@(BundledPlugin)"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginDll" />
+    </MSBuild>
+
+    <ItemGroup>
+      <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll"
+                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginPdbs    Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.pdb"
+                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_BundledPluginSiblings)"
+          DestinationFolder="$(OutputPath)plugins\%(_BundledPluginSiblings.PluginName)\"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_BundledPluginPdbs)"
+          DestinationFolder="$(OutputPath)plugins\%(_BundledPluginPdbs.PluginName)\"
+          SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <EmbeddedResource Include="..\bashGPT.Web\dist\index.html" LogicalName="bashGPT.Web.index.html" />

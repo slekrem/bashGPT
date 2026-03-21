@@ -21,6 +21,13 @@ public static class AppBootstrap
     public static string GetPluginsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "plugins");
 
+    /// <summary>
+    /// Returns the plugins directory bundled alongside the application binary.
+    /// Bundled plugins are shipped with the app and loaded automatically at startup.
+    /// </summary>
+    public static string GetBundledPluginsDir() =>
+        Path.Combine(AppContext.BaseDirectory, "plugins");
+
     public static string GetSessionsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "sessions");
 

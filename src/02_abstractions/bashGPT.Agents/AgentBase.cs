@@ -51,6 +51,14 @@ public abstract class AgentBase
     public abstract IReadOnlyList<string> SystemPrompt { get; }
 
     /// <summary>
+    /// Returns the system prompts for a specific session.
+    /// Override this method when the system prompt depends on session-scoped state
+    /// (e.g. files loaded into context). The default implementation ignores
+    /// <paramref name="sessionPath"/> and delegates to <see cref="SystemPrompt"/>.
+    /// </summary>
+    public virtual IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) => SystemPrompt;
+
+    /// <summary>
     /// Optional LLM configuration for this agent (model, temperature, top-p, etc.).
     /// Automatically included as a section in the info panel.
     /// </summary>

@@ -1,17 +1,9 @@
 using bashGPT.Core;
 using bashGPT.Core.Configuration;
 using bashGPT.Agents;
-using bashGPT.Agents.Dev;
-using bashGPT.Agents.Shell;
 using bashGPT.Plugins;
 using bashGPT.Server.Agents;
-using bashGPT.Tools.Build;
 using bashGPT.Tools.Registration;
-using bashGPT.Tools.Fetch;
-using bashGPT.Tools.Filesystem;
-using bashGPT.Tools.Git;
-using bashGPT.Tools.Shell;
-using bashGPT.Tools.Testing;
 using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Server;
@@ -20,35 +12,14 @@ internal static class ServerApplication
 {
     public static ConfigurationService CreateConfigurationService() => new();
 
-    public static IReadOnlyList<ITool> CreateDefaultTools() =>
-    [
-            new ShellExecTool(),
-            new FetchTool(),
-            new FilesystemReadTool(),
-            new FilesystemWriteTool(),
-            new FilesystemSearchTool(),
-            new GitStatusTool(),
-            new GitDiffTool(),
-            new GitLogTool(),
-            new GitBranchTool(),
-            new GitAddTool(),
-            new GitCommitTool(),
-            new GitCheckoutTool(),
-            new TestRunTool(),
-            new BuildRunTool(),
-            new ContextLoadFilesTool(),
-            new ContextUnloadFilesTool(),
-            new ContextClearFilesTool(),
-    ];
-
-    public static ToolRegistry CreateToolRegistry(IEnumerable<ITool>? additionalTools = null)
+    public static ToolRegistry CreateToolRegistry(IEnumerable<ITool>? pluginTools = null)
     {
-        var registry = new ToolRegistry(CreateDefaultTools());
+        var registry = new ToolRegistry([]);
 
-        if (additionalTools is null)
+        if (pluginTools is null)
             return registry;
 
-        foreach (var tool in additionalTools)
+        foreach (var tool in pluginTools)
         {
             try
             {
@@ -57,24 +28,24 @@ internal static class ServerApplication
             catch (InvalidOperationException)
             {
                 Console.Error.WriteLine(
-                    $"[plugin] Tool '{tool.Definition.Name}' conflicts with a built-in tool and was skipped.");
+                    $"[plugin] Tool '{tool.Definition.Name}' is a duplicate and was skipped.");
             }
         }
 
         return registry;
     }
 
-    public static AgentRegistry CreateAgentRegistry(IEnumerable<AgentBase>? additionalAgents = null)
+    public static AgentRegistry CreateAgentRegistry(IEnumerable<AgentBase>? pluginAgents = null)
     {
-        var builtins = new AgentBase[] { new GenericAgent(), new DevAgent(), new ShellAgent() };
+        var builtins = new AgentBase[] { new GenericAgent() };
 
-        if (additionalAgents is null)
+        if (pluginAgents is null)
             return new AgentRegistry(builtins);
 
         var seenIds = new HashSet<string>(builtins.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
-        var pluginAgents = new List<AgentBase>();
+        var additionalAgents = new List<AgentBase>();
 
-        foreach (var agent in additionalAgents)
+        foreach (var agent in pluginAgents)
         {
             if (!seenIds.Add(agent.Id))
             {
@@ -83,20 +54,25 @@ internal static class ServerApplication
                 continue;
             }
 
-            pluginAgents.Add(agent);
+            additionalAgents.Add(agent);
         }
 
-        return new AgentRegistry(builtins.Concat(pluginAgents));
+        return new AgentRegistry(builtins.Concat(additionalAgents));
     }
 
     /// <summary>
-    /// Scans the plugin directory and returns all discovered tools and agents.
-    /// Non-fatal loading errors are written to <see cref="Console.Error"/>.
+    /// Scans the bundled plugins directory (next to the app binary) and the user config
+    /// plugins directory, merges results, and reports non-fatal loading errors to stderr.
     /// </summary>
-    public static PluginLoadResult LoadPlugins(string? pluginDir = null)
+    public static PluginLoadResult LoadPlugins(string? userPluginDir = null)
     {
-        var dir = pluginDir ?? AppBootstrap.GetPluginsDir();
-        var result = PluginLoader.LoadFromDirectory(dir);
+        var dirs = new[]
+        {
+            AppBootstrap.GetBundledPluginsDir(),
+            userPluginDir ?? AppBootstrap.GetPluginsDir(),
+        };
+
+        var result = PluginLoader.LoadFromDirectories(dirs);
 
         foreach (var error in result.Errors)
             Console.Error.WriteLine($"[plugin] {Path.GetFileName(error.Source)}: {error.Message}");
@@ -107,11 +83,11 @@ internal static class ServerApplication
     public static ServerHost CreateServerHost(
         ConfigurationService configService,
         ToolRegistry toolRegistry,
-        IEnumerable<AgentBase>? additionalAgents = null)
+        IEnumerable<AgentBase>? pluginAgents = null)
     {
         var sessionStore = AppBootstrap.CreateSessionStore();
         var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
-        var agentRegistry = CreateAgentRegistry(additionalAgents);
+        var agentRegistry = CreateAgentRegistry(pluginAgents);
         var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
 
         return new ServerHost(

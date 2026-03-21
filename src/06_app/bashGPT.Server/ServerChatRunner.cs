@@ -1,9 +1,9 @@
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
+using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
-using bashGPT.Shell;
 using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
@@ -20,13 +20,14 @@ public class ServerChatRunner(
         var logs = new List<string>();
 
         var tools = opts.Tools ?? [];
+        var sessionPath = opts.SessionPath;
         var bootstrap = await ChatSessionBootstrap.CreateAsync(
             configService,
             opts.Model,
             tools,
             opts.History,
             opts.Prompt,
-            systemPrompt: opts.SystemPrompt,
+            systemPrompt: opts.SystemPrompt is not null ? () => opts.SystemPrompt(sessionPath) : null,
             llmConfig: opts.LlmConfig,
             onReasoningToken: opts.OnReasoningToken,
             onLlmRequestJson: opts.OnLlmRequestJson,
@@ -45,7 +46,7 @@ public class ServerChatRunner(
             logs.Add($"Provider: {provider.Name}, model: {provider.Model}");
         var chatSession = bootstrap.Session;
 
-        var commandResults = new List<CommandResult>();
+        var commandResults = new List<SessionCommand>();
         var usedToolCalls = false;
         var conversationDelta = new List<ChatMessage>();
 
@@ -111,6 +112,6 @@ public class ServerChatRunner(
             FinalStatus: completedOutcome.FinalStatus);
     }
 
-    private static string ClassifyCommandStatus(CommandResult result)
+    private static string ClassifyCommandStatus(SessionCommand result)
         => ServerToolCallOrchestrator.ClassifyCommandStatus(result);
 }

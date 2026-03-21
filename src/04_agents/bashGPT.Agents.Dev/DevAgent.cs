@@ -47,7 +47,9 @@ public sealed class DevAgent : AgentBase
         Stream:            true
     );
 
-    public override IReadOnlyList<string> SystemPrompt =>
+    public override IReadOnlyList<string> SystemPrompt => GetSystemPrompt(null);
+
+    public override IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) =>
     [
         """
         You are an experienced software engineer. Solve tasks through focused tool usage.
@@ -62,7 +64,7 @@ public sealed class DevAgent : AgentBase
         - For missing optional paths, use "path": "." as the default.
         """,
         BuildProjectContext(),
-        BuildLoadedFilesContext(),
+        BuildLoadedFilesContext(sessionPath),
     ];
 
     /// <summary>
@@ -111,9 +113,9 @@ public sealed class DevAgent : AgentBase
     /// Loads all files stored in the cache and returns their content as formatted text.
     /// Empty strings are filtered automatically by ServerChatRunner.
     /// </summary>
-    private static string BuildLoadedFilesContext()
+    private static string BuildLoadedFilesContext(string? sessionPath = null)
     {
-        var paths = ContextFileCache.ReadFiles();
+        var paths = ContextFileCache.ReadFiles(sessionPath);
         if (paths.Count == 0) return string.Empty;
 
         var sb = new StringBuilder("# Loaded Files\n\n");

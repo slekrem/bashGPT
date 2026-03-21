@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace bashGPT.Shell;
+namespace bashGPT.Core.Shell;
 
 public record ExtractedCommand(string Command, bool IsDangerous, string? DangerReason);
 

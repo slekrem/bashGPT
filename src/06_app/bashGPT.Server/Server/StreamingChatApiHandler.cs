@@ -4,8 +4,6 @@ using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 using bashGPT.Agents;
-using bashGPT.Agents.Dev;
-using bashGPT.Shell;
 using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
@@ -70,8 +68,6 @@ internal sealed class StreamingChatApiHandler(
             var now = DateTime.UtcNow.ToString("o");
             var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
 
-            ContextFileCache.CurrentSessionPath = _sessionService.GetSessionPath(sessionId);
-
             var chatOpts = new ServerChatOptions(
                 Prompt: body.Prompt.Trim(),
                 History: historySnapshot,
@@ -87,7 +83,7 @@ internal sealed class StreamingChatApiHandler(
                     ? (idx, json) => _sessionService.SaveLlmResponseAsync(sessionId, requestKey, idx, json)
                     : null,
                 Tools: resolvedTools.Count > 0 ? resolvedTools : null,
-                SystemPrompt: agent is not null ? () => agent.SystemPrompt : null,
+                SystemPrompt: agent is not null ? sp => agent.GetSystemPrompt(sp) : null,
                 LlmConfig: agent?.LlmConfig,
                 SessionPath: _sessionService.GetSessionPath(sessionId));
 

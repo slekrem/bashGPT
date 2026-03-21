@@ -1,12 +1,12 @@
 using bashGPT.Core.Models.Providers;
-using bashGPT.Shell;
+using bashGPT.Core.Models.Storage;
 using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
 internal static class ServerToolCallOrchestrator
 {
-    public static async Task<IReadOnlyList<CommandResult>> ExecuteRoundAsync(
+    public static async Task<IReadOnlyList<SessionCommand>> ExecuteRoundAsync(
         IReadOnlyList<ToolCall> toolCalls,
         string assistantContent,
         List<ChatMessage> messages,
@@ -23,7 +23,7 @@ internal static class ServerToolCallOrchestrator
         messages.Add(assistantToolCallMessage);
         conversationDelta.Add(assistantToolCallMessage);
 
-        var commandResults = new List<CommandResult>();
+        var commandResults = new List<SessionCommand>();
 
         foreach (var call in toolCalls)
         {
@@ -54,14 +54,14 @@ internal static class ServerToolCallOrchestrator
         return commandResults;
     }
 
-    public static string ClassifyCommandStatus(CommandResult result)
+    public static string ClassifyCommandStatus(SessionCommand result)
         => result.Output.Contains("timed out", StringComparison.OrdinalIgnoreCase)
             ? "timeout"
             : result.WasExecuted
                 ? "executed"
                 : "failed";
 
-    private static async Task<(string ToolResult, CommandResult CommandResult)> ExecuteToolCallAsync(
+    private static async Task<(string ToolResult, SessionCommand CommandResult)> ExecuteToolCallAsync(
         ToolCall call,
         string commandLabel,
         ToolRegistry toolRegistry,
@@ -86,17 +86,22 @@ internal static class ServerToolCallOrchestrator
             catch (Exception ex)
             {
                 var toolResult = $"Error: {ex.Message}";
-                return (toolResult, new CommandResult(commandLabel, 1, toolResult, WasExecuted: false));
+                return (toolResult, new SessionCommand { Command = commandLabel, ExitCode = 1, Output = toolResult, WasExecuted = false });
             }
         }
 
         var unknownToolResult = $"Error: Unknown tool '{call.Name}'.";
-        return (unknownToolResult, new CommandResult(commandLabel, 1, unknownToolResult, WasExecuted: false));
+        return (unknownToolResult, new SessionCommand { Command = commandLabel, ExitCode = 1, Output = unknownToolResult, WasExecuted = false });
     }
 
-    private static CommandResult BuildCommandResult(string toolName, string commandLabel, string content, bool success)
+    private static SessionCommand BuildCommandResult(string toolName, string commandLabel, string content, bool success)
     {
-        var exitCode = success ? 0 : 1;
-        return new CommandResult($"{toolName}: {commandLabel}", exitCode, content, WasExecuted: success);
+        return new SessionCommand
+        {
+            Command = $"{toolName}: {commandLabel}",
+            ExitCode = success ? 0 : 1,
+            Output = content,
+            WasExecuted = success,
+        };
     }
 }

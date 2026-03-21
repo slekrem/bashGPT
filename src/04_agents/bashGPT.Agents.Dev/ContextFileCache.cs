@@ -5,28 +5,15 @@ namespace bashGPT.Agents.Dev;
 /// <summary>
 /// Manages a persistent list of file paths that the dev agent loads into context.
 /// Stored as "context-files" in the session directory.
-/// The current session path is provided via <see cref="CurrentSessionPath"/> using AsyncLocal,
-/// so <see cref="DevAgent.SystemPrompt"/> can access it when building the system prompt.
+/// The session path is passed explicitly via the <c>sessionPath</c> parameter on each method.
 /// </summary>
 public static class ContextFileCache
 {
     private const string CacheFileName = "context-files";
 
-    private static readonly AsyncLocal<string?> _currentSessionPath = new();
-
-    /// <summary>
-    /// Must be set by the server handler before <c>agent.SystemPrompt</c> is evaluated.
-    /// </summary>
-    public static string? CurrentSessionPath
-    {
-        get => _currentSessionPath.Value;
-        set => _currentSessionPath.Value = value;
-    }
-
     public static string GetCachePath(string? sessionPath = null)
     {
         var dir = !string.IsNullOrWhiteSpace(sessionPath) ? sessionPath
-                : !string.IsNullOrWhiteSpace(CurrentSessionPath) ? CurrentSessionPath
                 : Directory.GetCurrentDirectory();
         return Path.Combine(dir, CacheFileName);
     }
