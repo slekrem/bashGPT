@@ -44,9 +44,11 @@
 - Framework: xUnit with `Fact` attributes.
 - Test naming follows `Method_Condition_Result` (e.g., `StreamAsync_StopsAtDone`).
 - Put new tests under the matching test project and production namespace:
-  - Core/Cli/Server code → `tests/bashGPT.Core.Tests/`, `tests/bashGPT.Cli.Tests/`, `tests/bashGPT.Server.Tests/`
-  - Agent code → `tests/bashGPT.Agents.Tests/`
-  - Tool code → `tests/bashGPT.Tools.Tests/` and the corresponding `tests/bashGPT.Tools.<Name>.Tests/` project
+  - Core code → `tests/01_core/bashGPT.Core.Tests/`
+  - Agent/Tool abstractions → `tests/02_abstractions/bashGPT.Agents.Tests/`, `tests/02_abstractions/bashGPT.Tools.Tests/`
+  - Tool implementations → `tests/03_tools/bashGPT.Tools.<Name>.Tests/`
+  - Plugin code → `tests/05_plugins/bashGPT.Plugins.Tests/`
+  - CLI/Server code → `tests/06_app/bashGPT.Cli.Tests/`, `tests/06_app/bashGPT.Server.Tests/`
 
 ## Commit & Pull Request Guidelines
 

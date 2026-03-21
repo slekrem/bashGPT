@@ -108,7 +108,7 @@ directory layout, build instructions, versioning, and the security model.
 Fork the repository and add your agent to the built-in list in `ServerApplication`:
 
 ```csharp
-// src/bashGPT.Server/ServerApplication.cs  (fork only — do not modify for external plugins)
+// src/06_app/bashGPT.Server/ServerApplication.cs  (fork only — do not modify for external plugins)
 private static readonly AgentBase[] _builtins =
 [
     new GenericAgent(),   // internal to bashGPT.Server
