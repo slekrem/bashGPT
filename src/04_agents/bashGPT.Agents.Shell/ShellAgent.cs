@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Shell.Shells;
-using ToolCall = bashGPT.Tools.Abstractions.ToolCall;
 
 namespace bashGPT.Agents.Shell;
 
@@ -18,8 +17,6 @@ public sealed class ShellAgent : AgentBase
 
     public override string Name => "Shell-Agent";
 
-    public override IReadOnlyList<string> EnabledTools => [_shellTool.Definition.Name];
-
     public override AgentLlmConfig LlmConfig => new(
         Temperature: 0.1,
         TopP:        0.9,
@@ -33,18 +30,6 @@ public sealed class ShellAgent : AgentBase
     ];
 
     public override IReadOnlyList<ITool> GetOwnedTools() => [_shellTool];
-
-    public override async Task<string?> TryHandleToolCallAsync(
-        string toolName,
-        string argumentsJson,
-        string? sessionPath,
-        CancellationToken ct)
-    {
-        var tool = GetOwnedTools().FirstOrDefault(t => t.Definition.Name == toolName);
-        if (tool is null) return null;
-        var result = await tool.ExecuteAsync(new ToolCall(toolName, argumentsJson, sessionPath), ct);
-        return result.Content;
-    }
 
     protected override string GetAgentMarkdown()
     {

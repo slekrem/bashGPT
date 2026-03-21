@@ -17,18 +17,20 @@ namespace bashGPT.Agents;
 /// <code>
 /// public sealed class MyAgent : AgentBase
 /// {
-///     public override string Id           => "my-agent";
-///     public override string Name         => "My Agent";
-///     public override IReadOnlyList&lt;string&gt; EnabledTools  => ["shell_exec"];
-///     public override IReadOnlyList&lt;string&gt; SystemPrompt  => ["You are my custom agent."];
-///     protected override string GetAgentMarkdown()        => "# My Agent\n\nDoes awesome things.";
+///     public override string Id   => "my-agent";
+///     public override string Name => "My Agent";
+///     // EnabledTools is derived automatically from GetOwnedTools()
+///     public override IReadOnlyList&lt;ITool&gt; GetOwnedTools()   => [new MyTool()];
+///     public override IReadOnlyList&lt;string&gt; SystemPrompt    => ["You are my custom agent."];
+///     protected override string GetAgentMarkdown()          => "# My Agent\n\nDoes awesome things.";
 /// }
 /// </code>
 /// <para><b>Extension points:</b></para>
 /// <list type="bullet">
 ///   <item><term><see cref="Id"/></term><description>Unique, stable identifier — never change this after deployment.</description></item>
 ///   <item><term><see cref="Name"/></term><description>Human-readable display name shown in the UI.</description></item>
-///   <item><term><see cref="EnabledTools"/></term><description>Tool names available to this agent. Must match registered tool names.</description></item>
+///   <item><term><see cref="EnabledTools"/></term><description>Derived automatically from <see cref="GetOwnedTools"/>. Override to include additional registry tools.</description></item>
+///   <item><term><see cref="GetOwnedTools"/></term><description>Tool instances owned by this agent — no registry needed. Self-contained agents implement this instead of overriding <see cref="EnabledTools"/>.</description></item>
 ///   <item><term><see cref="SystemPrompt"/></term><description>One or more system messages sent to the LLM at the start of every request. Can be dynamic (computed properties).</description></item>
 ///   <item><term><see cref="LlmConfig"/></term><description>Optional: override temperature, top-p, context size, etc. Return null to use the server default.</description></item>
 ///   <item><term><see cref="GetAgentMarkdown"/></term><description>Markdown shown in the info panel. The LLM configuration table is appended automatically.</description></item>
@@ -42,8 +44,13 @@ public abstract class AgentBase
     /// <summary>Display name shown in the UI.</summary>
     public abstract string Name { get; }
 
-    /// <summary>Names of the tools that are active for this agent.</summary>
-    public abstract IReadOnlyList<string> EnabledTools { get; }
+    /// <summary>
+    /// Names of the tools that are active for this agent.
+    /// Defaults to the names of all owned tools returned by <see cref="GetOwnedTools"/>.
+    /// Override to include additional tools resolved from the global registry.
+    /// </summary>
+    public virtual IReadOnlyList<string> EnabledTools =>
+        GetOwnedTools().Select(t => t.Definition.Name).ToArray();
 
     /// <summary>
     /// System prompts sent to the LLM at the start of every chat.
@@ -69,13 +76,20 @@ public abstract class AgentBase
 
     /// <summary>
     /// Attempts to handle a tool call directly within the agent.
-    /// Returns the tool result string when handled, or <c>null</c> to fall back to the global tool registry.
+    /// The default implementation routes to <see cref="GetOwnedTools"/>;
+    /// returns <c>null</c> when no owned tool matches, falling back to the global registry.
     /// </summary>
-    public virtual Task<string?> TryHandleToolCallAsync(
+    public virtual async Task<string?> TryHandleToolCallAsync(
         string toolName,
         string argumentsJson,
         string? sessionPath,
-        CancellationToken ct) => Task.FromResult<string?>(null);
+        CancellationToken ct)
+    {
+        var tool = GetOwnedTools().FirstOrDefault(t => t.Definition.Name == toolName);
+        if (tool is null) return null;
+        var result = await tool.ExecuteAsync(new ToolCall(toolName, argumentsJson, sessionPath), ct);
+        return result.Content;
+    }
 
     /// <summary>
     /// Optional LLM configuration for this agent (model, temperature, top-p, etc.).
