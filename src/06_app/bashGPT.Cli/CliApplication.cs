@@ -15,14 +15,13 @@ internal static class CliApplication
         new(configService, pluginTools);
 
     /// <summary>
-    /// Scans the bundled plugins directory (next to the app binary) and the user config
-    /// plugins directory, merges results, and reports non-fatal loading errors to stderr.
+    /// Scans the user config plugins directory, loads all plugins, and reports
+    /// non-fatal loading errors to stderr.
     /// </summary>
     public static PluginLoadResult LoadPlugins(string? userPluginDir = null)
     {
         var dirs = new[]
         {
-            AppBootstrap.GetBundledPluginsDir(),
             userPluginDir ?? AppBootstrap.GetPluginsDir(),
         };
 
