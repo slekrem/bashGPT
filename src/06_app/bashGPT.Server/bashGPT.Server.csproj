@@ -35,6 +35,9 @@
   <PropertyGroup>
     <_ConfigPluginsDir Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(APPDATA)\bashgpt\plugins</_ConfigPluginsDir>
     <_ConfigPluginsDir Condition="!$([MSBuild]::IsOSPlatform('Windows'))">$(HOME)/.config/bashgpt/plugins</_ConfigPluginsDir>
+    <!-- Tracks which plugin directories were installed by this project so that
+         renamed or removed plugins can be cleaned up on the next build. -->
+    <_BundledPluginsManifest>$(_ConfigPluginsDir)\.bundled-plugins-server.txt</_BundledPluginsManifest>
   </PropertyGroup>
 
   <Target Name="BuildPlugins" BeforeTargets="Build">
@@ -57,7 +60,13 @@
                                  PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
     </ItemGroup>
 
-    <!-- Remove each plugin's target directory so no stale files survive a rename or removal. -->
+    <!-- Read the previous manifest to remove directories of renamed/removed plugins. -->
+    <ReadLinesFromFile File="$(_BundledPluginsManifest)" Condition="Exists('$(_BundledPluginsManifest)')">
+      <Output TaskParameter="Lines" ItemName="_PreviousBundledPluginName" />
+    </ReadLinesFromFile>
+    <RemoveDir Directories="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\" />
+
+    <!-- Remove current plugin directories so no stale files survive within a plugin. -->
     <RemoveDir Directories="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\" />
 
     <ItemGroup>
@@ -78,6 +87,12 @@
     <Copy SourceFiles="@(_BundledPluginDeps)"
           DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginDeps.PluginName)\"
           SkipUnchangedFiles="false" />
+
+    <!-- Update manifest with the current set of bundled plugin names. -->
+    <ItemGroup>
+      <_CurrentPluginNameLine Include="%(_BundledPluginDllWithName.PluginName)" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_BundledPluginsManifest)" Lines="@(_CurrentPluginNameLine)" Overwrite="true" />
   </Target>
 
   <ItemGroup>
