@@ -1,6 +1,6 @@
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell.Shells;
 
 /// <summary>
 /// Executes commands in PowerShell (prefers <c>pwsh.exe</c> / PowerShell 7+,

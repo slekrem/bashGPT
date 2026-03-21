@@ -1,6 +1,6 @@
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell.Shells;
 
 /// <summary>
 /// Executes commands in bash (or the shell set via the <c>SHELL</c> environment variable).

@@ -2,11 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using bashGPT.Server;
 using bashGPT.Tools.Registration;
 using bashGPT.Tools.Fetch;
 using bashGPT.Tools.Filesystem;
-using bashGPT.Tools.Shell;
+using bashGPT.Tools.Shell.Shells;
 
 namespace bashGPT.Server.Tests;
 

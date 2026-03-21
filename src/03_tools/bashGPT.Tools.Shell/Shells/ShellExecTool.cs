@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Tools.Shell;
+namespace bashGPT.Tools.Shell.Shells;
 
 /// <summary>
 /// Generic shell execution tool that auto-detects the platform shell at runtime.
