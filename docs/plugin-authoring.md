@@ -1,23 +1,23 @@
-# Plugin-Authoring Guide
+# Plugin Authoring Guide
 
-Externe Tools und Agenten können als eigenständige .NET-Assemblies entwickelt und in bashGPT geladen werden, ohne den Host neu zu kompilieren.
+External tools and agents can be developed as standalone .NET assemblies and loaded into bashGPT without recompiling the host.
 
-## Voraussetzungen
+## Prerequisites
 
 - .NET 9 SDK
-- NuGet-Pakete:
-  - `bashGPT.Tools` — für externe Tools
-  - `bashGPT.Agents` — für externe Agenten (enthält `bashGPT.Tools` transitiv)
+- NuGet packages:
+  - `bashGPT.Tools` — for external tools
+  - `bashGPT.Agents` — for external agents (transitively includes `bashGPT.Tools`)
 
 ```xml
 <PackageReference Include="bashGPT.Tools" Version="0.1.0" />
-<!-- oder für Agenten: -->
+<!-- or for agents: -->
 <PackageReference Include="bashGPT.Agents" Version="0.1.0" />
 ```
 
-## Ein Tool implementieren
+## Implementing a Tool
 
-Implementiere `ITool` und registriere keine Abhängigkeit auf den Host — das Plugin wird per Reflection geladen.
+Implement `ITool` and do not take a dependency on the host — the plugin is loaded via reflection.
 
 ```csharp
 using bashGPT.Tools.Abstractions;
@@ -26,24 +26,25 @@ public sealed class HelloTool : ITool
 {
     public ToolDefinition Definition => new(
         Name:        "hello",
-        Description: "Gibt eine Begrüßung zurück.",
+        Description: "Returns a greeting.",
         Parameters:  ToolParameters.Empty
     );
 
     public Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct)
     {
-        var result = new ToolResult("Hallo aus dem Plugin!");
+        var result = new ToolResult("Hello from the plugin!");
         return Task.FromResult(result);
     }
 }
 ```
 
-## Einen Agenten implementieren
+## Implementing an Agent
 
-Subklasse `AgentBase`, gib ihm eine stabile `Id` und ein oder mehrere `SystemPrompt`-Einträge.
+Subclass `AgentBase`, provide a stable `Id`, and define one or more `SystemPrompt` entries.
 
 ```csharp
 using bashGPT.Agents;
+using bashGPT.Tools.Abstractions;
 
 public sealed class HelloAgent : AgentBase
 {
@@ -54,57 +55,57 @@ public sealed class HelloAgent : AgentBase
 
     public override IReadOnlyList<string> SystemPrompt =>
     [
-        "Du bist ein freundlicher Assistent, der immer mit 'Hallo!' beginnt."
+        "You are a friendly assistant that always starts with 'Hello!'."
     ];
 
     protected override string GetAgentMarkdown() =>
-        "# Hello Agent\n\nEin einfacher Demo-Agent.";
+        "# Hello Agent\n\nA simple demo agent.";
 }
 ```
 
-Optionale Overrides:
-- `LlmConfig` — eigene Modell- und Sampling-Parameter (`AgentLlmConfig`)
-- `EnabledTools` — zusätzliche Registry-Tools nach Name
-- `GetSystemPrompt(sessionPath)` — session-abhängige System-Prompts
+Optional overrides:
+- `LlmConfig` — custom model and sampling parameters (`AgentLlmConfig`)
+- `EnabledTools` — additional registry tools by name
+- `GetSystemPrompt(sessionPath)` — session-dependent system prompts
 
-## Plugin-Layout
+## Plugin Layout
 
-Das Plugin-Verzeichnis muss so benannt sein wie die Haupt-Assembly:
+The plugin directory must be named after the main assembly:
 
 ```
 ~/.config/bashgpt/plugins/
   MyPlugin/
-    MyPlugin.dll        ← Haupt-Assembly (Name muss Verzeichnis entsprechen)
-    SomeDependency.dll  ← private Abhängigkeiten (optional)
+    MyPlugin.dll        ← main assembly (name must match directory)
+    SomeDependency.dll  ← private dependencies (optional)
 ```
 
-**Regeln:**
-- Öffentliche, nicht-abstrakte `ITool`- und `AgentBase`-Klassen mit parameterlosem Konstruktor werden automatisch instanziiert.
-- Built-in-Tools und -Agenten gewinnen bei Namenskonflikten — Duplikate werden nach stderr geloggt und übersprungen.
-- Jedes Plugin läuft in einem eigenen `AssemblyLoadContext`. Die SDK-Contracts (`bashGPT.Tools`, `bashGPT.Agents`) fallen auf die Host-Version zurück, um Typidentität zu wahren.
+**Rules:**
+- Public, non-abstract `ITool` and `AgentBase` classes are instantiated automatically. The constructor must either be parameterless or have all parameters with default values.
+- Built-in tools and agents win on name/ID collision — duplicates are logged to stderr and skipped.
+- Each plugin runs in its own `AssemblyLoadContext`. SDK contracts (`bashGPT.Tools`, `bashGPT.Agents`) fall back to the host version to preserve type identity.
 
 ## Installation
 
 ```bash
 mkdir -p ~/.config/bashgpt/plugins/MyPlugin
 cp MyPlugin/bin/Release/net9.0/MyPlugin.dll ~/.config/bashgpt/plugins/MyPlugin/
-# optionale Abhängigkeiten ebenfalls kopieren
+# copy optional dependencies as well
 ```
 
-Beim nächsten Start von `bashgpt-server` oder `bashgpt` (CLI) wird das Plugin automatisch geladen.
+The plugin is loaded automatically the next time `bashgpt-server` or `bashgpt` (CLI) starts.
 
-## Versionierung
+## Versioning
 
-Die SDK-Pakete folgen SemVer 2:
+SDK packages follow SemVer 2:
 
-| Änderung | Version |
+| Change | Version |
 |---|---|
-| Breaking change in `ITool`, `AgentBase`, `AgentLlmConfig` | Major-Bump |
-| Neue nicht-brechende API | Minor-Bump |
-| Bugfixes | Patch-Bump |
+| Breaking change in `ITool`, `AgentBase`, `AgentLlmConfig` | Major bump |
+| New non-breaking API | Minor bump |
+| Bug fixes | Patch bump |
 
-> **Hinweis:** Solange die Version `0.x` ist, können Minor-Bumps Breaking Changes enthalten. Fixiere deshalb in Plugin-Projekten auf eine kompatible Version.
+> **Note:** While the version is `0.x`, minor bumps may contain breaking changes. Pin plugin projects to a compatible version range.
 
-## Sicherheitshinweis
+## Security Note
 
-Plugins laufen vollständig vertrauenswürdig im gleichen Prozess ohne Sandboxing. Installiere nur Plugins aus vertrauenswürdigen Quellen.
+Plugins run fully trusted in the same process with no sandboxing. Only install plugins from sources you control.
