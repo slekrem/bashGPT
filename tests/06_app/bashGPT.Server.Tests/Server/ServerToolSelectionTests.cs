@@ -12,7 +12,7 @@ namespace bashGPT.Server.Tests;
 public sealed class ServerToolSelectionTests
 {
     [Fact]
-    public async Task Get_Tools_ReturnsAllRegisteredTools()
+    public async Task Get_Tools_ReturnsOnlyAllowedTools_ByDefault()
     {
         var handler = new FakePromptHandler();
         var registry = new ToolRegistry([
@@ -36,7 +36,7 @@ public sealed class ServerToolSelectionTests
 
         Assert.Contains("filesystem_read", toolNames);
         Assert.Contains("fetch", toolNames);
-        Assert.Contains("shell_exec", toolNames);
+        Assert.DoesNotContain("shell_exec", toolNames);
     }
 
     [Fact]
@@ -93,6 +93,35 @@ public sealed class ServerToolSelectionTests
 
         Assert.Contains("filesystem_read", toolNames);
         Assert.Contains("shell_exec", toolNames);
+    }
+
+    [Fact]
+    public async Task Post_Chat_IncludesPluginTools_WhenPolicyAllowsThem()
+    {
+        var handler = new FakePromptHandler();
+        var registry = new ToolRegistry([
+            new ShellExecTool(),
+            new FilesystemReadTool(),
+        ]);
+        var policy = ServerToolSelectionPolicy.FromEnvironment(["shell_exec"]);
+
+        await using var fixture = await ServerFixture.StartAsync(handler, registry, policy);
+
+        var body = JsonSerializer.Serialize(new
+        {
+            prompt = "führe befehl aus",
+            enabledTools = new[] { "shell_exec", "filesystem_read" }
+        });
+
+        var response = await fixture.Client.PostAsync("/api/chat",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(handler.LastOptions);
+
+        var toolNames = handler.LastOptions!.Tools!.Select(t => t.Name).ToList();
+        Assert.Contains("shell_exec", toolNames);
+        Assert.Contains("filesystem_read", toolNames);
     }
 
     private sealed class ServerFixture : IAsyncDisposable

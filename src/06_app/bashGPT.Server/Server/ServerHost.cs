@@ -37,7 +37,7 @@ public class ServerHost
         _chatCancelHandler = new ChatCancelApiHandler(_runningChats);
         _sessionHandler = new SessionApiHandler(sessionStore);
         _agentHandler = new AgentApiHandler(agentRegistry, configService);
-        _toolHandler = new ToolApiHandler(toolRegistry);
+        _toolHandler = new ToolApiHandler(toolRegistry, _toolSelectionPolicy);
         _legacyHistoryHandler = new LegacyHistoryApiHandler(sessionStore);
     }
 

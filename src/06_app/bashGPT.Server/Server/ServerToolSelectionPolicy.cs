@@ -30,16 +30,19 @@ public sealed class ServerToolSelectionPolicy
         }
     }
 
-    public static ServerToolSelectionPolicy FromEnvironment()
+    public static ServerToolSelectionPolicy FromEnvironment(IEnumerable<string>? additionalAllowedToolNames = null)
     {
         var raw = Environment.GetEnvironmentVariable("BASHGPT_SERVER_ALLOWED_TOOLS");
-        if (string.IsNullOrWhiteSpace(raw))
-            return new ServerToolSelectionPolicy();
 
-        var extraAllowedToolNames = raw
-            .Split([',', ';', '\n', '\r', '\t', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var fromEnv = string.IsNullOrWhiteSpace(raw)
+            ? []
+            : raw.Split([',', ';', '\n', '\r', '\t', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        return new ServerToolSelectionPolicy(extraAllowedToolNames);
+        var combined = additionalAllowedToolNames is null
+            ? fromEnv
+            : fromEnv.Concat(additionalAllowedToolNames);
+
+        return new ServerToolSelectionPolicy(combined);
     }
 
     public bool IsAllowed(string toolName) => _allowedToolNames.Contains(toolName);
