@@ -18,7 +18,6 @@ public class ServerHost
     private readonly ToolApiHandler _toolHandler;
     private readonly LegacyHistoryApiHandler _legacyHistoryHandler;
     private readonly RunningChatRegistry _runningChats;
-    private readonly ServerToolSelectionPolicy _toolSelectionPolicy;
 
     public ServerHost(
         IChatHandler handler,
@@ -26,18 +25,16 @@ public class ServerHost
         SessionStore? sessionStore = null,
         SessionRequestStore? sessionRequestStore = null,
         AgentRegistry? agentRegistry = null,
-        ToolRegistry? toolRegistry = null,
-        ServerToolSelectionPolicy? toolSelectionPolicy = null)
+        ToolRegistry? toolRegistry = null)
     {
-        _toolSelectionPolicy = toolSelectionPolicy ?? ServerToolSelectionPolicy.FromEnvironment();
         _runningChats = new RunningChatRegistry();
         _settingsHandler = new SettingsApiHandler(configService);
-        _chatHandler = new ChatApiHandler(handler, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, _runningChats, _toolSelectionPolicy, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
+        _chatHandler = new ChatApiHandler(handler, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
+        _streamingChatHandler = new StreamingChatApiHandler(handler, _runningChats, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
         _chatCancelHandler = new ChatCancelApiHandler(_runningChats);
         _sessionHandler = new SessionApiHandler(sessionStore);
         _agentHandler = new AgentApiHandler(agentRegistry, configService);
-        _toolHandler = new ToolApiHandler(toolRegistry, _toolSelectionPolicy);
+        _toolHandler = new ToolApiHandler(toolRegistry);
         _legacyHistoryHandler = new LegacyHistoryApiHandler(sessionStore);
     }
 

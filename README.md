@@ -111,11 +111,9 @@ Available server flags: `--provider`, `--model`, `--port`, `--no-browser`, `--ve
 
 Notes:
 - The UI provides chat history, session management, agent selection, manually selectable tools, and visibility into executed tool results.
-- In server mode, `execMode` is not evaluated by the backend. Tool behavior is fixed and there is no interactive terminal prompt in the browser.
 - Sessions are stored in `~/.config/bashgpt/sessions/` (max. 20 sessions).
 - Available API endpoints include `/api/sessions/*`, `/api/agents`, `/api/agents/<id>/info-panel`, `/api/tools`, `/api/chat/stream`, and `/api/chat/cancel`.
-- Manually selectable tools in the browser UI default to a safe allowlist: `fetch`, `filesystem_read`, `filesystem_search`, `git_status`, `git_diff`, `git_log`, `git_branch`.
-- Additional, riskier tools can be explicitly enabled with `BASHGPT_SERVER_ALLOWED_TOOLS`, for example `BASHGPT_SERVER_ALLOWED_TOOLS=shell_exec,filesystem_write`.
+- All tools discovered in the plugin directory are available for selection in the browser UI. Tool selection is UI-driven.
 - Agents with fixed tool sets such as `shell` and `dev` remain an intentional trust boundary and can expose more powerful tools.
 
 ## Agents

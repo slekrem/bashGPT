@@ -90,22 +90,6 @@ public class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Set_ExecMode_Throws()
-    {
-        var svc = CreateService();
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.SetAsync("execMode", "auto-exec"));
-        Assert.Contains("Unknown configuration key", ex.Message);
-    }
-
-    [Fact]
-    public async Task Get_ExecMode_Throws()
-    {
-        var svc = CreateService();
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => svc.GetAsync("execMode"));
-        Assert.Contains("Unknown configuration key", ex.Message);
-    }
-
-    [Fact]
     public async Task Set_ForceTools_InvalidValue_ThrowsEnglishError()
     {
         var svc = CreateService();
@@ -145,7 +129,6 @@ public class ConfigurationServiceTests : IDisposable
         Assert.Contains("ollama.baseUrl", list);
         Assert.Contains("ollama.model", list);
         Assert.DoesNotContain("defaultProvider", list);
-        Assert.DoesNotContain("execMode", list);
     }
 
     [Fact]

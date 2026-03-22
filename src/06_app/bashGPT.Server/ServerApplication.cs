@@ -82,17 +82,12 @@ internal static class ServerApplication
     public static ServerHost CreateServerHost(
         ConfigurationService configService,
         ToolRegistry toolRegistry,
-        IEnumerable<AgentBase>? pluginAgents = null,
-        IEnumerable<string>? pluginToolNames = null)
+        IEnumerable<AgentBase>? pluginAgents = null)
     {
         var sessionStore = AppBootstrap.CreateSessionStore();
         var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
         var agentRegistry = CreateAgentRegistry(pluginAgents);
         var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
-
-        // Plugin tools are explicitly installed by the user and are therefore trusted.
-        // They are added on top of the environment-configured allowed tools.
-        var toolSelectionPolicy = ServerToolSelectionPolicy.FromEnvironment(pluginToolNames);
 
         return new ServerHost(
             serverRunner,
@@ -100,7 +95,6 @@ internal static class ServerApplication
             sessionStore,
             sessionRequestStore,
             agentRegistry,
-            toolRegistry,
-            toolSelectionPolicy: toolSelectionPolicy);
+            toolRegistry);
     }
 }

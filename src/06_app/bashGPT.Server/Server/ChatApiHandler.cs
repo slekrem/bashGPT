@@ -12,7 +12,6 @@ namespace bashGPT.Server;
 
 internal sealed class ChatApiHandler(
     IChatHandler handler,
-    ServerToolSelectionPolicy toolSelectionPolicy,
     SessionStore? sessionStore = null,
     SessionRequestStore? sessionRequestStore = null,
     ToolRegistry? toolRegistry = null,
@@ -44,9 +43,7 @@ internal sealed class ChatApiHandler(
                 ? session.EnabledTools
                 : body.EnabledTools?.ToList();
 
-        var selectableToolNames = agent?.EnabledTools.Count > 0
-            ? effectiveToolNames
-            : toolSelectionPolicy.FilterRequestedToolNames(effectiveToolNames);
+        var selectableToolNames = effectiveToolNames;
 
         var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry, agent);
 
