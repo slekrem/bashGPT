@@ -11,6 +11,8 @@ Local AI assistant for shell workflows. bashGPT can optionally collect context s
 - Browser UI with chat history, session management, and agent selection
 - Specialized agents (`shell`, `dev`) with dedicated tool sets
 - Modular tool ecosystem for filesystem, git, build, testing, fetch, and shell workflows
+- Plugin system for external tools and agents via `~/.config/bashgpt/plugins/`
+- `bashGPT.Tools` and `bashGPT.Agents` available as NuGet packages for plugin development
 - MIT licensed
 
 ## Installation
@@ -124,6 +126,23 @@ Agents are specialized chat modes with their own system prompt and tool set. The
 **Shell-Agent** (`shell`): Interactive shell assistant with the `shell_exec` tool. Executes commands directly.
 
 **Dev-Agent** (`dev`): Development agent with full access to filesystem, git, build, testing, and shell tools. It can load source files into context via `context_load_files`, `context_unload_files`, and `context_clear_files`.
+
+## Plugin SDK
+
+External tools and agents can be developed as standalone .NET assemblies and loaded into bashGPT without recompiling the host.
+
+**NuGet packages:**
+
+| Package | Purpose |
+|---|---|
+| `bashGPT.Tools` | Implement custom `ITool` types |
+| `bashGPT.Agents` | Implement custom `AgentBase` subclasses (includes `bashGPT.Tools` transitively) |
+
+Both packages are versioned with SemVer 2. While on `0.x`, minor bumps may contain breaking changes — pin to a compatible version in plugin projects.
+
+Plugins are placed in `~/.config/bashgpt/plugins/<PluginName>/<PluginName>.dll` and are loaded automatically at startup. Plugin assemblies run fully trusted in the same process without sandboxing — only install plugins from trusted sources.
+
+See [docs/plugin-authoring.md](docs/plugin-authoring.md) for a full guide including code examples, layout rules, and versioning details.
 
 ## Tests
 ```bash
