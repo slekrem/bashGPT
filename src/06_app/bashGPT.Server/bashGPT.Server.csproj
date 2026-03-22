@@ -64,10 +64,20 @@
     <ReadLinesFromFile File="$(_BundledPluginsManifest)" Condition="Exists('$(_BundledPluginsManifest)')">
       <Output TaskParameter="Lines" ItemName="_PreviousBundledPluginName" />
     </ReadLinesFromFile>
-    <RemoveDir Directories="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\" />
 
-    <!-- Remove current plugin directories so no stale files survive within a plugin. -->
-    <RemoveDir Directories="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\" />
+    <!-- Only remove directories that carry our .bundled-plugin marker.
+         This protects external plugins (e.g. user-built Tools.Jina) from accidental deletion:
+         they will never have the marker so RemoveDir will never touch them. -->
+    <ItemGroup>
+      <_PreviousBundledPluginDirToRemove
+        Include="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\"
+        Condition="'%(_PreviousBundledPluginName.Identity)' != '' and Exists('$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\.bundled-plugin')" />
+      <_CurrentBundledPluginDirToRemove
+        Include="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\"
+        Condition="Exists('$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin')" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_PreviousBundledPluginDirToRemove)" />
+    <RemoveDir Directories="@(_CurrentBundledPluginDirToRemove)" />
 
     <ItemGroup>
       <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll"
@@ -87,6 +97,12 @@
     <Copy SourceFiles="@(_BundledPluginDeps)"
           DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginDeps.PluginName)\"
           SkipUnchangedFiles="false" />
+
+    <!-- Write a marker file so future builds know this directory is managed by bashGPT.
+         External plugins must not have this file — its presence is what protects them. -->
+    <WriteLinesToFile File="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin"
+                      Lines="bashGPT bundled plugin — managed by MSBuild; do not delete this file"
+                      Overwrite="true" />
 
     <!-- Update manifest with the current set of bundled plugin names. -->
     <ItemGroup>

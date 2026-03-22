@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using bashGPT.Core.Models.Providers;
 using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Shell.Shells;
 
