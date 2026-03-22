@@ -4,7 +4,6 @@ public sealed class SessionMessage
 {
     public string Role { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
-    public string? ExecMode { get; set; }
     public List<SessionCommand>? Commands { get; set; }
     public SessionTokenUsage? Usage { get; set; }
 

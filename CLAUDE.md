@@ -240,7 +240,6 @@ Config file: `~/.config/bashgpt/config.json`
 
 Supported `config set` keys:
 - `defaultProvider`
-- `execMode`
 - `forceTools`
 - `ollama.baseUrl`
 - `ollama.model`
@@ -249,12 +248,9 @@ Environment overrides:
 - `BASHGPT_PROVIDER`
 - `BASHGPT_OLLAMA_URL`
 - `BASHGPT_OLLAMA_MODEL`
-- `BASHGPT_EXEC_MODE`
 - `BASHGPT_FORCE_TOOLS`
-- `BASHGPT_SERVER_ALLOWED_TOOLS`
 
 Not configurable through the server settings UI:
-- `execMode`
 - `forceTools`
 
 No longer configurable as runtime server defaults:

@@ -105,7 +105,6 @@ public sealed class ServerHostSettingsTests : IAsyncLifetime
         Assert.True(json.TryGetProperty("provider", out var provider));
         Assert.True(json.TryGetProperty("model", out _));
         Assert.True(json.TryGetProperty("ollamaHost", out _));
-        Assert.False(json.TryGetProperty("execMode", out _));
         Assert.False(json.TryGetProperty("forceTools", out _));
 
         // Standardprovider ist Ollama

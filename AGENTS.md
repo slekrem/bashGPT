@@ -66,7 +66,7 @@
 - Prefer updating config via the CLI: `dotnet run --project src/06_app/bashGPT.Cli -- config set <key> <value>`.
 - A legacy `~/.config/bashgpt/agents.json` file may exist from older versions — it is no longer read or written by the current code-first agent system and can be safely ignored or deleted.
 - **Tool resolution priority** when a chat request arrives: `agent.EnabledTools` → `session.EnabledTools` → `body.enabledTools` (first non-empty list wins). Resolved via `ToolHelper.Resolve()`.
-- The server backend does **not** evaluate `execMode` from chat requests — tool behaviour is fixed per tool implementation (no interactive terminal in browser context).
+- Tool selection in the server is entirely UI-driven. All registered tools are available; agent-specific restrictions are controlled via `EnabledTools`.
 - Runtime defaults like command timeout, loop detection, and max tool-call rounds are internal `AppDefaults` values and are no longer configurable via `config set`, environment variables, or the settings UI.
 
 ## Implementing a New Agent
