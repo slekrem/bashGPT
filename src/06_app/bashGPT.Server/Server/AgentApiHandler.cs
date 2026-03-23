@@ -6,44 +6,27 @@ namespace bashGPT.Server;
 
 internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationService? configService)
 {
-    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
+    public async Task GetAllAsync(HttpResponse response, CancellationToken ct)
     {
-        var path = ctx.Request.Path.Value ?? "/";
-        var method = ctx.Request.Method;
-
         if (registry is null)
         {
-            await ctx.Response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
+            await response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
             return;
         }
 
-        if (method == "GET" && path == "/api/agents")
-        {
-            await HandleListAsync(ctx.Response, ct);
-            return;
-        }
-
-        if (method == "GET"
-            && path.StartsWith("/api/agents/", StringComparison.Ordinal)
-            && path.EndsWith("/info-panel", StringComparison.Ordinal))
-        {
-            var id = path["/api/agents/".Length..^"/info-panel".Length];
-            await HandleInfoPanelAsync(ctx.Response, id, ct);
-            return;
-        }
-
-        await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
-    }
-
-    private async Task HandleListAsync(HttpResponse response, CancellationToken ct)
-    {
-        var agents = registry!.All.Select(agent => new { id = agent.Id, name = agent.Name });
+        var agents = registry.All.Select(agent => new { id = agent.Id, name = agent.Name });
         await response.WriteJsonAsync(new { agents });
     }
 
-    private async Task HandleInfoPanelAsync(HttpResponse response, string id, CancellationToken ct)
+    public async Task GetInfoPanelAsync(string id, HttpResponse response, CancellationToken ct)
     {
-        var agent = registry!.Find(id);
+        if (registry is null)
+        {
+            await response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
+            return;
+        }
+
+        var agent = registry.Find(id);
         if (agent is null)
         {
             await response.WriteJsonAsync(new { error = "Agent not found." }, statusCode: 404);

@@ -1,51 +1,14 @@
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics;
-using bashGPT.Core.Configuration;
-using bashGPT.Core.Storage;
-using bashGPT.Agents;
-using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
-internal sealed class WebApplicationHost
+internal sealed class WebApplicationHost(WebApplication app)
 {
-    private readonly WebApplication _app;
-    private readonly ServerOptions _serverOptions;
-    private readonly SettingsApiHandler _settingsHandler;
-    private readonly ChatApiHandler _chatHandler;
-    private readonly StreamingChatApiHandler _streamingChatHandler;
-    private readonly ChatCancelApiHandler _chatCancelHandler;
-    private readonly SessionApiHandler _sessionHandler;
-    private readonly AgentApiHandler _agentHandler;
-    private readonly ToolApiHandler _toolHandler;
-    private readonly LegacyHistoryApiHandler _legacyHistoryHandler;
-
-    public WebApplicationHost(WebApplication app)
-    {
-        _app = app;
-        _serverOptions = app.Services.GetRequiredService<ServerOptions>();
-        var runningChats = app.Services.GetRequiredService<RunningChatRegistry>();
-        var handler = app.Services.GetRequiredService<IChatHandler>();
-        var configService = app.Services.GetService<ConfigurationService>();
-        var sessionStore = app.Services.GetService<SessionStore>();
-        var sessionRequestStore = app.Services.GetService<SessionRequestStore>();
-        var toolRegistry = app.Services.GetService<ToolRegistry>();
-        var agentRegistry = app.Services.GetService<AgentRegistry>();
-
-        _settingsHandler = new SettingsApiHandler(configService);
-        _chatHandler = new ChatApiHandler(handler, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
-        _streamingChatHandler = new StreamingChatApiHandler(handler, runningChats, sessionStore, sessionRequestStore, toolRegistry, agentRegistry);
-        _chatCancelHandler = new ChatCancelApiHandler(runningChats);
-        _sessionHandler = new SessionApiHandler(sessionStore);
-        _agentHandler = new AgentApiHandler(agentRegistry, configService);
-        _toolHandler = new ToolApiHandler(toolRegistry);
-        _legacyHistoryHandler = new LegacyHistoryApiHandler(sessionStore);
-    }
-
     public void MapRoutes()
     {
-        _app.UseExceptionHandler(exceptionApp =>
+        app.UseExceptionHandler(exceptionApp =>
             exceptionApp.Run(async ctx =>
             {
                 var feature = ctx.Features.Get<IExceptionHandlerPathFeature>();
@@ -54,32 +17,50 @@ internal sealed class WebApplicationHost
                 await ctx.Response.WriteJsonAsync(new { error = ApiErrors.GenericServerError }, statusCode: 500);
             }));
 
-        _app.MapGet("/", ServeIndexHtmlAsync);
-        _app.MapGet("/bundle.js", ServeBundleJsAsync);
+        app.MapGet("/", ServeIndexHtmlAsync);
+        app.MapGet("/bundle.js", ServeBundleJsAsync);
 
-        _app.MapGet("/api/version", (HttpContext ctx, CancellationToken ct) => new VersionApiHandler().HandleAsync(ctx, ct));
-        _app.MapGet("/api/history", (HttpContext ctx, CancellationToken ct) => _legacyHistoryHandler.HandleHistoryAsync(ctx, ct));
-        _app.MapPost("/api/reset", (HttpContext ctx, CancellationToken ct) => _legacyHistoryHandler.HandleResetAsync(ctx, ct));
+        app.MapGet("/api/version",
+            (VersionApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
+        app.MapGet("/api/history",
+            (LegacyHistoryApiHandler h, HttpContext ctx, CancellationToken ct) => h.HandleHistoryAsync(ctx, ct));
+        app.MapPost("/api/reset",
+            (LegacyHistoryApiHandler h, HttpContext ctx, CancellationToken ct) => h.HandleResetAsync(ctx, ct));
 
-        _app.MapGet("/api/settings", (HttpContext ctx, CancellationToken ct) => _settingsHandler.HandleAsync(ctx, ct));
-        _app.MapPut("/api/settings", (HttpContext ctx, CancellationToken ct) => _settingsHandler.HandleAsync(ctx, ct));
-        _app.MapPost("/api/settings/test", (HttpContext ctx, CancellationToken ct) => _settingsHandler.HandleAsync(ctx, ct));
+        app.MapGet("/api/settings",
+            (SettingsApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
+        app.MapPut("/api/settings",
+            (SettingsApiHandler h, HttpContext ctx, CancellationToken ct) => h.PutAsync(ctx, ct));
+        app.MapPost("/api/settings/test",
+            (SettingsApiHandler h, HttpResponse res, CancellationToken ct) => h.TestAsync(res, ct));
 
-        _app.MapPost("/api/chat/stream", (HttpContext ctx, CancellationToken ct) => _streamingChatHandler.HandleAsync(ctx, _serverOptions, ct));
-        _app.MapPost("/api/chat/cancel", (HttpContext ctx, CancellationToken ct) => _chatCancelHandler.HandleAsync(ctx, ct));
-        _app.MapPost("/api/chat", (HttpContext ctx, CancellationToken ct) => _chatHandler.HandleAsync(ctx, _serverOptions, ct));
+        app.MapPost("/api/chat/stream",
+            (StreamingChatApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
+        app.MapPost("/api/chat/cancel",
+            (ChatCancelApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
+        app.MapPost("/api/chat",
+            (ChatApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
 
-        _app.MapGet("/api/sessions", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
-        _app.MapPost("/api/sessions", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
-        _app.MapPost("/api/sessions/clear", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
-        _app.MapGet("/api/sessions/{id}", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
-        _app.MapPut("/api/sessions/{id}", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
-        _app.MapDelete("/api/sessions/{id}", (HttpContext ctx, CancellationToken ct) => _sessionHandler.HandleAsync(ctx, ct));
+        app.MapGet("/api/sessions",
+            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAllAsync(res, ct));
+        app.MapPost("/api/sessions",
+            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.CreateAsync(res, ct));
+        app.MapPost("/api/sessions/clear",
+            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.ClearAsync(res, ct));
+        app.MapGet("/api/sessions/{id}",
+            (SessionApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.GetByIdAsync(id, res, ct));
+        app.MapPut("/api/sessions/{id}",
+            (SessionApiHandler h, string id, HttpContext ctx, CancellationToken ct) => h.PutAsync(id, ctx, ct));
+        app.MapDelete("/api/sessions/{id}",
+            (SessionApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.DeleteAsync(id, res, ct));
 
-        _app.MapGet("/api/tools", (HttpContext ctx, CancellationToken ct) => _toolHandler.HandleAsync(ctx, ct));
+        app.MapGet("/api/tools",
+            (ToolApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
 
-        _app.MapGet("/api/agents", (HttpContext ctx, CancellationToken ct) => _agentHandler.HandleAsync(ctx, ct));
-        _app.MapGet("/api/agents/{id}/info-panel", (HttpContext ctx, CancellationToken ct) => _agentHandler.HandleAsync(ctx, ct));
+        app.MapGet("/api/agents",
+            (AgentApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAllAsync(res, ct));
+        app.MapGet("/api/agents/{id}/info-panel",
+            (AgentApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.GetInfoPanelAsync(id, res, ct));
     }
 
     internal static void TryOpenBrowser(string url)

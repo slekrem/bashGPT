@@ -1,4 +1,3 @@
-using System.Text.Json;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
@@ -10,6 +9,7 @@ namespace bashGPT.Server;
 
 internal sealed class StreamingChatApiHandler(
     IChatHandler handler,
+    ServerOptions options,
     RunningChatRegistry runningChats,
     SessionStore? sessionStore = null,
     SessionRequestStore? sessionRequestStore = null,
@@ -18,7 +18,7 @@ internal sealed class StreamingChatApiHandler(
 {
     private readonly ServerSessionService _sessionService = new(sessionStore, sessionRequestStore);
 
-    public async Task HandleAsync(HttpContext ctx, ServerOptions options, CancellationToken ct)
+    public async Task PostAsync(HttpContext ctx, CancellationToken ct)
     {
         var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
@@ -60,7 +60,6 @@ internal sealed class StreamingChatApiHandler(
                     : body.EnabledTools?.ToList();
 
             var selectableToolNames = effectiveToolNames;
-
             var resolvedTools = ToolDefinitionMapper.ResolveDefinitions(selectableToolNames, toolRegistry, agent);
 
             var now = DateTime.UtcNow.ToString("o");
@@ -95,11 +94,7 @@ internal sealed class StreamingChatApiHandler(
         }
         catch (OperationCanceledException) when (requestCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
-            try
-            {
-                sse.WriteCancelled(requestId);
-            }
-            catch { }
+            try { sse.WriteCancelled(requestId); } catch { }
         }
         catch (Exception ex)
         {

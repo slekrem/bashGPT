@@ -1,11 +1,10 @@
-using System.Text.Json;
 using bashGPT.Core.Serialization;
 
 namespace bashGPT.Server;
 
 internal sealed class ChatCancelApiHandler(RunningChatRegistry runningChats)
 {
-    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
+    public async Task PostAsync(HttpContext ctx, CancellationToken ct)
     {
         var body = await ctx.Request.ReadFromJsonAsync<CancelRequest>(JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.RequestId))

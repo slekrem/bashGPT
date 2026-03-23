@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using bashGPT.Core;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
+using bashGPT.Agents;
 using bashGPT.Tools.Registration;
 using bashGPT.Server;
 
@@ -47,16 +48,43 @@ rootCommand.SetAction(async (parseResult, ct) =>
     builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
     builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
+    var agentRegistry = ServerApplication.CreateAgentRegistry(pluginResult.Agents);
+    var sessionStore = AppBootstrap.CreateSessionStore();
+    var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
+
     builder.Services.AddSingleton(serverOptions);
     builder.Services.AddSingleton(configService);
     builder.Services.AddSingleton(toolRegistry);
-    builder.Services.AddSingleton(ServerApplication.CreateAgentRegistry(pluginResult.Agents));
-    builder.Services.AddSingleton(AppBootstrap.CreateSessionStore());
-    builder.Services.AddSingleton(AppBootstrap.CreateSessionRequestStore());
+    builder.Services.AddSingleton(agentRegistry);
+    builder.Services.AddSingleton(sessionStore);
+    builder.Services.AddSingleton(sessionRequestStore);
     builder.Services.AddSingleton<IChatHandler>(sp => new ServerChatRunner(
         sp.GetRequiredService<ConfigurationService>(),
         toolRegistry: sp.GetRequiredService<ToolRegistry>()));
     builder.Services.AddSingleton<RunningChatRegistry>();
+
+    builder.Services.AddSingleton<VersionApiHandler>();
+    builder.Services.AddSingleton(sp => new SettingsApiHandler(sp.GetService<ConfigurationService>()));
+    builder.Services.AddSingleton(sp => new SessionApiHandler(sp.GetService<SessionStore>()));
+    builder.Services.AddSingleton(sp => new AgentApiHandler(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
+    builder.Services.AddSingleton(sp => new ToolApiHandler(sp.GetService<ToolRegistry>()));
+    builder.Services.AddSingleton(sp => new ChatApiHandler(
+        sp.GetRequiredService<IChatHandler>(),
+        sp.GetRequiredService<ServerOptions>(),
+        sp.GetService<SessionStore>(),
+        sp.GetService<SessionRequestStore>(),
+        sp.GetService<ToolRegistry>(),
+        sp.GetService<AgentRegistry>()));
+    builder.Services.AddSingleton(sp => new StreamingChatApiHandler(
+        sp.GetRequiredService<IChatHandler>(),
+        sp.GetRequiredService<ServerOptions>(),
+        sp.GetRequiredService<RunningChatRegistry>(),
+        sp.GetService<SessionStore>(),
+        sp.GetService<SessionRequestStore>(),
+        sp.GetService<ToolRegistry>(),
+        sp.GetService<AgentRegistry>()));
+    builder.Services.AddSingleton<ChatCancelApiHandler>();
+    builder.Services.AddSingleton(sp => new LegacyHistoryApiHandler(sp.GetService<SessionStore>()));
 
     var app = builder.Build();
     new WebApplicationHost(app).MapRoutes();

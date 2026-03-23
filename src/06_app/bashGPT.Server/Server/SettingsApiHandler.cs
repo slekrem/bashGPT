@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
@@ -10,23 +9,7 @@ namespace bashGPT.Server;
 
 internal sealed class SettingsApiHandler(ConfigurationService? configService)
 {
-    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
-    {
-        var path = ctx.Request.Path.Value ?? "/";
-
-        if (ctx.Request.Method == "GET" && path == "/api/settings")
-        { await HandleGetAsync(ctx.Response, ct); return; }
-
-        if (ctx.Request.Method == "PUT" && path == "/api/settings")
-        { await HandlePutAsync(ctx, ct); return; }
-
-        if (ctx.Request.Method == "POST" && path == "/api/settings/test")
-        { await HandleTestAsync(ctx.Response, ct); return; }
-
-        await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
-    }
-
-    private async Task HandleGetAsync(HttpResponse response, CancellationToken ct)
+    public async Task GetAsync(HttpResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
@@ -49,7 +32,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         });
     }
 
-    private async Task HandlePutAsync(HttpContext ctx, CancellationToken ct)
+    public async Task PutAsync(HttpContext ctx, CancellationToken ct)
     {
         if (configService is null)
         {
@@ -79,7 +62,7 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         await ctx.Response.WriteJsonAsync(new { ok = true });
     }
 
-    private async Task HandleTestAsync(HttpResponse response, CancellationToken ct)
+    public async Task TestAsync(HttpResponse response, CancellationToken ct)
     {
         if (configService is null)
         {

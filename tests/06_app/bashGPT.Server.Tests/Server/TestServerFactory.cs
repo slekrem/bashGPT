@@ -36,6 +36,29 @@ internal static class TestServerFactory
         if (agentRegistry is not null) builder.Services.AddSingleton(agentRegistry);
         if (toolRegistry is not null) builder.Services.AddSingleton(toolRegistry);
 
+        builder.Services.AddSingleton<VersionApiHandler>();
+        builder.Services.AddSingleton(sp => new SettingsApiHandler(sp.GetService<ConfigurationService>()));
+        builder.Services.AddSingleton(sp => new SessionApiHandler(sp.GetService<SessionStore>()));
+        builder.Services.AddSingleton(sp => new AgentApiHandler(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
+        builder.Services.AddSingleton(sp => new ToolApiHandler(sp.GetService<ToolRegistry>()));
+        builder.Services.AddSingleton(sp => new ChatApiHandler(
+            sp.GetRequiredService<IChatHandler>(),
+            sp.GetRequiredService<ServerOptions>(),
+            sp.GetService<SessionStore>(),
+            sp.GetService<SessionRequestStore>(),
+            sp.GetService<ToolRegistry>(),
+            sp.GetService<AgentRegistry>()));
+        builder.Services.AddSingleton(sp => new StreamingChatApiHandler(
+            sp.GetRequiredService<IChatHandler>(),
+            sp.GetRequiredService<ServerOptions>(),
+            sp.GetRequiredService<RunningChatRegistry>(),
+            sp.GetService<SessionStore>(),
+            sp.GetService<SessionRequestStore>(),
+            sp.GetService<ToolRegistry>(),
+            sp.GetService<AgentRegistry>()));
+        builder.Services.AddSingleton<ChatCancelApiHandler>();
+        builder.Services.AddSingleton(sp => new LegacyHistoryApiHandler(sp.GetService<SessionStore>()));
+
         var app = builder.Build();
         new WebApplicationHost(app).MapRoutes();
 
