@@ -6,32 +6,23 @@ namespace bashGPT.Server;
 
 internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationService? configService)
 {
-    public async Task GetAllAsync(HttpResponse response, CancellationToken ct)
+    public IResult GetAll()
     {
         if (registry is null)
-        {
-            await response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
-            return;
-        }
+            return Results.Json(new { error = "Agent registry is unavailable." }, statusCode: 503);
 
-        var agents = registry.All.Select(agent => new { id = agent.Id, name = agent.Name });
-        await response.WriteJsonAsync(new { agents });
+        var agents = registry.All.Select(a => new { id = a.Id, name = a.Name });
+        return Results.Json(new { agents });
     }
 
-    public async Task GetInfoPanelAsync(string id, HttpResponse response, CancellationToken ct)
+    public async Task<IResult> GetInfoPanel(string id, CancellationToken ct)
     {
         if (registry is null)
-        {
-            await response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
-            return;
-        }
+            return Results.Json(new { error = "Agent registry is unavailable." }, statusCode: 503);
 
         var agent = registry.Find(id);
         if (agent is null)
-        {
-            await response.WriteJsonAsync(new { error = "Agent not found." }, statusCode: 404);
-            return;
-        }
+            return Results.Json(new { error = "Agent not found." }, statusCode: 404);
 
         AgentLlmConfig? effectiveConfig = null;
         if (configService is not null)
@@ -40,7 +31,7 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
             effectiveConfig = BuildEffectiveConfig(agent.LlmConfig, appConfig);
         }
 
-        await response.WriteJsonAsync(new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig) });
+        return Results.Json(new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig) });
     }
 
     private static AgentLlmConfig BuildEffectiveConfig(AgentLlmConfig? agentConfig, AppConfig appConfig)

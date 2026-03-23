@@ -14,53 +14,54 @@ internal sealed class WebApplicationHost(WebApplication app)
                 var feature = ctx.Features.Get<IExceptionHandlerPathFeature>();
                 if (feature?.Error is not null)
                     Console.Error.WriteLine($"[server] Unhandled request error: {feature.Error}");
-                await ctx.Response.WriteJsonAsync(new { error = ApiErrors.GenericServerError }, statusCode: 500);
+                ctx.Response.StatusCode = 500;
+                await ctx.Response.WriteAsJsonAsync(new { error = ApiErrors.GenericServerError });
             }));
 
         app.MapGet("/", ServeIndexHtmlAsync);
         app.MapGet("/bundle.js", ServeBundleJsAsync);
 
         app.MapGet("/api/version",
-            (VersionApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
+            (VersionApiHandler h) => h.Get());
         app.MapGet("/api/history",
-            (LegacyHistoryApiHandler h, HttpContext ctx, CancellationToken ct) => h.HandleHistoryAsync(ctx, ct));
+            (LegacyHistoryApiHandler h, CancellationToken ct) => h.GetHistoryAsync(ct));
         app.MapPost("/api/reset",
-            (LegacyHistoryApiHandler h, HttpContext ctx, CancellationToken ct) => h.HandleResetAsync(ctx, ct));
+            (LegacyHistoryApiHandler h, CancellationToken ct) => h.ResetAsync(ct));
 
         app.MapGet("/api/settings",
-            (SettingsApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
+            (SettingsApiHandler h, CancellationToken ct) => h.GetAsync(ct));
         app.MapPut("/api/settings",
-            (SettingsApiHandler h, HttpContext ctx, CancellationToken ct) => h.PutAsync(ctx, ct));
+            (SettingsApiHandler h, HttpRequest req, CancellationToken ct) => h.PutAsync(req, ct));
         app.MapPost("/api/settings/test",
-            (SettingsApiHandler h, HttpResponse res, CancellationToken ct) => h.TestAsync(res, ct));
+            (SettingsApiHandler h, CancellationToken ct) => h.TestAsync(ct));
 
         app.MapPost("/api/chat/stream",
             (StreamingChatApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
         app.MapPost("/api/chat/cancel",
-            (ChatCancelApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
+            (ChatCancelApiHandler h, HttpRequest req, CancellationToken ct) => h.PostAsync(req, ct));
         app.MapPost("/api/chat",
-            (ChatApiHandler h, HttpContext ctx, CancellationToken ct) => h.PostAsync(ctx, ct));
+            (ChatApiHandler h, HttpRequest req, CancellationToken ct) => h.PostAsync(req, ct));
 
         app.MapGet("/api/sessions",
-            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAllAsync(res, ct));
+            (SessionApiHandler h, CancellationToken ct) => h.GetAllAsync(ct));
         app.MapPost("/api/sessions",
-            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.CreateAsync(res, ct));
+            (SessionApiHandler h, CancellationToken ct) => h.CreateAsync(ct));
         app.MapPost("/api/sessions/clear",
-            (SessionApiHandler h, HttpResponse res, CancellationToken ct) => h.ClearAsync(res, ct));
+            (SessionApiHandler h, CancellationToken ct) => h.ClearAsync(ct));
         app.MapGet("/api/sessions/{id}",
-            (SessionApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.GetByIdAsync(id, res, ct));
+            (SessionApiHandler h, string id, CancellationToken ct) => h.GetByIdAsync(id, ct));
         app.MapPut("/api/sessions/{id}",
-            (SessionApiHandler h, string id, HttpContext ctx, CancellationToken ct) => h.PutAsync(id, ctx, ct));
+            (SessionApiHandler h, string id, HttpRequest req, CancellationToken ct) => h.PutAsync(id, req, ct));
         app.MapDelete("/api/sessions/{id}",
-            (SessionApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.DeleteAsync(id, res, ct));
+            (SessionApiHandler h, string id, CancellationToken ct) => h.DeleteAsync(id, ct));
 
         app.MapGet("/api/tools",
-            (ToolApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAsync(res, ct));
+            (ToolApiHandler h) => h.Get());
 
         app.MapGet("/api/agents",
-            (AgentApiHandler h, HttpResponse res, CancellationToken ct) => h.GetAllAsync(res, ct));
+            (AgentApiHandler h) => h.GetAll());
         app.MapGet("/api/agents/{id}/info-panel",
-            (AgentApiHandler h, string id, HttpResponse res, CancellationToken ct) => h.GetInfoPanelAsync(id, res, ct));
+            (AgentApiHandler h, string id, CancellationToken ct) => h.GetInfoPanel(id, ct));
     }
 
     internal static void TryOpenBrowser(string url)

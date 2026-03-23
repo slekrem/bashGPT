@@ -3,22 +3,18 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
-using bashGPT.Core.Serialization;
 
 namespace bashGPT.Server;
 
 internal sealed class SettingsApiHandler(ConfigurationService? configService)
 {
-    public async Task GetAsync(HttpResponse response, CancellationToken ct)
+    public async Task<IResult> GetAsync(CancellationToken ct)
     {
         if (configService is null)
-        {
-            await response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
-            return;
-        }
+            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
 
         var config = await configService.LoadAsync();
-        await response.WriteJsonAsync(new
+        return Results.Json(new
         {
             provider = "ollama",
             model = config.Ollama.Model,
@@ -32,20 +28,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         });
     }
 
-    public async Task PutAsync(HttpContext ctx, CancellationToken ct)
+    public async Task<IResult> PutAsync(HttpRequest req, CancellationToken ct)
     {
         if (configService is null)
-        {
-            await ctx.Response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
-            return;
-        }
+            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
 
-        var body = await ctx.Request.ReadFromJsonAsync<SettingsRequest>(JsonDefaults.Options, ct);
+        var body = await req.ReadFromJsonAsync<SettingsRequest>(ct);
         if (body is null)
-        {
-            await ctx.Response.WriteJsonAsync(new { error = "Invalid request body." }, statusCode: 400);
-            return;
-        }
+            return Results.Json(new { error = "Invalid request body." }, statusCode: 400);
 
         var config = await configService.LoadAsync();
 
@@ -59,16 +49,13 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
 
         await configService.SaveAsync(config);
-        await ctx.Response.WriteJsonAsync(new { ok = true });
+        return Results.Json(new { ok = true });
     }
 
-    public async Task TestAsync(HttpResponse response, CancellationToken ct)
+    public async Task<IResult> TestAsync(CancellationToken ct)
     {
         if (configService is null)
-        {
-            await response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
-            return;
-        }
+            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
 
         var config = await configService.LoadAsync();
         var provider = new OllamaProvider(config.Ollama);
@@ -77,12 +64,12 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         {
             await provider.CompleteAsync([new ChatMessage(ChatRole.User, "Hi")], ct);
             sw.Stop();
-            await response.WriteJsonAsync(new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
+            return Results.Json(new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
         }
         catch (LlmProviderException ex)
         {
             Console.Error.WriteLine($"[server] Provider connectivity test failed: {ex}");
-            await response.WriteJsonAsync(new { ok = false, error = ApiErrors.GenericProviderError });
+            return Results.Json(new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
 

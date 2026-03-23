@@ -1,5 +1,4 @@
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
@@ -20,10 +19,11 @@ internal sealed class StreamingChatApiHandler(
 
     public async Task PostAsync(HttpContext ctx, CancellationToken ct)
     {
-        var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(JsonDefaults.Options, ct);
+        var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
         {
-            await ctx.Response.WriteJsonAsync(new { error = "Prompt is required." }, statusCode: 400);
+            ctx.Response.StatusCode = 400;
+            await ctx.Response.WriteAsJsonAsync(new { error = "Prompt is required." });
             return;
         }
 
@@ -41,8 +41,7 @@ internal sealed class StreamingChatApiHandler(
         ctx.Response.Headers["Cache-Control"] = "no-cache";
         ctx.Response.Headers["X-Accel-Buffering"] = "no";
 
-        var stream = ctx.Response.Body;
-        var sse = new StreamingSseWriter(stream);
+        var sse = new StreamingSseWriter(ctx.Response.Body);
 
         try
         {

@@ -4,24 +4,16 @@ namespace bashGPT.Server;
 
 internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
 {
-    public async Task HandleHistoryAsync(HttpContext ctx, CancellationToken ct)
+    public async Task<IResult> GetHistoryAsync(CancellationToken ct)
     {
         if (sessionStore is null)
-        {
-            await ctx.Response.WriteJsonAsync(new { history = Array.Empty<object>() });
-            return;
-        }
+            return Results.Json(new { history = Array.Empty<object>() });
 
         var sessions = await sessionStore.LoadAllAsync();
-        var latest = sessions
-            .OrderByDescending(s => s.UpdatedAt)
-            .FirstOrDefault();
+        var latest = sessions.OrderByDescending(s => s.UpdatedAt).FirstOrDefault();
 
         if (latest is null)
-        {
-            await ctx.Response.WriteJsonAsync(new { history = Array.Empty<object>() });
-            return;
-        }
+            return Results.Json(new { history = Array.Empty<object>() });
 
         var session = await sessionStore.LoadAsync(latest.Id);
         var history = session?.Messages
@@ -33,14 +25,14 @@ internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
             .ToList()
             ?? [];
 
-        await ctx.Response.WriteJsonAsync(new { history });
+        return Results.Json(new { history });
     }
 
-    public async Task HandleResetAsync(HttpContext ctx, CancellationToken ct)
+    public async Task<IResult> ResetAsync(CancellationToken ct)
     {
         if (sessionStore is not null)
             await sessionStore.ClearAsync();
 
-        await ctx.Response.WriteJsonAsync(new { ok = true });
+        return Results.Json(new { ok = true });
     }
 }

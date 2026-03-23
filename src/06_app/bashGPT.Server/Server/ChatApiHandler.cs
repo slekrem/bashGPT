@@ -1,5 +1,4 @@
 using bashGPT.Core.Providers.Abstractions;
-using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
@@ -16,14 +15,11 @@ internal sealed class ChatApiHandler(
 {
     private readonly ServerSessionService _sessionService = new(sessionStore, sessionRequestStore);
 
-    public async Task PostAsync(HttpContext ctx, CancellationToken ct)
+    public async Task<IResult> PostAsync(HttpRequest req, CancellationToken ct)
     {
-        var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(JsonDefaults.Options, ct);
+        var body = await req.ReadFromJsonAsync<ChatRequest>(ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
-        {
-            await ctx.Response.WriteJsonAsync(new { error = "Prompt is required." }, statusCode: 400);
-            return;
-        }
+            return Results.Json(new { error = "Prompt is required." }, statusCode: 400);
 
         var sessionId = _sessionService.ResolveSessionId(body.SessionId);
 
@@ -67,7 +63,7 @@ internal sealed class ChatApiHandler(
         if (sessionId is not null)
             await _sessionService.PersistChatAsync(sessionId, body.Prompt.Trim(), requestKey, now, selectableToolNames, agent?.Id, session, result);
 
-        await ctx.Response.WriteJsonAsync(new
+        return Results.Json(new
         {
             response = result.Response,
             usedToolCalls = result.UsedToolCalls,

@@ -47,6 +47,11 @@ rootCommand.SetAction(async (parseResult, ct) =>
     builder.WebHost.UseUrls($"http://127.0.0.1:{serverOptions.Port}");
     builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
     builder.Logging.SetMinimumLevel(LogLevel.Warning);
+    builder.Services.ConfigureHttpJsonOptions(opts =>
+    {
+        opts.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        opts.SerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
     var agentRegistry = ServerApplication.CreateAgentRegistry(pluginResult.Agents);
     var sessionStore = AppBootstrap.CreateSessionStore();

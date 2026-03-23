@@ -4,13 +4,10 @@ namespace bashGPT.Server;
 
 internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
 {
-    public async Task GetAsync(HttpResponse response, CancellationToken ct)
+    public IResult Get()
     {
         if (toolRegistry is null)
-        {
-            await response.WriteJsonAsync(new { tools = Array.Empty<object>() });
-            return;
-        }
+            return Results.Json(new { tools = Array.Empty<object>() });
 
         var tools = toolRegistry.Tools
             .Select(t => new
@@ -26,6 +23,6 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
                 }),
             });
 
-        await response.WriteJsonAsync(new { tools });
+        return Results.Json(new { tools });
     }
 }

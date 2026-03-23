@@ -1,18 +1,18 @@
 using bashGPT.Core;
 using bashGPT.Core.Models.Storage;
-using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 
 namespace bashGPT.Server;
 
 internal sealed class SessionApiHandler(SessionStore? sessionStore)
 {
-    public async Task GetAllAsync(HttpResponse response, CancellationToken ct)
+    public async Task<IResult> GetAllAsync(CancellationToken ct)
     {
-        if (sessionStore is null) { await response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
         var sessions = await sessionStore.LoadAllAsync();
-        await response.WriteJsonAsync(new
+        return Results.Json(new
         {
             sessions = sessions.Select(s => new
             {
@@ -24,9 +24,10 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
         });
     }
 
-    public async Task CreateAsync(HttpResponse response, CancellationToken ct)
+    public async Task<IResult> CreateAsync(CancellationToken ct)
     {
-        if (sessionStore is null) { await response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
         var now = DateTime.UtcNow.ToString("o");
         var newSession = new SessionRecord
@@ -37,7 +38,7 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
             UpdatedAt = now,
         };
         await sessionStore.UpsertAsync(newSession);
-        await response.WriteJsonAsync(new
+        return Results.Json(new
         {
             id = newSession.Id,
             title = newSession.Title,
@@ -46,30 +47,29 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
         });
     }
 
-    public async Task ClearAsync(HttpResponse response, CancellationToken ct)
+    public async Task<IResult> ClearAsync(CancellationToken ct)
     {
-        if (sessionStore is null) { await response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
         await sessionStore.ClearAsync();
-        await response.WriteJsonAsync(new { ok = true });
+        return Results.Json(new { ok = true });
     }
 
-    public async Task GetByIdAsync(string id, HttpResponse response, CancellationToken ct)
+    public async Task<IResult> GetByIdAsync(string id, CancellationToken ct)
     {
-        if (sessionStore is null) { await response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
         var session = await sessionStore.LoadAsync(id);
         if (session is null)
-        {
-            await response.WriteJsonAsync(new { error = "Session not found." }, statusCode: 404);
-            return;
-        }
+            return Results.Json(new { error = "Session not found." }, statusCode: 404);
 
         var visibleMessages = session.Messages
             .Where(m => (m.Role == "user" || m.Role == "assistant") && !string.IsNullOrEmpty(m.Content))
             .ToList();
 
-        await response.WriteJsonAsync(new
+        return Results.Json(new
         {
             id = session.Id,
             title = session.Title,
@@ -81,16 +81,14 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
         });
     }
 
-    public async Task PutAsync(string id, HttpContext ctx, CancellationToken ct)
+    public async Task<IResult> PutAsync(string id, HttpRequest req, CancellationToken ct)
     {
-        if (sessionStore is null) { await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
-        var body = await ctx.Request.ReadFromJsonAsync<SessionRecord>(JsonDefaults.Options, ct);
+        var body = await req.ReadFromJsonAsync<SessionRecord>(ct);
         if (body is null)
-        {
-            await ctx.Response.WriteJsonAsync(new { error = "Invalid request body." }, statusCode: 400);
-            return;
-        }
+            return Results.Json(new { error = "Invalid request body." }, statusCode: 400);
 
         body.Id = id;
         body.UpdatedAt = DateTime.UtcNow.ToString("o");
@@ -102,14 +100,15 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
         }
 
         await sessionStore.UpsertAsync(body);
-        await ctx.Response.WriteJsonAsync(new { ok = true });
+        return Results.Json(new { ok = true });
     }
 
-    public async Task DeleteAsync(string id, HttpResponse response, CancellationToken ct)
+    public async Task<IResult> DeleteAsync(string id, CancellationToken ct)
     {
-        if (sessionStore is null) { await response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404); return; }
+        if (sessionStore is null)
+            return Results.Json(new { error = "Not found." }, statusCode: 404);
 
         await sessionStore.DeleteAsync(id);
-        await response.WriteJsonAsync(new { ok = true });
+        return Results.Json(new { ok = true });
     }
 }

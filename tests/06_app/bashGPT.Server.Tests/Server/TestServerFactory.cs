@@ -26,6 +26,11 @@ internal static class TestServerFactory
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
         builder.Logging.ClearProviders();
+        builder.Services.ConfigureHttpJsonOptions(opts =>
+        {
+            opts.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
+        });
 
         var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
         builder.Services.AddSingleton(options);

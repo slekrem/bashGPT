@@ -4,10 +4,10 @@ namespace bashGPT.Server;
 
 internal sealed class VersionApiHandler
 {
-    public async Task GetAsync(HttpResponse response, CancellationToken ct)
+    public IResult Get()
     {
         var info = AppVersion.ForAssembly(typeof(VersionApiHandler).Assembly);
-        await response.WriteJsonAsync(new
+        return Results.Json(new
         {
             application = info.Application,
             version = info.Version,
