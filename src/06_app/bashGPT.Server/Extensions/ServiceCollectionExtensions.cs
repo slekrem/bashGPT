@@ -30,6 +30,7 @@ internal static class ServiceCollectionExtensions
             opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
         });
         services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
+        services.AddOpenApi();
 
         services.AddSingleton(options);
         services.AddSingleton(configService);

@@ -17,6 +17,9 @@ internal static class WebApplicationExtensions
                 await ctx.Response.WriteAsJsonAsync(new { error = ApiErrors.GenericServerError });
             }));
 
+        if (app.Environment.IsDevelopment())
+            app.MapOpenApi();
+
         app.UseStaticFiles();
         app.MapControllers();
 

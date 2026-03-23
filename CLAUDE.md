@@ -193,6 +193,7 @@ Important details:
 Current endpoints:
 
 ```text
+GET  /openapi/v1.json           -> OpenAPI spec (Development only)
 GET  /                          -> embedded index.html (Minimal API)
 GET  /bundle.js                 -> embedded frontend bundle (Minimal API)
 GET  /api/version               VersionController
