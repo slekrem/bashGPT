@@ -1,15 +1,14 @@
-using System.Net;
 using bashGPT.Core.Storage;
 
 namespace bashGPT.Server;
 
 internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
 {
-    public async Task HandleHistoryAsync(HttpListenerResponse response, CancellationToken ct)
+    public async Task HandleHistoryAsync(HttpContext ctx, CancellationToken ct)
     {
         if (sessionStore is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { history = Array.Empty<object>() });
+            await ctx.Response.WriteJsonAsync(new { history = Array.Empty<object>() });
             return;
         }
 
@@ -20,7 +19,7 @@ internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
 
         if (latest is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { history = Array.Empty<object>() });
+            await ctx.Response.WriteJsonAsync(new { history = Array.Empty<object>() });
             return;
         }
 
@@ -34,14 +33,14 @@ internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
             .ToList()
             ?? [];
 
-        await ApiResponse.WriteJsonAsync(response, new { history });
+        await ctx.Response.WriteJsonAsync(new { history });
     }
 
-    public async Task HandleResetAsync(HttpListenerResponse response, CancellationToken ct)
+    public async Task HandleResetAsync(HttpContext ctx, CancellationToken ct)
     {
         if (sessionStore is not null)
             await sessionStore.ClearAsync();
 
-        await ApiResponse.WriteJsonAsync(response, new { ok = true });
+        await ctx.Response.WriteJsonAsync(new { ok = true });
     }
 }

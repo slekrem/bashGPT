@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\01_core\bashGPT.Core\bashGPT.Core.csproj" />
     <ProjectReference Include="..\..\..\src\06_app\bashGPT.Server\bashGPT.Server.csproj" />
     <ProjectReference Include="..\..\..\src\02_abstractions\bashGPT.Agents\bashGPT.Agents.csproj" />

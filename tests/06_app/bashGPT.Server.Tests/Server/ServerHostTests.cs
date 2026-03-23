@@ -2,70 +2,40 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using bashGPT.Core.Configuration;
-using bashGPT.Server;
+using Microsoft.AspNetCore.Builder;
 using bashGPT.Core.Storage;
 using bashGPT.Core.Models.Providers;
+using bashGPT.Server;
 
 namespace bashGPT.Server.Tests;
 
 /// <summary>
-/// Integration-Tests für ServerHost: starten den echten HTTP-Listener auf einem
-/// zufälligen Port und prüfen alle API-Endpunkte ohne echte LLM-Verbindung.
+/// Integration-Tests für WebApplicationHost: starten den echten Kestrel-Server und
+/// prüfen alle API-Endpunkte ohne echte LLM-Verbindung.
 /// </summary>
 public sealed class ServerHostTests : IAsyncLifetime
 {
     private readonly FakePromptHandler _handler = new();
-    private readonly HttpClient _client = new();
+    private HttpClient _client = null!;
+    private WebApplication _app = null!;
     private string _tempDir = string.Empty;
-    private SessionStore _sessionStore = null!;
-    private ServerHost _server = null!;
-    private CancellationTokenSource _cts = null!;
-    private Task _serverTask = null!;
-    private string _baseUrl = string.Empty;
 
     // ── Setup / Teardown ────────────────────────────────────────────────────
 
     public async Task InitializeAsync()
     {
-        var port = GetFreePort();
-        _baseUrl = $"http://127.0.0.1:{port}";
-        _client.BaseAddress = new Uri(_baseUrl);
         _tempDir = Path.Combine(Path.GetTempPath(), $"bashgpt-server-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
-        _sessionStore = new SessionStore(Path.Combine(_tempDir, "sessions"));
+        var sessionStore = new SessionStore(Path.Combine(_tempDir, "sessions"));
 
-        var options = new ServerOptions(
-            Port: port,
-            NoBrowser: true,
-            Model: null,
-            Verbose: false);
-
-        _server = new ServerHost(_handler, sessionStore: _sessionStore);
-        _cts = new CancellationTokenSource();
-        _serverTask = _server.RunAsync(options, _cts.Token);
-
-        // Kurz warten, bis der Listener bereit ist
-        await WaitForServerAsync(_baseUrl);
+        (_app, _client) = await TestServerFactory.CreateAsync(_handler, sessionStore: sessionStore);
     }
 
     public async Task DisposeAsync()
     {
-        await _cts.CancelAsync();
-        // GetContextAsync() ignoriert CancellationToken – wir senden eine letzte
-        // Probe-Anfrage, damit der Listener-Loop die CT-Prüfung erreicht.
-        try
-        {
-            using var probe = new HttpClient();
-            await probe.GetAsync($"{_baseUrl}/").ConfigureAwait(false);
-        }
-        catch { /* ignorieren */ }
-
-        try { await _serverTask.WaitAsync(TimeSpan.FromSeconds(5)); }
-        catch { /* TaskCanceledException oder Timeout erwartet */ }
-
         _client.Dispose();
-        _cts.Dispose();
+        await _app.StopAsync();
+        await _app.DisposeAsync();
         try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
@@ -299,10 +269,7 @@ public sealed class ServerHostTests : IAsyncLifetime
 
     // ── Hilfsmethoden ────────────────────────────────────────────────────────
 
-    private async Task<HttpResponseMessage> PostChatAsync(string prompt)
-    {
-        return await SendChatRaw(prompt);
-    }
+    private async Task<HttpResponseMessage> PostChatAsync(string prompt) => await SendChatRaw(prompt);
 
     private async Task<HttpResponseMessage> SendChatRaw(string? prompt = null)
     {
@@ -312,35 +279,5 @@ public sealed class ServerHostTests : IAsyncLifetime
         var body = JsonSerializer.Serialize(payload);
         return await _client.PostAsync("/api/chat",
             new StringContent(body, Encoding.UTF8, "application/json"));
-    }
-
-    private static int GetFreePort()
-    {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
-    private static async Task WaitForServerAsync(string baseUrl, int maxWaitMs = 5000)
-    {
-        using var probe = new HttpClient { BaseAddress = new Uri(baseUrl) };
-        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
-
-        while (DateTime.UtcNow < deadline)
-        {
-            try
-            {
-                await probe.GetAsync("/");
-                return;
-            }
-            catch
-            {
-                await Task.Delay(50);
-            }
-        }
-
-        throw new TimeoutException($"Server auf {baseUrl} nicht erreichbar nach {maxWaitMs} ms.");
     }
 }

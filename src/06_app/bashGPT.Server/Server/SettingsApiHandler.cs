@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
@@ -11,32 +10,32 @@ namespace bashGPT.Server;
 
 internal sealed class SettingsApiHandler(ConfigurationService? configService)
 {
-    public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
-        var path = ctx.Request.Url?.AbsolutePath ?? "/";
+        var path = ctx.Request.Path.Value ?? "/";
 
-        if (ctx.Request.HttpMethod == "GET" && path == "/api/settings")
+        if (ctx.Request.Method == "GET" && path == "/api/settings")
         { await HandleGetAsync(ctx.Response, ct); return; }
 
-        if (ctx.Request.HttpMethod == "PUT" && path == "/api/settings")
+        if (ctx.Request.Method == "PUT" && path == "/api/settings")
         { await HandlePutAsync(ctx, ct); return; }
 
-        if (ctx.Request.HttpMethod == "POST" && path == "/api/settings/test")
+        if (ctx.Request.Method == "POST" && path == "/api/settings/test")
         { await HandleTestAsync(ctx.Response, ct); return; }
 
-        await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
+        await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
     }
 
-    private async Task HandleGetAsync(HttpListenerResponse response, CancellationToken ct)
+    private async Task HandleGetAsync(HttpResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Configuration service is unavailable." }, statusCode: 503);
+            await response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
         var config = await configService.LoadAsync();
-        await ApiResponse.WriteJsonAsync(response, new
+        await response.WriteJsonAsync(new
         {
             provider = "ollama",
             model = config.Ollama.Model,
@@ -50,18 +49,18 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         });
     }
 
-    private async Task HandlePutAsync(HttpListenerContext ctx, CancellationToken ct)
+    private async Task HandlePutAsync(HttpContext ctx, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Configuration service is unavailable." }, statusCode: 503);
+            await ctx.Response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
-        var body = await JsonSerializer.DeserializeAsync<SettingsRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
+        var body = await ctx.Request.ReadFromJsonAsync<SettingsRequest>(JsonDefaults.Options, ct);
         if (body is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Invalid request body." }, statusCode: 400);
+            await ctx.Response.WriteJsonAsync(new { error = "Invalid request body." }, statusCode: 400);
             return;
         }
 
@@ -77,14 +76,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
 
         await configService.SaveAsync(config);
-        await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
+        await ctx.Response.WriteJsonAsync(new { ok = true });
     }
 
-    private async Task HandleTestAsync(HttpListenerResponse response, CancellationToken ct)
+    private async Task HandleTestAsync(HttpResponse response, CancellationToken ct)
     {
         if (configService is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Configuration service is unavailable." }, statusCode: 503);
+            await response.WriteJsonAsync(new { error = "Configuration service is unavailable." }, statusCode: 503);
             return;
         }
 
@@ -95,12 +94,12 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         {
             await provider.CompleteAsync([new ChatMessage(ChatRole.User, "Hi")], ct);
             sw.Stop();
-            await ApiResponse.WriteJsonAsync(response, new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
+            await response.WriteJsonAsync(new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
         }
         catch (LlmProviderException ex)
         {
             Console.Error.WriteLine($"[server] Provider connectivity test failed: {ex}");
-            await ApiResponse.WriteJsonAsync(response, new { ok = false, error = ApiErrors.GenericProviderError });
+            await response.WriteJsonAsync(new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
 

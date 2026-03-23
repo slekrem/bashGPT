@@ -1,16 +1,14 @@
-using System.Net;
-using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Registration;
 
 namespace bashGPT.Server;
 
 internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
 {
-    public async Task HandleAsync(HttpListenerResponse response, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
         if (toolRegistry is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { tools = Array.Empty<object>() });
+            await ctx.Response.WriteJsonAsync(new { tools = Array.Empty<object>() });
             return;
         }
 
@@ -30,6 +28,6 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
             }),
         });
 
-        await ApiResponse.WriteJsonAsync(response, new { tools });
+        await ctx.Response.WriteJsonAsync(new { tools });
     }
 }

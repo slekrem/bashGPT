@@ -1,10 +1,10 @@
-using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Serialization;
 using bashGPT.Core.Storage;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace bashGPT.Server;
 
@@ -18,12 +18,12 @@ internal sealed class StreamingChatApiHandler(
 {
     private readonly ServerSessionService _sessionService = new(sessionStore, sessionRequestStore);
 
-    public async Task HandleAsync(HttpListenerContext ctx, ServerOptions options, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, ServerOptions options, CancellationToken ct)
     {
-        var body = await JsonSerializer.DeserializeAsync<ChatRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
+        var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Prompt is required." }, statusCode: 400);
+            await ctx.Response.WriteJsonAsync(new { error = "Prompt is required." }, statusCode: 400);
             return;
         }
 
@@ -35,12 +35,13 @@ internal sealed class StreamingChatApiHandler(
         using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         runningChats.Register(requestId, requestCts);
 
+        ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
         ctx.Response.StatusCode = 200;
         ctx.Response.ContentType = "text/event-stream; charset=utf-8";
         ctx.Response.Headers["Cache-Control"] = "no-cache";
         ctx.Response.Headers["X-Accel-Buffering"] = "no";
 
-        var stream = ctx.Response.OutputStream;
+        var stream = ctx.Response.Body;
         var sse = new StreamingSseWriter(stream);
 
         try
@@ -112,7 +113,6 @@ internal sealed class StreamingChatApiHandler(
         finally
         {
             runningChats.Unregister(requestId);
-            ctx.Response.Close();
         }
     }
 

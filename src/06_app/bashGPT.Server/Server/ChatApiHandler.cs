@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
@@ -19,12 +18,12 @@ internal sealed class ChatApiHandler(
 {
     private readonly ServerSessionService _sessionService = new(sessionStore, sessionRequestStore);
 
-    public async Task HandleAsync(HttpListenerContext ctx, ServerOptions options, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, ServerOptions options, CancellationToken ct)
     {
-        var body = await JsonSerializer.DeserializeAsync<ChatRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
+        var body = await ctx.Request.ReadFromJsonAsync<ChatRequest>(JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.Prompt))
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Prompt is required." }, statusCode: 400);
+            await ctx.Response.WriteJsonAsync(new { error = "Prompt is required." }, statusCode: 400);
             return;
         }
 
@@ -71,7 +70,7 @@ internal sealed class ChatApiHandler(
         if (sessionId is not null)
             await _sessionService.PersistChatAsync(sessionId, body.Prompt.Trim(), requestKey, now, selectableToolNames, agent?.Id, session, result);
 
-        await ApiResponse.WriteJsonAsync(ctx.Response, new
+        await ctx.Response.WriteJsonAsync(new
         {
             response = result.Response,
             usedToolCalls = result.UsedToolCalls,

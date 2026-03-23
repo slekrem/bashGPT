@@ -1,4 +1,3 @@
-using System.Net;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Agents;
 using bashGPT.Core.Configuration;
@@ -7,14 +6,14 @@ namespace bashGPT.Server;
 
 internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationService? configService)
 {
-    public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
-        var path = ctx.Request.Url?.AbsolutePath ?? "/";
-        var method = ctx.Request.HttpMethod;
+        var path = ctx.Request.Path.Value ?? "/";
+        var method = ctx.Request.Method;
 
         if (registry is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Agent registry is unavailable." }, statusCode: 503);
+            await ctx.Response.WriteJsonAsync(new { error = "Agent registry is unavailable." }, statusCode: 503);
             return;
         }
 
@@ -33,21 +32,21 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
             return;
         }
 
-        await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
+        await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
     }
 
-    private async Task HandleListAsync(HttpListenerResponse response, CancellationToken ct)
+    private async Task HandleListAsync(HttpResponse response, CancellationToken ct)
     {
         var agents = registry!.All.Select(agent => new { id = agent.Id, name = agent.Name });
-        await ApiResponse.WriteJsonAsync(response, new { agents });
+        await response.WriteJsonAsync(new { agents });
     }
 
-    private async Task HandleInfoPanelAsync(HttpListenerResponse response, string id, CancellationToken ct)
+    private async Task HandleInfoPanelAsync(HttpResponse response, string id, CancellationToken ct)
     {
         var agent = registry!.Find(id);
         if (agent is null)
         {
-            await ApiResponse.WriteJsonAsync(response, new { error = "Agent not found." }, statusCode: 404);
+            await response.WriteJsonAsync(new { error = "Agent not found." }, statusCode: 404);
             return;
         }
 
@@ -58,7 +57,7 @@ internal sealed class AgentApiHandler(AgentRegistry? registry, ConfigurationServ
             effectiveConfig = BuildEffectiveConfig(agent.LlmConfig, appConfig);
         }
 
-        await ApiResponse.WriteJsonAsync(response, new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig) });
+        await response.WriteJsonAsync(new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig) });
     }
 
     private static AgentLlmConfig BuildEffectiveConfig(AgentLlmConfig? agentConfig, AppConfig appConfig)

@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 
@@ -6,17 +5,17 @@ namespace bashGPT.Server;
 
 internal sealed class ChatCancelApiHandler(RunningChatRegistry runningChats)
 {
-    public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
-        var body = await JsonSerializer.DeserializeAsync<CancelRequest>(ctx.Request.InputStream, JsonDefaults.Options, ct);
+        var body = await ctx.Request.ReadFromJsonAsync<CancelRequest>(JsonDefaults.Options, ct);
         if (body is null || string.IsNullOrWhiteSpace(body.RequestId))
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "requestId is required." }, statusCode: 400);
+            await ctx.Response.WriteJsonAsync(new { error = "requestId is required." }, statusCode: 400);
             return;
         }
 
         var cancelled = runningChats.Cancel(body.RequestId.Trim());
-        await ApiResponse.WriteJsonAsync(ctx.Response, new
+        await ctx.Response.WriteJsonAsync(new
         {
             ok = true,
             cancelled,

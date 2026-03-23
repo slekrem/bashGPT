@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using bashGPT.Tools.Registration;
 using bashGPT.Tools.Fetch;
 using bashGPT.Tools.Filesystem;
 using bashGPT.Tools.Shell.Shells;
+using bashGPT.Server;
 
 namespace bashGPT.Server.Tests;
 
@@ -17,38 +19,25 @@ namespace bashGPT.Server.Tests;
 public sealed class ServerToolAvailabilityTests : IAsyncLifetime
 {
     private readonly FakePromptHandler _handler = new();
-    private readonly HttpClient _client = new();
-    private ServerHost _server = null!;
-    private CancellationTokenSource _cts = null!;
-    private Task _serverTask = null!;
-    private string _baseUrl = string.Empty;
+    private HttpClient _client = null!;
+    private WebApplication _app = null!;
 
     public async Task InitializeAsync()
     {
-        var port = GetFreePort();
-        _baseUrl = $"http://127.0.0.1:{port}";
-        _client.BaseAddress = new Uri(_baseUrl);
-
         var registry = new ToolRegistry([
             new ShellExecTool(),
             new FilesystemReadTool(),
             new FetchTool(),
         ]);
 
-        _server = new ServerHost(_handler, toolRegistry: registry);
-        _cts = new CancellationTokenSource();
-        _serverTask = _server.RunAsync(new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false), _cts.Token);
-
-        await WaitForServerAsync(_baseUrl);
+        (_app, _client) = await TestServerFactory.CreateAsync(_handler, toolRegistry: registry);
     }
 
     public async Task DisposeAsync()
     {
-        await _cts.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"{_baseUrl}/").ConfigureAwait(false); } catch { }
-        try { await _serverTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         _client.Dispose();
-        _cts.Dispose();
+        await _app.StopAsync();
+        await _app.DisposeAsync();
     }
 
     // ── GET /api/tools ───────────────────────────────────────────────────────
@@ -75,18 +64,13 @@ public sealed class ServerToolAvailabilityTests : IAsyncLifetime
     [Fact]
     public async Task Get_Tools_NoRegistry_ReturnsEmptyList()
     {
-        var port = GetFreePort();
-        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
-        var server = new ServerHost(_handler);
-        using var cts = new CancellationTokenSource();
-        var serverTask = server.RunAsync(new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false), cts.Token);
-        await WaitForServerAsync($"http://127.0.0.1:{port}");
+        var (app, client) = await TestServerFactory.CreateAsync(_handler);
 
         var response = await client.GetAsync("/api/tools");
 
-        await cts.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"http://127.0.0.1:{port}/"); } catch { }
-        try { await serverTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+        client.Dispose();
+        await app.StopAsync();
+        await app.DisposeAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -161,30 +145,5 @@ public sealed class ServerToolAvailabilityTests : IAsyncLifetime
         var toolNames = _handler.LastOptions!.Tools!.Select(t => t.Name).ToList();
         Assert.Contains("shell_exec", toolNames);
         Assert.Contains("fetch", toolNames);
-    }
-
-    // ── Hilfsmethoden ────────────────────────────────────────────────────────
-
-    private static int GetFreePort()
-    {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
-    private static async Task WaitForServerAsync(string baseUrl, int maxWaitMs = 5000)
-    {
-        using var probe = new HttpClient { BaseAddress = new Uri(baseUrl) };
-        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
-
-        while (DateTime.UtcNow < deadline)
-        {
-            try { await probe.GetAsync("/"); return; }
-            catch { await Task.Delay(50); }
-        }
-
-        throw new TimeoutException($"Server auf {baseUrl} nicht erreichbar nach {maxWaitMs} ms.");
     }
 }

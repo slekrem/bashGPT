@@ -79,29 +79,6 @@ public sealed class ServerApplicationTests
         Assert.Empty(result.Errors);
     }
 
-    [Fact]
-    public void CreateServerHost_ReturnsConfiguredServerHost()
-    {
-        var configService = new TestConfigurationService(Path.GetTempFileName());
-        var toolRegistry = new ToolRegistry([]);
-
-        var host = ServerApplication.CreateServerHost(configService, toolRegistry);
-
-        Assert.NotNull(host);
-        Assert.IsType<ServerHost>(host);
-    }
-
-    [Fact]
-    public void CreateServerHost_WithAdditionalAgents_IncludesThemInRegistry()
-    {
-        var configService = new TestConfigurationService(Path.GetTempFileName());
-        var toolRegistry = new ToolRegistry([]);
-
-        var host = ServerApplication.CreateServerHost(configService, toolRegistry, [new FakeAgent("my-agent")]);
-
-        Assert.NotNull(host);
-    }
-
     private sealed class FakeTool(string name) : ITool
     {
         public ToolDefinition Definition { get; } = new(name, "Fake custom tool", []);

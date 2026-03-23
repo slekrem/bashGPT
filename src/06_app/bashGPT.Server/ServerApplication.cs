@@ -79,22 +79,4 @@ internal static class ServerApplication
         return result;
     }
 
-    public static ServerHost CreateServerHost(
-        ConfigurationService configService,
-        ToolRegistry toolRegistry,
-        IEnumerable<AgentBase>? pluginAgents = null)
-    {
-        var sessionStore = AppBootstrap.CreateSessionStore();
-        var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
-        var agentRegistry = CreateAgentRegistry(pluginAgents);
-        var serverRunner = new ServerChatRunner(configService, toolRegistry: toolRegistry);
-
-        return new ServerHost(
-            serverRunner,
-            configService,
-            sessionStore,
-            sessionRequestStore,
-            agentRegistry,
-            toolRegistry);
-    }
 }

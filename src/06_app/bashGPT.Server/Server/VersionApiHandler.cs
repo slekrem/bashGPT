@@ -1,14 +1,13 @@
-using System.Net;
 using bashGPT.Core.Versioning;
 
 namespace bashGPT.Server;
 
 internal sealed class VersionApiHandler
 {
-    public async Task HandleAsync(HttpListenerResponse response, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
-        var info = AppVersion.ForAssembly(typeof(ServerHost).Assembly);
-        await ApiResponse.WriteJsonAsync(response, new
+        var info = AppVersion.ForAssembly(typeof(VersionApiHandler).Assembly);
+        await ctx.Response.WriteJsonAsync(new
         {
             application = info.Application,
             version = info.Version,

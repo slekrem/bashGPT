@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using bashGPT.Core;
 using bashGPT.Core.Models.Storage;
@@ -9,21 +8,21 @@ namespace bashGPT.Server;
 
 internal sealed class SessionApiHandler(SessionStore? sessionStore)
 {
-    public async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
+    public async Task HandleAsync(HttpContext ctx, CancellationToken ct)
     {
         if (sessionStore is null)
         {
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
+            await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
             return;
         }
 
         var req = ctx.Request;
-        var path = req.Url?.AbsolutePath ?? "/";
+        var path = req.Path.Value ?? "/";
 
-        if (req.HttpMethod == "GET" && path == "/api/sessions")
+        if (req.Method == "GET" && path == "/api/sessions")
         {
             var sessions = await sessionStore.LoadAllAsync();
-            await ApiResponse.WriteJsonAsync(ctx.Response, new
+            await ctx.Response.WriteJsonAsync(new
             {
                 sessions = sessions.Select(s => new
                 {
@@ -36,7 +35,7 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
             return;
         }
 
-        if (req.HttpMethod == "POST" && path == "/api/sessions")
+        if (req.Method == "POST" && path == "/api/sessions")
         {
             var now = DateTime.UtcNow.ToString("o");
             var newSession = new SessionRecord
@@ -47,7 +46,7 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
                 UpdatedAt = now,
             };
             await sessionStore.UpsertAsync(newSession);
-            await ApiResponse.WriteJsonAsync(ctx.Response, new
+            await ctx.Response.WriteJsonAsync(new
             {
                 id = newSession.Id,
                 title = newSession.Title,
@@ -57,20 +56,20 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
             return;
         }
 
-        if (req.HttpMethod == "POST" && path == "/api/sessions/clear")
+        if (req.Method == "POST" && path == "/api/sessions/clear")
         {
             await sessionStore.ClearAsync();
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
+            await ctx.Response.WriteJsonAsync(new { ok = true });
             return;
         }
 
-        if (req.HttpMethod == "GET" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+        if (req.Method == "GET" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
         {
             var id = path["/api/sessions/".Length..];
             var session = await sessionStore.LoadAsync(id);
             if (session is null)
             {
-                await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Session not found." }, statusCode: 404);
+                await ctx.Response.WriteJsonAsync(new { error = "Session not found." }, statusCode: 404);
                 return;
             }
 
@@ -78,7 +77,7 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
                 .Where(m => (m.Role == "user" || m.Role == "assistant") && !string.IsNullOrEmpty(m.Content))
                 .ToList();
 
-            await ApiResponse.WriteJsonAsync(ctx.Response, new
+            await ctx.Response.WriteJsonAsync(new
             {
                 id = session.Id,
                 title = session.Title,
@@ -91,13 +90,13 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
             return;
         }
 
-        if (req.HttpMethod == "PUT" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+        if (req.Method == "PUT" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
         {
             var id = path["/api/sessions/".Length..];
-            var body = await JsonSerializer.DeserializeAsync<SessionRecord>(req.InputStream, JsonDefaults.Options, ct);
+            var body = await req.ReadFromJsonAsync<SessionRecord>(JsonDefaults.Options, ct);
             if (body is null)
             {
-                await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Invalid request body." }, statusCode: 400);
+                await ctx.Response.WriteJsonAsync(new { error = "Invalid request body." }, statusCode: 400);
                 return;
             }
 
@@ -111,18 +110,18 @@ internal sealed class SessionApiHandler(SessionStore? sessionStore)
             }
 
             await sessionStore.UpsertAsync(body);
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
+            await ctx.Response.WriteJsonAsync(new { ok = true });
             return;
         }
 
-        if (req.HttpMethod == "DELETE" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
+        if (req.Method == "DELETE" && path.StartsWith("/api/sessions/", StringComparison.Ordinal))
         {
             var id = path["/api/sessions/".Length..];
             await sessionStore.DeleteAsync(id);
-            await ApiResponse.WriteJsonAsync(ctx.Response, new { ok = true });
+            await ctx.Response.WriteJsonAsync(new { ok = true });
             return;
         }
 
-        await ApiResponse.WriteJsonAsync(ctx.Response, new { error = "Not found." }, statusCode: 404);
+        await ctx.Response.WriteJsonAsync(new { error = "Not found." }, statusCode: 404);
     }
 }
