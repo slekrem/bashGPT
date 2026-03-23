@@ -19,17 +19,6 @@ internal static class ServiceCollectionExtensions
         SessionStore sessionStore,
         SessionRequestStore sessionRequestStore)
     {
-        services.ConfigureHttpJsonOptions(opts =>
-        {
-            opts.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
-        });
-        services.AddControllers().AddJsonOptions(opts =>
-        {
-            opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-        });
-        services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
         services.AddOpenApi();
 
         services.AddSingleton(options);
@@ -46,7 +35,32 @@ internal static class ServiceCollectionExtensions
             sp.GetService<SessionStore>(),
             sp.GetService<SessionRequestStore>()));
 
-        // Controllers with factory delegates to support optional (nullable) dependencies
+        services.AddBashGptControllers();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers JSON serialization, MVC controllers, the singleton controller activator,
+    /// and all controller instances. Used by both the production host and test factories.
+    /// </summary>
+    public static IServiceCollection AddBashGptControllers(this IServiceCollection services)
+    {
+        services.ConfigureHttpJsonOptions(opts =>
+        {
+            opts.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
+        });
+        services.AddControllers()
+            .AddApplicationPart(typeof(VersionController).Assembly)
+            .AddJsonOptions(opts =>
+            {
+                opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            });
+        services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
+
+        // Factory delegates support optional (nullable) constructor dependencies
         services.AddSingleton<VersionController>();
         services.AddSingleton(sp => new SettingsController(sp.GetService<ConfigurationService>()));
         services.AddSingleton(sp => new SessionsController(sp.GetService<SessionStore>()));

@@ -1,13 +1,11 @@
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
 using bashGPT.Server;
-using bashGPT.Server.Controllers;
 using bashGPT.Server.Extensions;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
@@ -43,33 +41,7 @@ internal static class TestServerFactory
             sp.GetService<SessionStore>(),
             sp.GetService<SessionRequestStore>()));
 
-        builder.Services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
-        builder.Services.AddControllers()
-            .AddApplicationPart(typeof(VersionController).Assembly)
-            .AddJsonOptions(opts =>
-            {
-                opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-                opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-            });
-        builder.Services.ConfigureHttpJsonOptions(opts =>
-        {
-            opts.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
-        });
-
-        builder.Services.AddSingleton<VersionController>();
-        builder.Services.AddSingleton(sp => new SettingsController(sp.GetService<ConfigurationService>()));
-        builder.Services.AddSingleton(sp => new SessionsController(sp.GetService<SessionStore>()));
-        builder.Services.AddSingleton(sp => new AgentsController(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
-        builder.Services.AddSingleton(sp => new ToolsController(sp.GetService<ToolRegistry>()));
-        builder.Services.AddSingleton(sp => new LegacyController(sp.GetService<SessionStore>()));
-        builder.Services.AddSingleton(sp => new ChatController(
-            sp.GetRequiredService<IChatHandler>(),
-            sp.GetRequiredService<ServerOptions>(),
-            sp.GetRequiredService<RunningChatRegistry>(),
-            sp.GetRequiredService<ServerSessionService>(),
-            sp.GetService<ToolRegistry>(),
-            sp.GetService<AgentRegistry>()));
+        builder.Services.AddBashGptControllers();
 
         var app = builder.Build();
         app.UseBashGptPipeline();
