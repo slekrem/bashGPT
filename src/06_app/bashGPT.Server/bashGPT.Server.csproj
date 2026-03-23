@@ -95,9 +95,21 @@
     <EmbeddedResource Include="..\bashGPT.Web\dist\bundle.js" LogicalName="bashGPT.Web.bundle.js" />
   </ItemGroup>
 
-  <Target Name="RestoreWebFrontendDependencies" Inputs="$(MSBuildProjectDirectory)/../bashGPT.Web/package.json;$(MSBuildProjectDirectory)/../bashGPT.Web/package-lock.json" Outputs="$(MSBuildProjectDirectory)/../bashGPT.Web/node_modules/.package-lock.stamp">
+  <PropertyGroup>
+    <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
+  </PropertyGroup>
+
+  <!-- Source files tracked for incremental build: npm run build is skipped when none have changed. -->
+  <ItemGroup>
+    <WebFrontendSource Include="$(WebFrontendDir)/src/**/*.ts" />
+    <WebFrontendSource Include="$(WebFrontendDir)/index.html" />
+    <WebFrontendSource Include="$(WebFrontendDir)/vite.config.ts" />
+    <WebFrontendSource Include="$(WebFrontendDir)/tsconfig.json" />
+    <WebFrontendSource Include="$(WebFrontendDir)/package.json" />
+  </ItemGroup>
+
+  <Target Name="RestoreWebFrontendDependencies" Inputs="$(WebFrontendDir)/package.json;$(WebFrontendDir)/package-lock.json" Outputs="$(WebFrontendDir)/node_modules/.package-lock.stamp">
     <PropertyGroup>
-      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
     </PropertyGroup>
 
@@ -108,9 +120,9 @@
     <Touch Files="$(WebFrontendDir)/node_modules/.package-lock.stamp" AlwaysCreate="true" />
   </Target>
 
-  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies">
+  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies"
+          Inputs="@(WebFrontendSource)" Outputs="$(WebFrontendDir)/dist/bundle.js">
     <PropertyGroup>
-      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
       <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
     </PropertyGroup>
 
