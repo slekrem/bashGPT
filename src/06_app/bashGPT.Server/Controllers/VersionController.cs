@@ -5,7 +5,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/version")]
-internal sealed class VersionController : ControllerBase
+public sealed class VersionController : ControllerBase
 {
     [HttpGet]
     public IActionResult Get()

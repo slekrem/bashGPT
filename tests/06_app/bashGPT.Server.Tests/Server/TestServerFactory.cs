@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -9,6 +8,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
 using bashGPT.Server;
 using bashGPT.Server.Controllers;
+using bashGPT.Server.Extensions;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
 
@@ -30,18 +30,6 @@ internal static class TestServerFactory
         builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
         builder.Logging.ClearProviders();
 
-        builder.Services.ConfigureHttpJsonOptions(opts =>
-        {
-            opts.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
-        });
-        builder.Services.AddControllers().AddJsonOptions(opts =>
-        {
-            opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-        });
-        builder.Services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
-
         var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<IChatHandler>(handler);
@@ -54,6 +42,20 @@ internal static class TestServerFactory
         builder.Services.AddSingleton(sp => new ServerSessionService(
             sp.GetService<SessionStore>(),
             sp.GetService<SessionRequestStore>()));
+
+        builder.Services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
+        builder.Services.AddControllers()
+            .AddApplicationPart(typeof(VersionController).Assembly)
+            .AddJsonOptions(opts =>
+            {
+                opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            });
+        builder.Services.ConfigureHttpJsonOptions(opts =>
+        {
+            opts.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            opts.SerializerOptions.PropertyNameCaseInsensitive = true;
+        });
 
         builder.Services.AddSingleton<VersionController>();
         builder.Services.AddSingleton(sp => new SettingsController(sp.GetService<ConfigurationService>()));
@@ -70,8 +72,7 @@ internal static class TestServerFactory
             sp.GetService<AgentRegistry>()));
 
         var app = builder.Build();
-        app.UseStaticFiles();
-        app.MapControllers();
+        app.UseBashGptPipeline();
 
         await app.StartAsync();
 

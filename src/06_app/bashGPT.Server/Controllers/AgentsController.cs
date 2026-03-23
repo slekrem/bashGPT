@@ -7,7 +7,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/agents")]
-internal sealed class AgentsController(AgentRegistry? registry, ConfigurationService? configService) : ControllerBase
+public sealed class AgentsController(AgentRegistry? registry, ConfigurationService? configService) : ControllerBase
 {
     [HttpGet]
     public IActionResult GetAll()

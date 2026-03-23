@@ -7,7 +7,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/sessions")]
-internal sealed class SessionsController(SessionStore? sessionStore) : ControllerBase
+public sealed class SessionsController(SessionStore? sessionStore) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)

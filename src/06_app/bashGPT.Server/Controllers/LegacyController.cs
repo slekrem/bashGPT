@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace bashGPT.Server.Controllers;
 
 [ApiController]
-internal sealed class LegacyController(SessionStore? sessionStore) : ControllerBase
+public sealed class LegacyController(SessionStore? sessionStore) : ControllerBase
 {
     [HttpGet("api/history")]
     public async Task<IActionResult> GetHistory(CancellationToken ct)

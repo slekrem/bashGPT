@@ -9,7 +9,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/settings")]
-internal sealed class SettingsController(ConfigurationService? configService) : ControllerBase
+public sealed class SettingsController(ConfigurationService? configService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)

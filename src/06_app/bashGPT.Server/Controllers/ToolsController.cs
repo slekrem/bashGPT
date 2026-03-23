@@ -5,7 +5,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/tools")]
-internal sealed class ToolsController(ToolRegistry? toolRegistry) : ControllerBase
+public sealed class ToolsController(ToolRegistry? toolRegistry) : ControllerBase
 {
     [HttpGet]
     public IActionResult Get()

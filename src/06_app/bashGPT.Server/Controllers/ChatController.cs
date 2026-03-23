@@ -10,7 +10,7 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/chat")]
-internal sealed class ChatController(
+public sealed class ChatController(
     IChatHandler handler,
     ServerOptions options,
     RunningChatRegistry runningChats,

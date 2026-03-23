@@ -5,7 +5,7 @@ using bashGPT.Core.Storage;
 
 namespace bashGPT.Server;
 
-internal sealed class ServerSessionService(
+public sealed class ServerSessionService(
     SessionStore? sessionStore = null,
     SessionRequestStore? sessionRequestStore = null)
 {
