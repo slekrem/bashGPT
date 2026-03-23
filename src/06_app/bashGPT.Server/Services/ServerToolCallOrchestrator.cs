@@ -2,8 +2,9 @@ using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Tools.Registration;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 internal static class ServerToolCallOrchestrator
 {

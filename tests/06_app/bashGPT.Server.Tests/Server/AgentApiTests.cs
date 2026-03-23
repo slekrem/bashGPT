@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using bashGPT.Agents;
 using bashGPT.Agents.Dev;
 using bashGPT.Agents.Shell;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Tests;
 

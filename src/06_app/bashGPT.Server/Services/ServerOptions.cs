@@ -1,4 +1,4 @@
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 public record ServerOptions(
     int Port,

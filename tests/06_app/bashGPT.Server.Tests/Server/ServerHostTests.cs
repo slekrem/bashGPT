@@ -5,7 +5,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using bashGPT.Core.Storage;
 using bashGPT.Core.Models.Providers;
-using bashGPT.Server;
+using bashGPT.Server.Models;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Tests;
 

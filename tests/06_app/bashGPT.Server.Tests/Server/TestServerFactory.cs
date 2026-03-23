@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 using bashGPT.Server.Extensions;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;

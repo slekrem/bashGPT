@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 /// <summary>
 /// Resolves controllers from the DI container as singletons, enabling factory-delegate

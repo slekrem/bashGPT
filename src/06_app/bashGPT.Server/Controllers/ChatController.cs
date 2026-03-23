@@ -3,6 +3,7 @@ using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Server.Models;
+using bashGPT.Server.Services;
 using bashGPT.Tools.Registration;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;

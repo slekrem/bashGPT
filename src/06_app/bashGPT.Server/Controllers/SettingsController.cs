@@ -4,6 +4,7 @@ using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
 using bashGPT.Server.Models;
+using bashGPT.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace bashGPT.Server.Controllers;

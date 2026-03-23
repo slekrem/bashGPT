@@ -7,7 +7,7 @@ using bashGPT.Tools.Registration;
 using bashGPT.Tools.Fetch;
 using bashGPT.Tools.Filesystem;
 using bashGPT.Tools.Shell.Shells;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Tests;
 

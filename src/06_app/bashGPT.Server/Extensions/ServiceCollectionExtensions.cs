@@ -5,6 +5,7 @@ using bashGPT.Core.Storage;
 using bashGPT.Tools.Registration;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using bashGPT.Server.Controllers;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Extensions;
 

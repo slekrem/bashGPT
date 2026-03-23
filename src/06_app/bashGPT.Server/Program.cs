@@ -2,7 +2,7 @@ using System.CommandLine;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using bashGPT.Core;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 using bashGPT.Server.Extensions;
 
 var configService = ServerApplication.CreateConfigurationService();

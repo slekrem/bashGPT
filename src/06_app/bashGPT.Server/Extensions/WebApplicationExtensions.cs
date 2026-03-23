@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Extensions;
 

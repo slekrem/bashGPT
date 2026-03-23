@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Tests;
 

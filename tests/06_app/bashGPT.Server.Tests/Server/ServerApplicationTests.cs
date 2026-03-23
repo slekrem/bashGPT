@@ -1,5 +1,5 @@
 using bashGPT.Agents;
-using bashGPT.Server;
+using bashGPT.Server.Extensions;
 using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Registration;
 

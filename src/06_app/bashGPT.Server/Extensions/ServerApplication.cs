@@ -6,7 +6,7 @@ using bashGPT.Server.Agents;
 using bashGPT.Tools.Registration;
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Extensions;
 
 internal static class ServerApplication
 {

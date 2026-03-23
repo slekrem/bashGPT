@@ -2,8 +2,9 @@ using System.Text;
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 using bashGPT.Tools.Registration;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 internal sealed class StreamingSseWriter(Stream stream)
 {

@@ -5,8 +5,9 @@ using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
 using bashGPT.Tools.Registration;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 public sealed class ServerChatRunner(
     ConfigurationService configService,
