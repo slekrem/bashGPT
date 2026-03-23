@@ -3,6 +3,7 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
+using bashGPT.Server.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace bashGPT.Server.Controllers;
@@ -70,12 +71,4 @@ public sealed class SettingsController(ConfigurationService? configService) : Co
             return Ok(new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
-
-    public sealed record SettingsRequest(
-        string? Provider,
-        string? Model,
-        string? OllamaHost,
-        ProviderConfigRequest? Ollama);
-
-    public sealed record ProviderConfigRequest(string? Model, string? Host);
 }

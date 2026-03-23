@@ -4,9 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace bashGPT.Server.Controllers;
 
 [ApiController]
+[Route("api")]
 public sealed class LegacyController(SessionStore? sessionStore) : ControllerBase
 {
-    [HttpGet("api/history")]
+    [HttpGet("history")]
     public async Task<IActionResult> GetHistory(CancellationToken ct)
     {
         if (sessionStore is null)
@@ -31,7 +32,7 @@ public sealed class LegacyController(SessionStore? sessionStore) : ControllerBas
         return Ok(new { history });
     }
 
-    [HttpPost("api/reset")]
+    [HttpPost("reset")]
     public async Task<IActionResult> Reset(CancellationToken ct)
     {
         if (sessionStore is not null)

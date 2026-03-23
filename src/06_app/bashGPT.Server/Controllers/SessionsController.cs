@@ -12,7 +12,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         var sessions = await sessionStore.LoadAllAsync();
         return Ok(new
@@ -30,7 +30,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpPost]
     public async Task<IActionResult> Create(CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         var now = DateTime.UtcNow.ToString("o");
         var newSession = new SessionRecord
@@ -53,7 +53,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpPost("clear")]
     public async Task<IActionResult> Clear(CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         await sessionStore.ClearAsync();
         return Ok(new { ok = true });
@@ -62,7 +62,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         var session = await sessionStore.LoadAsync(id);
         if (session is null) return NotFound(new { error = "Session not found." });
@@ -86,7 +86,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] SessionRecord body, CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         body.Id = id;
         body.UpdatedAt = DateTime.UtcNow.ToString("o");
@@ -104,7 +104,7 @@ public sealed class SessionsController(SessionStore? sessionStore) : ControllerB
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
-        if (sessionStore is null) return NotFound(new { error = "Not found." });
+        if (sessionStore is null) return StatusCode(503, new { error = "Sessions not available." });
 
         await sessionStore.DeleteAsync(id);
         return Ok(new { ok = true });
