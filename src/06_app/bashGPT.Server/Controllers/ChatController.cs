@@ -2,6 +2,7 @@ using bashGPT.Agents;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Server.Models;
 using bashGPT.Tools.Registration;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -26,11 +27,9 @@ public sealed class ChatController(
 
         var sessionId = sessionService.ResolveSessionId(body.SessionId);
         var (agent, session, resolvedTools, effectiveToolNames) = await ResolveContextAsync(body.AgentId, body.EnabledTools, sessionId);
+        var (requestKey, now) = NewRequestKey();
 
-        var now = DateTime.UtcNow.ToString("o");
-        var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
-
-        var chatOpts = BuildChatOptions(body.Prompt.Trim(), body.Verbose, sessionId, requestKey, now,
+        var chatOpts = BuildChatOptions(body.Prompt.Trim(), body.Verbose, sessionId, requestKey,
             session, resolvedTools, agent, onToken: null, onReasoning: null, onEvent: null);
 
         var result = await handler.RunServerChatAsync(chatOpts, ct);
@@ -95,11 +94,9 @@ public sealed class ChatController(
         {
             var (agent, session, resolvedTools, effectiveToolNames) =
                 await ResolveContextAsync(body.AgentId, body.EnabledTools, sessionId);
+            var (requestKey, now) = NewRequestKey();
 
-            var now = DateTime.UtcNow.ToString("o");
-            var requestKey = now + "_" + Guid.NewGuid().ToString("N")[..8];
-
-            var chatOpts = BuildChatOptions(body.Prompt.Trim(), body.Verbose, sessionId, requestKey, now,
+            var chatOpts = BuildChatOptions(body.Prompt.Trim(), body.Verbose, sessionId, requestKey,
                 session, resolvedTools, agent,
                 onToken: sse.WriteContentToken,
                 onReasoning: sse.WriteReasoningToken,
@@ -131,6 +128,12 @@ public sealed class ChatController(
         }
     }
 
+    private static (string Key, string Timestamp) NewRequestKey()
+    {
+        var now = DateTime.UtcNow.ToString("o");
+        return (now + "_" + Guid.NewGuid().ToString("N")[..8], now);
+    }
+
     private async Task<(AgentBase? agent, SessionRecord? session, IReadOnlyList<ProviderToolDefinition> resolvedTools, List<string>? effectiveToolNames)>
         ResolveContextAsync(string? agentId, string[]? requestTools, string? sessionId)
     {
@@ -141,7 +144,7 @@ public sealed class ChatController(
         var session = await sessionService.LoadAsync(sessionId);
 
         var effectiveToolNames = agent?.EnabledTools.Count > 0
-            ? agent.EnabledTools.ToList()
+            ? [.. agent.EnabledTools]
             : session?.EnabledTools?.Count > 0
                 ? session.EnabledTools
                 : requestTools?.ToList();
@@ -151,7 +154,7 @@ public sealed class ChatController(
     }
 
     private ServerChatOptions BuildChatOptions(
-        string prompt, bool? verbose, string? sessionId, string requestKey, string now,
+        string prompt, bool? verbose, string? sessionId, string requestKey,
         SessionRecord? session, IReadOnlyList<ProviderToolDefinition> resolvedTools, AgentBase? agent,
         Action<string>? onToken, Action<string>? onReasoning, Action<SseEvent>? onEvent,
         AgentLlmConfig? llmConfig = null)
@@ -177,8 +180,4 @@ public sealed class ChatController(
             SessionPath: sessionService.GetSessionPath(sessionId),
             Agent: agent);
     }
-
-    public sealed record ChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null);
-    public sealed record StreamChatRequest(string Prompt, bool? Verbose, string? SessionId, string[]? EnabledTools, string? AgentId = null, string? RequestId = null);
-    public sealed record CancelRequest(string RequestId);
 }
