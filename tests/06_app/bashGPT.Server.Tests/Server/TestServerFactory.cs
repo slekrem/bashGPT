@@ -1,11 +1,14 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Storage;
 using bashGPT.Server;
+using bashGPT.Server.Controllers;
 using bashGPT.Agents;
 using bashGPT.Tools.Registration;
 
@@ -26,11 +29,18 @@ internal static class TestServerFactory
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
         builder.Logging.ClearProviders();
+
         builder.Services.ConfigureHttpJsonOptions(opts =>
         {
-            opts.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            opts.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             opts.SerializerOptions.PropertyNameCaseInsensitive = true;
         });
+        builder.Services.AddControllers().AddJsonOptions(opts =>
+        {
+            opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        });
+        builder.Services.AddSingleton<IControllerActivator, SingletonControllerActivator>();
 
         var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
         builder.Services.AddSingleton(options);
@@ -41,31 +51,27 @@ internal static class TestServerFactory
         if (agentRegistry is not null) builder.Services.AddSingleton(agentRegistry);
         if (toolRegistry is not null) builder.Services.AddSingleton(toolRegistry);
 
-        builder.Services.AddSingleton<VersionApiHandler>();
-        builder.Services.AddSingleton(sp => new SettingsApiHandler(sp.GetService<ConfigurationService>()));
-        builder.Services.AddSingleton(sp => new SessionApiHandler(sp.GetService<SessionStore>()));
-        builder.Services.AddSingleton(sp => new AgentApiHandler(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
-        builder.Services.AddSingleton(sp => new ToolApiHandler(sp.GetService<ToolRegistry>()));
-        builder.Services.AddSingleton(sp => new ChatApiHandler(
-            sp.GetRequiredService<IChatHandler>(),
-            sp.GetRequiredService<ServerOptions>(),
+        builder.Services.AddSingleton(sp => new ServerSessionService(
             sp.GetService<SessionStore>(),
-            sp.GetService<SessionRequestStore>(),
-            sp.GetService<ToolRegistry>(),
-            sp.GetService<AgentRegistry>()));
-        builder.Services.AddSingleton(sp => new StreamingChatApiHandler(
+            sp.GetService<SessionRequestStore>()));
+
+        builder.Services.AddSingleton<VersionController>();
+        builder.Services.AddSingleton(sp => new SettingsController(sp.GetService<ConfigurationService>()));
+        builder.Services.AddSingleton(sp => new SessionsController(sp.GetService<SessionStore>()));
+        builder.Services.AddSingleton(sp => new AgentsController(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
+        builder.Services.AddSingleton(sp => new ToolsController(sp.GetService<ToolRegistry>()));
+        builder.Services.AddSingleton(sp => new LegacyController(sp.GetService<SessionStore>()));
+        builder.Services.AddSingleton(sp => new ChatController(
             sp.GetRequiredService<IChatHandler>(),
             sp.GetRequiredService<ServerOptions>(),
             sp.GetRequiredService<RunningChatRegistry>(),
-            sp.GetService<SessionStore>(),
-            sp.GetService<SessionRequestStore>(),
+            sp.GetRequiredService<ServerSessionService>(),
             sp.GetService<ToolRegistry>(),
             sp.GetService<AgentRegistry>()));
-        builder.Services.AddSingleton<ChatCancelApiHandler>();
-        builder.Services.AddSingleton(sp => new LegacyHistoryApiHandler(sp.GetService<SessionStore>()));
 
         var app = builder.Build();
-        new WebApplicationHost(app).MapRoutes();
+        app.UseStaticFiles();
+        app.MapControllers();
 
         await app.StartAsync();
 

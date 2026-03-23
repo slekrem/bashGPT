@@ -1,13 +1,17 @@
 using bashGPT.Tools.Registration;
+using Microsoft.AspNetCore.Mvc;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Controllers;
 
-internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
+[ApiController]
+[Route("api/tools")]
+internal sealed class ToolsController(ToolRegistry? toolRegistry) : ControllerBase
 {
-    public IResult Get()
+    [HttpGet]
+    public IActionResult Get()
     {
         if (toolRegistry is null)
-            return Results.Json(new { tools = Array.Empty<object>() });
+            return Ok(new { tools = Array.Empty<object>() });
 
         var tools = toolRegistry.Tools
             .Select(t => new
@@ -23,6 +27,6 @@ internal sealed class ToolApiHandler(ToolRegistry? toolRegistry)
                 }),
             });
 
-        return Results.Json(new { tools });
+        return Ok(new { tools });
     }
 }

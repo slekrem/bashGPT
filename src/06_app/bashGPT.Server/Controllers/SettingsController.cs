@@ -3,39 +3,36 @@ using bashGPT.Core.Configuration;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Providers.Ollama;
+using Microsoft.AspNetCore.Mvc;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Controllers;
 
-internal sealed class SettingsApiHandler(ConfigurationService? configService)
+[ApiController]
+[Route("api/settings")]
+internal sealed class SettingsController(ConfigurationService? configService) : ControllerBase
 {
-    public async Task<IResult> GetAsync(CancellationToken ct)
+    [HttpGet]
+    public async Task<IActionResult> Get(CancellationToken ct)
     {
         if (configService is null)
-            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
+            return StatusCode(503, new { error = "Configuration service is unavailable." });
 
         var config = await configService.LoadAsync();
-        return Results.Json(new
+        return Ok(new
         {
             provider = "ollama",
             model = config.Ollama.Model,
             contextWindowTokens = (int?)null,
             ollamaHost = config.Ollama.BaseUrl,
-            ollama = new
-            {
-                model = config.Ollama.Model,
-                host = config.Ollama.BaseUrl,
-            },
+            ollama = new { model = config.Ollama.Model, host = config.Ollama.BaseUrl },
         });
     }
 
-    public async Task<IResult> PutAsync(HttpRequest req, CancellationToken ct)
+    [HttpPut]
+    public async Task<IActionResult> Put([FromBody] SettingsRequest body, CancellationToken ct)
     {
         if (configService is null)
-            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
-
-        var body = await req.ReadFromJsonAsync<SettingsRequest>(ct);
-        if (body is null)
-            return Results.Json(new { error = "Invalid request body." }, statusCode: 400);
+            return StatusCode(503, new { error = "Configuration service is unavailable." });
 
         var config = await configService.LoadAsync();
 
@@ -49,13 +46,14 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         if (body.OllamaHost is not null) config.Ollama.BaseUrl = body.OllamaHost;
 
         await configService.SaveAsync(config);
-        return Results.Json(new { ok = true });
+        return Ok(new { ok = true });
     }
 
-    public async Task<IResult> TestAsync(CancellationToken ct)
+    [HttpPost("test")]
+    public async Task<IActionResult> Test(CancellationToken ct)
     {
         if (configService is null)
-            return Results.Json(new { error = "Configuration service is unavailable." }, statusCode: 503);
+            return StatusCode(503, new { error = "Configuration service is unavailable." });
 
         var config = await configService.LoadAsync();
         var provider = new OllamaProvider(config.Ollama);
@@ -64,22 +62,20 @@ internal sealed class SettingsApiHandler(ConfigurationService? configService)
         {
             await provider.CompleteAsync([new ChatMessage(ChatRole.User, "Hi")], ct);
             sw.Stop();
-            return Results.Json(new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
+            return Ok(new { ok = true, latencyMs = (int)sw.ElapsedMilliseconds });
         }
         catch (LlmProviderException ex)
         {
             Console.Error.WriteLine($"[server] Provider connectivity test failed: {ex}");
-            return Results.Json(new { ok = false, error = ApiErrors.GenericProviderError });
+            return Ok(new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }
 
-    private sealed record SettingsRequest(
+    public sealed record SettingsRequest(
         string? Provider,
         string? Model,
         string? OllamaHost,
         ProviderConfigRequest? Ollama);
 
-    private sealed record ProviderConfigRequest(
-        string? Model,
-        string? Host);
+    public sealed record ProviderConfigRequest(string? Model, string? Host);
 }

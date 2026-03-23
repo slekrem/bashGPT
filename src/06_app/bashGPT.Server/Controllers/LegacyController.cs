@@ -1,19 +1,22 @@
 using bashGPT.Core.Storage;
+using Microsoft.AspNetCore.Mvc;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Controllers;
 
-internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
+[ApiController]
+internal sealed class LegacyController(SessionStore? sessionStore) : ControllerBase
 {
-    public async Task<IResult> GetHistoryAsync(CancellationToken ct)
+    [HttpGet("api/history")]
+    public async Task<IActionResult> GetHistory(CancellationToken ct)
     {
         if (sessionStore is null)
-            return Results.Json(new { history = Array.Empty<object>() });
+            return Ok(new { history = Array.Empty<object>() });
 
         var sessions = await sessionStore.LoadAllAsync();
         var latest = sessions.OrderByDescending(s => s.UpdatedAt).FirstOrDefault();
 
         if (latest is null)
-            return Results.Json(new { history = Array.Empty<object>() });
+            return Ok(new { history = Array.Empty<object>() });
 
         var session = await sessionStore.LoadAsync(latest.Id);
         var history = session?.Messages
@@ -25,14 +28,15 @@ internal sealed class LegacyHistoryApiHandler(SessionStore? sessionStore)
             .ToList()
             ?? [];
 
-        return Results.Json(new { history });
+        return Ok(new { history });
     }
 
-    public async Task<IResult> ResetAsync(CancellationToken ct)
+    [HttpPost("api/reset")]
+    public async Task<IActionResult> Reset(CancellationToken ct)
     {
         if (sessionStore is not null)
             await sessionStore.ClearAsync();
 
-        return Results.Json(new { ok = true });
+        return Ok(new { ok = true });
     }
 }
