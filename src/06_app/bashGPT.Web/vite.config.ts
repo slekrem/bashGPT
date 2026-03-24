@@ -2,7 +2,8 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   build: {
-    outDir: 'dist',
+    outDir: '../bashGPT.Server/wwwroot',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         entryFileNames: 'bundle.js',

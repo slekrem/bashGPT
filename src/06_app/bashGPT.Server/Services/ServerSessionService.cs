@@ -2,10 +2,11 @@ using bashGPT.Core.Chat;
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Storage;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
-internal sealed class ServerSessionService(
+public sealed class ServerSessionService(
     SessionStore? sessionStore = null,
     SessionRequestStore? sessionRequestStore = null)
 {

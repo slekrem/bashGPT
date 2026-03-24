@@ -33,7 +33,7 @@ cd src/06_app/bashGPT.Web && npm run dev
 ./scripts/coverage-report.sh
 ```
 
-`src/06_app/bashGPT.Server/bashGPT.Server.csproj` embeds `src/06_app/bashGPT.Web/dist/index.html` and `src/06_app/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
+`src/06_app/bashGPT.Server/bashGPT.Server.csproj` builds the frontend and writes the output directly to `src/06_app/bashGPT.Server/wwwroot/` (configured via `vite.config.ts` → `outDir`). `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically — the frontend build is **incremental**: `npm run build` is skipped when no source file has changed since the last build. The built files (`bundle.js`, `index.html`) are served as static files via `UseStaticFiles()` + `MapFallbackToFile`. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 | `bashGPT.Plugins` | `src/05_plugins/bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
 | `bashGPT.Plugins.TestFixtures` | `src/05_plugins/bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
 | `bashGPT.Cli` | `src/06_app/bashGPT.Cli` | CLI host based on `System.CommandLine` |
-| `bashGPT.Server` | `src/06_app/bashGPT.Server` | embedded HTTP/UI host and API handlers |
+| `bashGPT.Server` | `src/06_app/bashGPT.Server` | ASP.NET Core Web API host with browser UI, sessions, agents, and tool-calling |
 | `bashGPT.Web` | `src/06_app/bashGPT.Web` | Lit/TypeScript frontend source |
 
 Current test projects:
@@ -92,14 +92,30 @@ The CLI still supports execution modes (`ask`, `dry-run`, `auto-exec`, `no-exec`
 
 **Server (`ServerChatRunner`)**
 ```text
-POST /api/chat or /api/chat/stream
-  -> SessionStore load/create
+POST /api/chat or /api/chat/stream  (ChatController)
+  -> SessionStore load/create       (ServerSessionService)
   -> AgentRegistry lookup
-  -> tool resolution via ToolHelper.Resolve()
+  -> tool resolution                (ToolDefinitionMapper)
   -> provider request (Ollama)
-  -> tool-call loop
+  -> tool-call loop                 (ServerToolCallOrchestrator)
   -> SessionStore persist
-  -> JSON response or SSE stream
+  -> JSON response or SSE stream    (StreamingSseWriter)
+```
+
+The `bashGPT.Server` project follows the standard ASP.NET Core Web API layout:
+
+```
+bashGPT.Server/
+├── Agents/          ← GenericAgent (built-in, server-only)
+├── Controllers/     ← API controllers (ChatController, SessionsController, …)
+├── Extensions/      ← AddBashGptServer(), UseBashGptPipeline() extension methods
+├── Models/          ← ServerChatOptions, ServerChatResult, SseEvent
+├── Properties/      ← launchSettings.json, AssemblyInfo.cs
+├── Services/        ← ServerChatRunner, ServerSessionService, RunningChatRegistry, …
+├── wwwroot/         ← static file root (frontend served from here when present)
+├── appsettings.json
+├── appsettings.Development.json
+└── Program.cs       ← Web application bootstrap
 ```
 
 Server-side settings are intentionally simpler than before:
@@ -113,7 +129,7 @@ Server-side settings are intentionally simpler than before:
 | Class | Path | Purpose |
 |---|---|---|
 | `CliChatRunner` | `src/01_core/bashGPT.Core/Cli/CliChatRunner.cs` | CLI prompt flow and command execution |
-| `ServerChatRunner` | `src/01_core/bashGPT.Core/Cli/ServerChatRunner.cs` | server chat loop with sessions, agents, tools |
+| `ServerChatRunner` | `src/06_app/bashGPT.Server/Services/ServerChatRunner.cs` | server chat loop with sessions, agents, tools |
 | `ChatOrchestrator` | `src/01_core/bashGPT.Core/Cli/ChatOrchestrator.cs` | shared request orchestration helpers |
 | `ConfigurationService` | `src/01_core/bashGPT.Core/Configuration/ConfigurationService.cs` | `config.json` load/save and env overrides |
 | `ProviderFactory` | `src/01_core/bashGPT.Core/Providers/ProviderFactory.cs` | creates the active Ollama provider |
@@ -121,20 +137,20 @@ Server-side settings are intentionally simpler than before:
 | `ShellContextCollector` | `src/01_core/bashGPT.Core/Shell/ShellContextCollector.cs` | shell/git/system context for prompts |
 | `CommandExecutor` | `src/01_core/bashGPT.Core/Shell/CommandExecutor.cs` | shell command execution with guardrails |
 | `SessionStore` | `src/01_core/bashGPT.Core/Storage/SessionStore.cs` | thread-safe session persistence |
-| `ServerHost` | `src/06_app/bashGPT.Server/Server/ServerHost.cs` | HTTP listener and routing |
 | `AgentBase` | `src/02_abstractions/bashGPT.Agents/AgentBase.cs` | code-first base type for agents |
 | `AgentRegistry` | `src/02_abstractions/bashGPT.Agents/AgentRegistry.cs` | in-memory agent lookup |
 | `ContextFileCache` | `src/04_agents/bashGPT.Agents.Dev/ContextFileCache.cs` | loaded-file cache for dev agent |
 | `ToolRegistry` | `src/02_abstractions/bashGPT.Tools/Registration/ToolRegistry.cs` | available `ITool` implementations |
-| `RunningChatRegistry` | `src/06_app/bashGPT.Server/Server/RunningChatRegistry.cs` | request cancellation support |
-| `LegacyHistory` | `src/06_app/bashGPT.Server/Server/LegacyHistory.cs` | compatibility layer for `/api/history` and `/api/reset` |
+| `RunningChatRegistry` | `src/06_app/bashGPT.Server/Services/RunningChatRegistry.cs` | request cancellation support |
+| `ServerSessionService` | `src/06_app/bashGPT.Server/Services/ServerSessionService.cs` | session load/persist/history for the server |
+| `LegacyController` | `src/06_app/bashGPT.Server/Controllers/LegacyController.cs` | compatibility layer for `/api/history` and `/api/reset` |
 
 ### Agents
 
-Agents are defined in code, not JSON. The server registers:
-- `generic`
-- `dev`
-- `shell`
+Agents are defined in code, not JSON. The server registers one built-in agent:
+- `generic` — `GenericAgent` in `bashGPT.Server/Agents/`
+
+`dev` and `shell` are **not** built-in server agents; they are loaded at startup as bundled plugins from `~/.config/bashgpt/plugins/`. They appear in the UI only after the server project has been built at least once (the build copies plugin DLLs to that directory via `InstallPlugins`).
 
 `AgentBase` drives:
 - stable agent id
@@ -177,26 +193,27 @@ Important details:
 Current endpoints:
 
 ```text
-GET  /                        -> embedded index.html
-GET  /bundle.js               -> embedded frontend bundle
-GET  /api/context
-GET  /api/settings
-PUT  /api/settings
-POST /api/settings/test
-POST /api/chat
-POST /api/chat/stream
-POST /api/chat/cancel
-GET  /api/sessions
-POST /api/sessions
-POST /api/sessions/clear
-GET  /api/sessions/<id>
-PUT  /api/sessions/<id>
-DELETE /api/sessions/<id>
-GET  /api/tools
-GET  /api/agents
-GET  /api/agents/<id>/info-panel
-GET  /api/history      # legacy compatibility
-POST /api/reset        # legacy compatibility
+GET  /openapi/v1.json           -> OpenAPI spec (Development only)
+GET  /                          -> embedded index.html (Minimal API)
+GET  /bundle.js                 -> embedded frontend bundle (Minimal API)
+GET  /api/version               VersionController
+GET  /api/settings              SettingsController
+PUT  /api/settings              SettingsController
+POST /api/settings/test         SettingsController
+POST /api/chat                  ChatController
+POST /api/chat/stream           ChatController  (SSE)
+POST /api/chat/cancel           ChatController
+GET  /api/sessions              SessionsController
+POST /api/sessions              SessionsController
+POST /api/sessions/clear        SessionsController
+GET  /api/sessions/<id>         SessionsController
+PUT  /api/sessions/<id>         SessionsController
+DELETE /api/sessions/<id>       SessionsController
+GET  /api/tools                 ToolsController
+GET  /api/agents                AgentsController
+GET  /api/agents/<id>/info-panel  AgentsController
+GET  /api/history               LegacyController  (legacy compatibility)
+POST /api/reset                 LegacyController  (legacy compatibility)
 ```
 
 Notes:
@@ -268,3 +285,4 @@ Those runtime defaults are now fixed internally via `AppDefaults`.
 - `PascalCase` for types/members, `camelCase` for locals
 - xUnit tests using `Method_Condition_Result`
 - conventional commits like `feat:`, `fix:`, `test:`, `docs:`
+- **Namespace convention for `bashGPT.Server`**: namespace must match the subfolder — `Controllers/` → `bashGPT.Server.Controllers`, `Services/` → `bashGPT.Server.Services`, `Models/` → `bashGPT.Server.Models`, `Extensions/` → `bashGPT.Server.Extensions`, `Agents/` → `bashGPT.Server.Agents`

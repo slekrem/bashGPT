@@ -1,7 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -9,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,23 +40,17 @@
   </PropertyGroup>
 
   <Target Name="BuildPlugins" BeforeTargets="Build">
-    <MSBuild Projects="@(BundledPlugin)"
-             Targets="Build"
-             Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true"
-             BuildInParallel="true" />
+    <MSBuild Projects="@(BundledPlugin)" Targets="Build" Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true" BuildInParallel="true" />
   </Target>
 
   <Target Name="InstallPlugins" AfterTargets="Build" DependsOnTargets="BuildPlugins">
-    <MSBuild Projects="@(BundledPlugin)"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true">
+    <MSBuild Projects="@(BundledPlugin)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);CopyLocalLockFileAssemblies=true">
       <Output TaskParameter="TargetOutputs" ItemName="_BundledPluginDll" />
     </MSBuild>
 
     <!-- Attach PluginName metadata (one entry per plugin) for directory operations. -->
     <ItemGroup>
-      <_BundledPluginDllWithName Include="%(_BundledPluginDll.Identity)"
-                                 PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginDllWithName Include="%(_BundledPluginDll.Identity)" PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
     </ItemGroup>
 
     <!-- Read the previous manifest to remove directories of renamed/removed plugins. -->
@@ -65,44 +58,42 @@
       <Output TaskParameter="Lines" ItemName="_PreviousBundledPluginName" />
     </ReadLinesFromFile>
 
+    <!-- Compute truly-removed plugins: in the previous manifest but no longer in the current build.
+         Current plugins are NOT deleted before reinstalling — Copy overwrites files in-place.
+         This avoids race conditions when bashGPT.Cli and bashGPT.Server build in parallel and
+         both try to delete the same shared plugin directory at the same time. -->
+    <ItemGroup>
+      <_CurrentBundledPluginName Include="%(_BundledPluginDllWithName.PluginName)" />
+      <_RemovedPluginName Include="@(_PreviousBundledPluginName)" Exclude="@(_CurrentBundledPluginName)" />
+    </ItemGroup>
+
     <!-- Only remove directories that carry our .bundled-plugin marker.
          This protects external plugins (e.g. user-built Tools.Jina) from accidental deletion:
          they will never have the marker so RemoveDir will never touch them. -->
     <ItemGroup>
-      <_PreviousBundledPluginDirToRemove
-        Include="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\"
-        Condition="'%(_PreviousBundledPluginName.Identity)' != '' and Exists('$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\.bundled-plugin')" />
-      <_CurrentBundledPluginDirToRemove
-        Include="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\"
-        Condition="Exists('$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin')" />
+      <_RemovedPluginDirToRemove
+        Include="$(_ConfigPluginsDir)\%(_RemovedPluginName.Identity)\"
+        Condition="'%(_RemovedPluginName.Identity)' != '' and Exists('$(_ConfigPluginsDir)\%(_RemovedPluginName.Identity)\.bundled-plugin')" />
     </ItemGroup>
-    <RemoveDir Directories="@(_PreviousBundledPluginDirToRemove)" />
-    <RemoveDir Directories="@(_CurrentBundledPluginDirToRemove)" />
+    <!-- Re-filter right before deletion: a parallel build may have already removed the same dir. -->
+    <ItemGroup>
+      <_RemovedPluginDirToRemoveExisting Include="@(_RemovedPluginDirToRemove)" Condition="Exists('%(Identity)')" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_RemovedPluginDirToRemoveExisting)" />
 
     <ItemGroup>
-      <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll"
-                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
-      <_BundledPluginPdbs    Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.pdb"
-                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
-      <_BundledPluginDeps    Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.deps.json"
-                              PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll" PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginPdbs Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.pdb" PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
+      <_BundledPluginDeps Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.deps.json" PluginName="$([System.IO.Path]::GetFileNameWithoutExtension('%(_BundledPluginDll.Identity)'))" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(_BundledPluginSiblings)"
-          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginSiblings.PluginName)\"
-          SkipUnchangedFiles="false" />
-    <Copy SourceFiles="@(_BundledPluginPdbs)"
-          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginPdbs.PluginName)\"
-          SkipUnchangedFiles="false" />
-    <Copy SourceFiles="@(_BundledPluginDeps)"
-          DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginDeps.PluginName)\"
-          SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(_BundledPluginSiblings)" DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginSiblings.PluginName)\" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(_BundledPluginPdbs)" DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginPdbs.PluginName)\" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(_BundledPluginDeps)" DestinationFolder="$(_ConfigPluginsDir)\%(_BundledPluginDeps.PluginName)\" SkipUnchangedFiles="false" />
 
     <!-- Write a marker file so future builds know this directory is managed by bashGPT.
          External plugins must not have this file — its presence is what protects them. -->
-    <WriteLinesToFile File="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin"
-                      Lines="bashGPT bundled plugin — managed by MSBuild; do not delete this file"
-                      Overwrite="true" />
+    <WriteLinesToFile File="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin" Lines="bashGPT bundled plugin — managed by MSBuild; do not delete this file" Overwrite="true" />
 
     <!-- Update manifest with the current set of bundled plugin names. -->
     <ItemGroup>
@@ -111,70 +102,41 @@
     <WriteLinesToFile File="$(_BundledPluginsManifest)" Lines="@(_CurrentPluginNameLine)" Overwrite="true" />
   </Target>
 
+  <PropertyGroup>
+    <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
+    <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
+  </PropertyGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="..\bashGPT.Web\dist\index.html" LogicalName="bashGPT.Web.index.html" />
-    <EmbeddedResource Include="..\bashGPT.Web\dist\bundle.js" LogicalName="bashGPT.Web.bundle.js" />
+    <WebFrontendSource Include="$(WebFrontendDir)/src/**/*.ts" />
+    <WebFrontendSource Include="$(WebFrontendDir)/index.html" />
+    <WebFrontendSource Include="$(WebFrontendDir)/vite.config.ts" />
+    <WebFrontendSource Include="$(WebFrontendDir)/tsconfig.json" />
+    <WebFrontendSource Include="$(WebFrontendDir)/package.json" />
   </ItemGroup>
 
   <Target Name="RestoreWebFrontendDependencies"
-          Inputs="$(MSBuildProjectDirectory)/../bashGPT.Web/package.json;$(MSBuildProjectDirectory)/../bashGPT.Web/package-lock.json"
-          Outputs="$(MSBuildProjectDirectory)/../bashGPT.Web/node_modules/.package-lock.stamp">
-    <PropertyGroup>
-      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
-      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(WebFrontendDir)/package-lock.json')"
-           Text="package-lock.json fehlt im Web-Frontend. Für reproduzierbare Builds wird ein Lockfile benötigt." />
-
-    <Exec Command="npm ci" WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)" />
-
+          Inputs="$(WebFrontendDir)/package.json;$(WebFrontendDir)/package-lock.json"
+          Outputs="$(WebFrontendDir)/node_modules/.package-lock.stamp">
+    <Error Condition="!Exists('$(WebFrontendDir)/package-lock.json')" Text="package-lock.json fehlt im Web-Frontend. Für reproduzierbare Builds wird ein Lockfile benötigt." />
+    <Exec Command="npm ci" WorkingDirectory="$(WebFrontendDir)" EnvironmentVariables="$(NpmEnvPath)" />
     <Touch Files="$(WebFrontendDir)/node_modules/.package-lock.stamp" AlwaysCreate="true" />
   </Target>
 
-  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies">
-    <PropertyGroup>
-      <WebFrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../bashGPT.Web'))</WebFrontendDir>
-      <NpmEnvPath Condition="!$([MSBuild]::IsOSPlatform('Windows'))">PATH=$(PATH):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin</NpmEnvPath>
-    </PropertyGroup>
+  <Target Name="BuildWebFrontend" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreWebFrontendDependencies"
+          Inputs="@(WebFrontendSource)" Outputs="$(MSBuildProjectDirectory)/wwwroot/bundle.js">
+    <Exec Command="npm run build" WorkingDirectory="$(WebFrontendDir)" EnvironmentVariables="$(NpmEnvPath)" />
+  </Target>
 
-    <Exec Command="sh -c 'echo CWD=$PWD; npm --version | sed &quot;s/^/NPM=/&quot;; echo NODE_ENV=$NODE_ENV; if [ -x node_modules/.bin/tsc ]; then echo TSC_BEFORE=found; else echo TSC_BEFORE=missing; fi'"
-          WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)"
-          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-          ContinueOnError="true"
-          ConsoleToMSBuild="true">
-      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagBefore" />
-    </Exec>
-    <Message Text="[WebBuild] $(_DiagBefore)" Importance="high"
-             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
-
-    <Exec Command="node -e &quot;const v=process.versions.node; const p=v.split('.').map(Number); const maj=p[0]||0, min=p[1]||0; const ok=(maj===20&amp;&amp;min&gt;=19)||(maj===22&amp;&amp;min&gt;=12)||(maj&gt;22); console.log('NODE='+v); if(!ok){ console.error('Node.js >= 20.19 (or >= 22.12) is required by Vite 7.'); process.exit(42); }&quot;"
-          WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)"
-          IgnoreExitCode="true"
-          ConsoleToMSBuild="true">
-      <Output TaskParameter="ConsoleOutput" PropertyName="_NodeCheckOutput" />
-      <Output TaskParameter="ExitCode" PropertyName="_NodeCheckExitCode" />
-    </Exec>
-    <Message Text="[WebBuild] $(_NodeCheckOutput)" Importance="high" />
-    <Error Condition="'$(_NodeCheckExitCode)' != '' and '$(_NodeCheckExitCode)' != '0'"
-           Text="Frontend-Build abgebrochen: Node.js >= 20.19 (oder >= 22.12) erforderlich. Bitte Node auf der Build-Maschine aktualisieren." />
-
-    <Exec Command="sh -c 'if [ -x node_modules/.bin/tsc ]; then ls -la node_modules/.bin/tsc; echo TSC_AFTER=found; else echo TSC_AFTER=missing; fi'"
-          WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)"
-          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-          ContinueOnError="true"
-          ConsoleToMSBuild="true">
-      <Output TaskParameter="ConsoleOutput" PropertyName="_DiagAfter" />
-    </Exec>
-    <Message Text="[WebBuild] $(_DiagAfter)" Importance="high"
-             Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
-
-    <Exec Command="npm run build" WorkingDirectory="$(WebFrontendDir)"
-          EnvironmentVariables="$(NpmEnvPath)" />
+  <!-- Copy the built frontend files into the binary output so the server finds
+       them via AppContext.BaseDirectory regardless of the working directory. -->
+  <Target Name="CopyWwwrootToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_WwwrootFile Include="$(MSBuildProjectDirectory)\wwwroot\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WwwrootFile)"
+          DestinationFolder="$(OutputPath)wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

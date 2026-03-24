@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using bashGPT.Agents;
 using bashGPT.Agents.Dev;
 using bashGPT.Agents.Shell;
-using bashGPT.Server;
+using bashGPT.Server.Services;
 
 namespace bashGPT.Server.Tests;
 
@@ -14,34 +15,20 @@ namespace bashGPT.Server.Tests;
 public sealed class AgentApiTests : IAsyncLifetime
 {
     private readonly FakePromptHandler _handler = new();
-    private readonly HttpClient _client = new();
     private readonly AgentRegistry _registry = new([new DevAgent(), new ShellAgent()]);
-    private ServerHost _server = null!;
-    private CancellationTokenSource _cts = null!;
-    private Task _serverTask = null!;
-    private string _baseUrl = string.Empty;
+    private HttpClient _client = null!;
+    private WebApplication _app = null!;
 
     public async Task InitializeAsync()
     {
-        var port = GetFreePort();
-        _baseUrl = $"http://127.0.0.1:{port}";
-        _client.BaseAddress = new Uri(_baseUrl);
-
-        var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
-        _server = new ServerHost(_handler, agentRegistry: _registry);
-        _cts = new CancellationTokenSource();
-        _serverTask = _server.RunAsync(options, _cts.Token);
-
-        await WaitForServerAsync(_baseUrl);
+        (_app, _client) = await TestServerFactory.CreateAsync(_handler, agentRegistry: _registry);
     }
 
     public async Task DisposeAsync()
     {
-        await _cts.CancelAsync();
-        try { using var probe = new HttpClient(); await probe.GetAsync($"{_baseUrl}/"); } catch { }
-        try { await _serverTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         _client.Dispose();
-        _cts.Dispose();
+        await _app.StopAsync();
+        await _app.DisposeAsync();
     }
 
     // ── GET /api/agents ─────────────────────────────────────────────────────
@@ -120,42 +107,14 @@ public sealed class AgentApiTests : IAsyncLifetime
     [Fact]
     public async Task Get_Agents_WithoutRegistry_Returns503()
     {
-        var port = GetFreePort();
-        using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
-        var serverWithoutRegistry = new ServerHost(_handler);
-        using var cts = new CancellationTokenSource();
-        var task = serverWithoutRegistry.RunAsync(new ServerOptions(port, true, null, false), cts.Token);
-
-        await WaitForServerAsync($"http://127.0.0.1:{port}");
+        var (app, client) = await TestServerFactory.CreateAsync(_handler);
 
         var response = await client.GetAsync("/api/agents");
+
+        client.Dispose();
+        await app.StopAsync();
+        await app.DisposeAsync();
+
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-
-        await cts.CancelAsync();
-        try { await client.GetAsync("/api/agents"); } catch { }
-        try { await task.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-    }
-
-    // ── Hilfsmethoden ────────────────────────────────────────────────────────
-
-    private static int GetFreePort()
-    {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
-    private static async Task WaitForServerAsync(string baseUrl, int maxWaitMs = 5000)
-    {
-        using var probe = new HttpClient { BaseAddress = new Uri(baseUrl) };
-        var deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
-        while (DateTime.UtcNow < deadline)
-        {
-            try { await probe.GetAsync("/"); return; }
-            catch { await Task.Delay(50); }
-        }
-        throw new TimeoutException($"Server auf {baseUrl} nicht erreichbar nach {maxWaitMs} ms.");
     }
 }

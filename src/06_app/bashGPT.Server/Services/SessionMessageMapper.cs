@@ -1,7 +1,7 @@
 using bashGPT.Core.Models.Providers;
 using bashGPT.Core.Models.Storage;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 /// <summary>
 /// Converts between <see cref="SessionMessage"/> persistence models and

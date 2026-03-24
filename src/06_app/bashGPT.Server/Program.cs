@@ -1,48 +1,49 @@
-using System.CommandLine;
-using bashGPT.Core.Configuration;
-using bashGPT.Server;
+using System.Net;
+using bashGPT.Core;
+using bashGPT.Server.Extensions;
+
+// Startup logger: used before the DI container is built (plugin loading, registry setup).
+// Disposed once the app is fully configured.
+using var startupLoggerFactory = LoggerFactory.Create(b =>
+    b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+var startupLogger = startupLoggerFactory.CreateLogger("bashGPT.Server.Startup");
 
 var configService = ServerApplication.CreateConfigurationService();
-var pluginResult = ServerApplication.LoadPlugins();
-var toolRegistry = ServerApplication.CreateToolRegistry(pluginResult.Tools);
-var serverHost = ServerApplication.CreateServerHost(configService, toolRegistry, pluginResult.Agents);
+var pluginResult = ServerApplication.LoadPlugins(logger: startupLogger);
+var toolRegistry = ServerApplication.CreateToolRegistry(pluginResult.Tools, startupLogger);
+var agentRegistry = ServerApplication.CreateAgentRegistry(pluginResult.Agents, startupLogger);
+var sessionStore = AppBootstrap.CreateSessionStore();
+var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
 
-var modelOpt = new Option<string?>("--model", "-m")
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
-    Description = "Model name (overrides config)"
-};
-var verboseOpt = new Option<bool>("--verbose", "-v")
-{
-    Description = "Show debug output"
-};
-var portOpt = new Option<int>("--port")
-{
-    Description = "Port for server mode",
-    DefaultValueFactory = _ => 5050
-};
-var noBrowserOpt = new Option<bool>("--no-browser")
-{
-    Description = "Do not open the browser automatically on startup"
-};
-
-var rootCommand = new RootCommand("bashGPT Server");
-rootCommand.Options.Add(modelOpt);
-rootCommand.Options.Add(verboseOpt);
-rootCommand.Options.Add(portOpt);
-rootCommand.Options.Add(noBrowserOpt);
-
-rootCommand.SetAction(async (parseResult, ct) =>
-{
-    var serverOptions = new ServerOptions(
-        Port: parseResult.GetValue(portOpt),
-        NoBrowser: parseResult.GetValue(noBrowserOpt),
-        Model: parseResult.GetValue(modelOpt),
-        Verbose: parseResult.GetValue(verboseOpt));
-
-    using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-
-    await serverHost.RunAsync(serverOptions, cts.Token);
+    ContentRootPath = AppContext.BaseDirectory,
 });
 
-return await rootCommand.Parse(args).InvokeAsync();
+var url = builder.Configuration.GetValue<string>("Server:Url") ?? "http://127.0.0.1:5050";
+var uri = new Uri(url);
+
+if (!IPAddress.TryParse(uri.Host, out var listenAddress))
+    listenAddress = IPAddress.Loopback;
+
+builder.WebHost.ConfigureKestrel(o =>
+{
+    o.Listen(listenAddress, uri.Port);
+    o.AllowSynchronousIO = true;
+});
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+
+builder.Services.AddBashGptServer(
+    configService, toolRegistry,
+    agentRegistry, sessionStore, sessionRequestStore);
+
+var app = builder.Build();
+app.UseBashGptPipeline();
+
+app.Logger.LogInformation("bashGPT Server running on {Url}/", url);
+app.Logger.LogInformation("Press Ctrl+C to stop.");
+
+await app.RunAsync();
+
+// Required for WebApplicationFactory<Program> in tests
+public partial class Program { }

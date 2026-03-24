@@ -65,19 +65,28 @@
       <Output TaskParameter="Lines" ItemName="_PreviousBundledPluginName" />
     </ReadLinesFromFile>
 
+    <!-- Compute truly-removed plugins: in the previous manifest but no longer in the current build.
+         Current plugins are NOT deleted before reinstalling — Copy overwrites files in-place.
+         This avoids race conditions when bashGPT.Cli and bashGPT.Server build in parallel and
+         both try to delete the same shared plugin directory at the same time. -->
+    <ItemGroup>
+      <_CurrentBundledPluginName Include="%(_BundledPluginDllWithName.PluginName)" />
+      <_RemovedPluginName Include="@(_PreviousBundledPluginName)" Exclude="@(_CurrentBundledPluginName)" />
+    </ItemGroup>
+
     <!-- Only remove directories that carry our .bundled-plugin marker.
          This protects external plugins (e.g. user-built Tools.Jina) from accidental deletion:
          they will never have the marker so RemoveDir will never touch them. -->
     <ItemGroup>
-      <_PreviousBundledPluginDirToRemove
-        Include="$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\"
-        Condition="'%(_PreviousBundledPluginName.Identity)' != '' and Exists('$(_ConfigPluginsDir)\%(_PreviousBundledPluginName.Identity)\.bundled-plugin')" />
-      <_CurrentBundledPluginDirToRemove
-        Include="$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\"
-        Condition="Exists('$(_ConfigPluginsDir)\%(_BundledPluginDllWithName.PluginName)\.bundled-plugin')" />
+      <_RemovedPluginDirToRemove
+        Include="$(_ConfigPluginsDir)\%(_RemovedPluginName.Identity)\"
+        Condition="'%(_RemovedPluginName.Identity)' != '' and Exists('$(_ConfigPluginsDir)\%(_RemovedPluginName.Identity)\.bundled-plugin')" />
     </ItemGroup>
-    <RemoveDir Directories="@(_PreviousBundledPluginDirToRemove)" />
-    <RemoveDir Directories="@(_CurrentBundledPluginDirToRemove)" />
+    <!-- Re-filter right before deletion: a parallel build may have already removed the same dir. -->
+    <ItemGroup>
+      <_RemovedPluginDirToRemoveExisting Include="@(_RemovedPluginDirToRemove)" Condition="Exists('%(Identity)')" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_RemovedPluginDirToRemoveExisting)" />
 
     <ItemGroup>
       <_BundledPluginSiblings Include="$([System.IO.Path]::GetDirectoryName('%(_BundledPluginDll.Identity)'))\*.dll"

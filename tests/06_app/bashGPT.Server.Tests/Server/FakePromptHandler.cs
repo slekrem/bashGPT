@@ -1,3 +1,6 @@
+using bashGPT.Server.Models;
+using bashGPT.Server.Services;
+
 namespace bashGPT.Server.Tests;
 
 /// <summary>

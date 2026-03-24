@@ -3,7 +3,7 @@ using bashGPT.Core.Models.Providers;
 using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Registration;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 /// <summary>
 /// Maps registered runtime tools to provider-side LLM tool definitions.

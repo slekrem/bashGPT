@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
-internal sealed class RunningChatRegistry
+public sealed class RunningChatRegistry
 {
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new(StringComparer.Ordinal);
 

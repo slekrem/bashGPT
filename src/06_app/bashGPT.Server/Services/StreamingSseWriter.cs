@@ -1,8 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using bashGPT.Core.Serialization;
 using bashGPT.Tools.Registration;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
 internal sealed class StreamingSseWriter(Stream stream)
 {
@@ -11,7 +13,7 @@ internal sealed class StreamingSseWriter(Stream stream)
         var json = JsonSerializer.Serialize(
             new { choices = new[] { new { delta = new { content = token } } } },
             JsonDefaults.Options);
-        ApiResponse.WriteSseEvent(stream, json);
+        WriteSseEvent(stream, json);
     }
 
     public void WriteReasoningToken(string token)
@@ -19,7 +21,7 @@ internal sealed class StreamingSseWriter(Stream stream)
         var json = JsonSerializer.Serialize(
             new { choices = new[] { new { delta = new { reasoning = token } } } },
             JsonDefaults.Options);
-        ApiResponse.WriteSseEvent(stream, json);
+        WriteSseEvent(stream, json);
     }
 
     public void WriteEvent(SseEvent evt)
@@ -27,7 +29,7 @@ internal sealed class StreamingSseWriter(Stream stream)
         var json = JsonSerializer.Serialize(
             new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = evt.Event, data = evt.Data } } } } },
             JsonDefaults.Options);
-        ApiResponse.WriteSseEvent(stream, json);
+        WriteSseEvent(stream, json);
     }
 
     public void WriteDone(ServerChatResult result, string requestId)
@@ -52,7 +54,7 @@ internal sealed class StreamingSseWriter(Stream stream)
             },
         }, JsonDefaults.Options);
 
-        ApiResponse.WriteSseEvent(stream, doneJson);
+        WriteSseEvent(stream, doneJson);
         WriteDoneMarker();
     }
 
@@ -73,7 +75,7 @@ internal sealed class StreamingSseWriter(Stream stream)
             },
         }, JsonDefaults.Options);
 
-        ApiResponse.WriteSseEvent(stream, cancelledJson);
+        WriteSseEvent(stream, cancelledJson);
         WriteDoneMarker();
     }
 
@@ -82,9 +84,16 @@ internal sealed class StreamingSseWriter(Stream stream)
         var errJson = JsonSerializer.Serialize(
             new { choices = new[] { new { delta = new { content = "", bashgpt = new { @event = "error", data = new { message } } } } } },
             JsonDefaults.Options);
-        ApiResponse.WriteSseEvent(stream, errJson);
+        WriteSseEvent(stream, errJson);
         WriteDoneMarker();
     }
 
-    private void WriteDoneMarker() => ApiResponse.WriteSseEvent(stream, "[DONE]");
+    private void WriteDoneMarker() => WriteSseEvent(stream, "[DONE]");
+
+    private static void WriteSseEvent(Stream s, string data)
+    {
+        var bytes = Encoding.UTF8.GetBytes($"data: {data}\n\n");
+        s.Write(bytes);
+        s.Flush();
+    }
 }

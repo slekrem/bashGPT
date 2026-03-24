@@ -1,4 +1,6 @@
-namespace bashGPT.Server;
+using bashGPT.Server.Models;
+
+namespace bashGPT.Server.Services;
 
 public interface IChatHandler
 {

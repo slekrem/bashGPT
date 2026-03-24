@@ -1,5 +1,5 @@
 using bashGPT.Agents;
-using bashGPT.Server;
+using bashGPT.Server.Extensions;
 using bashGPT.Tools.Abstractions;
 using bashGPT.Tools.Registration;
 
@@ -77,29 +77,6 @@ public sealed class ServerApplicationTests
         Assert.Empty(result.Tools);
         Assert.Empty(result.Agents);
         Assert.Empty(result.Errors);
-    }
-
-    [Fact]
-    public void CreateServerHost_ReturnsConfiguredServerHost()
-    {
-        var configService = new TestConfigurationService(Path.GetTempFileName());
-        var toolRegistry = new ToolRegistry([]);
-
-        var host = ServerApplication.CreateServerHost(configService, toolRegistry);
-
-        Assert.NotNull(host);
-        Assert.IsType<ServerHost>(host);
-    }
-
-    [Fact]
-    public void CreateServerHost_WithAdditionalAgents_IncludesThemInRegistry()
-    {
-        var configService = new TestConfigurationService(Path.GetTempFileName());
-        var toolRegistry = new ToolRegistry([]);
-
-        var host = ServerApplication.CreateServerHost(configService, toolRegistry, [new FakeAgent("my-agent")]);
-
-        Assert.NotNull(host);
     }
 
     private sealed class FakeTool(string name) : ITool

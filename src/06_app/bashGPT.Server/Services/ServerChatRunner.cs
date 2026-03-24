@@ -5,10 +5,11 @@ using bashGPT.Core.Providers;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
 using bashGPT.Tools.Registration;
+using bashGPT.Server.Models;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Services;
 
-public class ServerChatRunner(
+public sealed class ServerChatRunner(
     ConfigurationService configService,
     ILlmProvider? providerOverride = null,
     ToolRegistry? toolRegistry = null) : IChatHandler
@@ -95,7 +96,7 @@ public class ServerChatRunner(
                 FinalStatus: outcome.FinalStatus);
         }
 
-        var finalStatus = commandResults.Any(r => string.Equals(ClassifyCommandStatus(r), "timeout", StringComparison.Ordinal))
+        var finalStatus = commandResults.Any(r => string.Equals(ServerToolCallOrchestrator.ClassifyCommandStatus(r), "timeout", StringComparison.Ordinal))
             ? "timeout"
             : "completed";
         var completedOutcome = chatSession.CreateCompletedOutcome(finalStatus);
@@ -112,7 +113,4 @@ public class ServerChatRunner(
             ConversationDelta: conversationDelta,
             FinalStatus: completedOutcome.FinalStatus);
     }
-
-    private static string ClassifyCommandStatus(SessionCommand result)
-        => ServerToolCallOrchestrator.ClassifyCommandStatus(result);
 }

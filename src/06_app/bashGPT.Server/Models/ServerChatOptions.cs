@@ -4,7 +4,7 @@ using bashGPT.Core.Models.Storage;
 using bashGPT.Core.Providers.Abstractions;
 using bashGPT.Core.Configuration;
 
-namespace bashGPT.Server;
+namespace bashGPT.Server.Models;
 
 public record ServerChatOptions(
     string Prompt,
