@@ -33,7 +33,7 @@ cd src/06_app/bashGPT.Web && npm run dev
 ./scripts/coverage-report.sh
 ```
 
-`src/06_app/bashGPT.Server/bashGPT.Server.csproj` embeds `src/06_app/bashGPT.Web/dist/index.html` and `src/06_app/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically — the frontend build is **incremental**: `npm run build` is skipped when no source file has changed since the last build. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
+`src/06_app/bashGPT.Server/bashGPT.Server.csproj` builds the frontend and writes the output directly to `src/06_app/bashGPT.Server/wwwroot/` (configured via `vite.config.ts` → `outDir`). `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically — the frontend build is **incremental**: `npm run build` is skipped when no source file has changed since the last build. The built files (`bundle.js`, `index.html`) are served as static files via `UseStaticFiles()` + `MapFallbackToFile`. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
 
 ## Architecture
 
