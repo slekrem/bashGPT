@@ -255,7 +255,7 @@ export class SettingsView extends LitElement {
     this._settings = this._normalizeSettings(await getSettings())
     this._loading = false
     if (!this._settings) {
-      this._status = 'Einstellungen konnten nicht geladen werden. Bitte stelle sicher, dass der Server läuft.'
+      this._status = 'Settings could not be loaded. Please ensure that the server is running.'
       this._statusOk = false
     }
   }
@@ -318,7 +318,7 @@ export class SettingsView extends LitElement {
     if (!this._settings) return
 
     if (!this._settings.ollama.host.trim()) {
-      this._status = 'Ollama Host darf nicht leer sein.'
+      this._status = 'Ollama Host must not be empty.'
       this._statusOk = false
       return
     }
@@ -326,10 +326,10 @@ export class SettingsView extends LitElement {
     this._loading = true
     try {
       await saveSettings(this._buildSavePayload(this._settings))
-      this._status = 'Einstellungen gespeichert.'
+      this._status = 'Settings saved.'
       this._statusOk = true
     } catch (e) {
-      this._status = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      this._status = `Error: ${e instanceof Error ? e.message : String(e)}`
       this._statusOk = false
     } finally {
       this._loading = false
@@ -342,34 +342,34 @@ export class SettingsView extends LitElement {
     const result = await testConnection()
     this._testing = false
     if (result.ok) {
-      this._status = `Verbindung OK${result.latencyMs != null ? ` (${result.latencyMs} ms)` : ''}`
+      this._status = `Connection OK${result.latencyMs != null ? ` (${result.latencyMs} ms)` : ''}`
       this._statusOk = true
     } else {
-      this._status = `Verbindung fehlgeschlagen: ${result.error ?? 'Unbekannt'}`
+      this._status = `Connection failed: ${result.error ?? 'Unknown'}`
       this._statusOk = false
     }
   }
 
   private _clearHistory() {
-    if (!confirm('Gesamten Verlauf wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
+    if (!confirm('Really delete entire history? This action cannot be undone.')) return
     this.dispatchEvent(new CustomEvent('clear-history', { bubbles: true, composed: true }))
   }
 
   private _renderProviderDocumentation() {
     return html`
-      <h3>Ollama Doku</h3>
-      <p>Diese Optionen werden im Request an <code>/v1/chat/completions</code> gesendet (OpenAI-kompatibler Endpunkt). Kurz-Hinweise findest du direkt unter den Eingabefeldern links.</p>
+      <h3>Ollama Docs</h3>
+      <p>These options are sent in the request to <code>/v1/chat/completions</code> (OpenAI-compatible endpoint). Brief hints are shown directly below the input fields on the left.</p>
       <div class="doc-group">
-        <span class="doc-label">Basis</span>
+        <span class="doc-label">Basic</span>
         <ul class="doc-list">
-          <li><code>model</code> - lokales Modell, z.B. <code>gpt-oss:20b</code>. Wirkung: steuert Fähigkeit, RAM-Bedarf und Latenz.</li>
-          <li><code>host</code> - Standard: <code>http://localhost:11434</code>. Wirkung: Zielinstanz für alle Ollama-Requests.</li>
+          <li><code>model</code> - local model, e.g. <code>gpt-oss:20b</code>. Effect: controls capability, RAM requirement, and latency.</li>
+          <li><code>host</code> - Default: <code>http://localhost:11434</code>. Effect: target instance for all Ollama requests.</li>
         </ul>
       </div>
       <div class="doc-group">
         <span class="doc-label">Sampling</span>
         <ul class="doc-list">
-          <li>Weitere Sampling-Parameter werden im Open-Source-Build derzeit nicht persistent konfiguriert.</li>
+          <li>Additional sampling parameters are not currently persistently configured in the open-source build.</li>
         </ul>
       </div>
       <div class="doc-links">
@@ -384,35 +384,35 @@ export class SettingsView extends LitElement {
 
     if (this._loading && !s) {
       return html`
-        <h2>Einstellungen</h2>
+        <h2>Settings</h2>
         <div class="loading-placeholder">
-          <div class="spinner"></div> Einstellungen werden geladen…
+          <div class="spinner"></div> Loading settings…
         </div>
       `
     }
 
     return html`
-      <h2>Einstellungen</h2>
+      <h2>Settings</h2>
       <div class="layout">
       <div class="settings-main">
       <div class="section">
-        <div class="section-label">Verbindung</div>
+        <div class="section-label">Connection</div>
 
         <div class="field">
           <label>Provider</label>
           <input type="text" .value=${s?.provider ?? 'ollama'} disabled />
-          <div class="hint">Open-Source-Builds nutzen ausschließlich Ollama.</div>
+          <div class="hint">Open-source builds use Ollama exclusively.</div>
         </div>
         <div class="field">
-          <label>Ollama Modell</label>
+          <label>Ollama Model</label>
           <input
             type="text"
             .value=${s?.ollama.model ?? ''}
             @input=${(e: InputEvent) => this._setOllamaModel((e.target as HTMLInputElement).value)}
             ?disabled=${!s || this._loading}
-            placeholder="z.B. gpt-oss:20b"
+            placeholder="e.g. gpt-oss:20b"
           />
-          <div class="hint">Steuert Qualität, Geschwindigkeit und Ressourcenbedarf.</div>
+          <div class="hint">Controls quality, speed, and resource usage.</div>
         </div>
 
         <div class="field">
@@ -423,22 +423,22 @@ export class SettingsView extends LitElement {
             @input=${(e: InputEvent) => this._setOllamaHost((e.target as HTMLInputElement).value)}
             ?disabled=${!s || this._loading}
           />
-          <div class="hint">Standard lokal: <code>http://localhost:11434</code>.</div>
+          <div class="hint">Default locally: <code>http://localhost:11434</code>.</div>
         </div>
 
         <div class="actions">
           <button @click=${this._test} ?disabled=${!s || this._testing || this._loading}>
-            ${this._testing ? 'Teste…' : 'Verbindung testen'}
+            ${this._testing ? 'Testing…' : 'Test connection'}
           </button>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-label">Verlauf</div>
-        <div class="hint">Löscht alle gespeicherten Sessions aus dem Browser-Speicher und setzt die Server-History zurück.</div>
+        <div class="section-label">History</div>
+        <div class="hint">Deletes all saved sessions from browser storage and resets server history.</div>
         <div class="actions" style="margin-top: 12px;">
           <button class="danger" @click=${this._clearHistory}>
-            Gesamten Verlauf löschen
+            Delete entire history
           </button>
         </div>
       </div>
@@ -447,7 +447,7 @@ export class SettingsView extends LitElement {
 
       <div class="actions">
         <button class="primary" @click=${this._save} ?disabled=${!s || this._loading}>
-          ${this._loading ? 'Speichert…' : 'Speichern'}
+          ${this._loading ? 'Saving…' : 'Save'}
         </button>
       </div>
 
@@ -459,7 +459,7 @@ export class SettingsView extends LitElement {
         ` : ''}
       </div>
       </div>
-      <aside class="provider-doc" aria-label="Provider Dokumentation">
+      <aside class="provider-doc" aria-label="Provider Documentation">
         ${this._renderProviderDocumentation()}
       </aside>
       </div>
