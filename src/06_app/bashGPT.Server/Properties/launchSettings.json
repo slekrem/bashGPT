@@ -4,8 +4,8 @@
     "bashGPT.Server": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "launchUrl": "openapi/v1.json",
+      "launchBrowser": true,
+      "launchUrl": "",
       "applicationUrl": "http://localhost:5050",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"

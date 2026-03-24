@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net;
 using bashGPT.Core;
 using bashGPT.Server.Extensions;
@@ -44,23 +43,7 @@ app.UseBashGptPipeline();
 app.Logger.LogInformation("bashGPT Server running on {Url}/", url);
 app.Logger.LogInformation("Press Ctrl+C to stop.");
 
-// Open the browser only after the server is actually listening
-app.Lifetime.ApplicationStarted.Register(() => TryOpenBrowser($"{url}/", app.Logger));
-
 await app.RunAsync();
-
-static void TryOpenBrowser(string url, ILogger logger)
-{
-    try
-    {
-        if (Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }) is null)
-            logger.LogWarning("Could not open browser for {Url}.", url);
-    }
-    catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
-    {
-        logger.LogWarning("Could not open browser: {Message}", ex.Message);
-    }
-}
 
 // Required for WebApplicationFactory<Program> in tests
 public partial class Program { }
