@@ -27,7 +27,7 @@ public sealed class GitBranchTool : ITool
         bool remotes;
         try
         {
-            (repoPath, remotes) = ParseInput(call.ArgumentsJson);
+            (repoPath, remotes) = ParseInput(call.ArgumentsJson, call.WorkingDirectory);
         }
         catch (Exception ex)
         {
@@ -54,21 +54,22 @@ public sealed class GitBranchTool : ITool
         return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 
-    private static (string Path, bool Remotes) ParseInput(string json)
+    private static (string Path, bool Remotes) ParseInput(string json, string? workingDirectory = null)
     {
+        var cwd = workingDirectory ?? Directory.GetCurrentDirectory();
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
         var path = root.TryGetProperty("path", out var p)
             ? p.ValueKind switch
             {
-                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
-                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                JsonValueKind.String => p.GetString() ?? cwd,
+                JsonValueKind.Null => cwd,
                 _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
             }
-            : Directory.GetCurrentDirectory();
+            : cwd;
         if (string.IsNullOrWhiteSpace(path))
-            path = Directory.GetCurrentDirectory();
+            path = cwd;
 
         bool remotes = root.TryGetProperty("remotes", out var r)
             ? r.ValueKind switch

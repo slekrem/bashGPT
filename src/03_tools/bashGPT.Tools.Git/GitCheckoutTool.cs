@@ -28,7 +28,7 @@ public sealed class GitCheckoutTool : ITool
         bool create;
         try
         {
-            (repoPath, branch, create) = ParseInput(call.ArgumentsJson);
+            (repoPath, branch, create) = ParseInput(call.ArgumentsJson, call.WorkingDirectory);
         }
         catch (Exception ex)
         {
@@ -48,8 +48,9 @@ public sealed class GitCheckoutTool : ITool
         return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 
-    private static (string Path, string Branch, bool Create) ParseInput(string json)
+    private static (string Path, string Branch, bool Create) ParseInput(string json, string? workingDirectory = null)
     {
+        var cwd = workingDirectory ?? Directory.GetCurrentDirectory();
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
@@ -74,13 +75,13 @@ public sealed class GitCheckoutTool : ITool
         var path = root.TryGetProperty("path", out var p)
             ? p.ValueKind switch
             {
-                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
-                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                JsonValueKind.String => p.GetString() ?? cwd,
+                JsonValueKind.Null => cwd,
                 _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
             }
-            : Directory.GetCurrentDirectory();
+            : cwd;
         if (string.IsNullOrWhiteSpace(path))
-            path = Directory.GetCurrentDirectory();
+            path = cwd;
 
         return (path, branch, create);
     }

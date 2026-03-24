@@ -48,6 +48,9 @@ public abstract class ShellExecBase : ITool
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
         }
 
+        if (call.WorkingDirectory is not null)
+            input = input with { Cwd = input.Cwd ?? call.WorkingDirectory };
+
         if (!_policy.Allow(input))
             return new ToolResult(Success: false, Content: "Command blocked by policy.");
 

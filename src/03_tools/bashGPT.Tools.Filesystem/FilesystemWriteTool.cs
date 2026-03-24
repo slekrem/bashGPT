@@ -40,7 +40,7 @@ public sealed class FilesystemWriteTool : ITool
             return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
         }
 
-        var absolute = Path.GetFullPath(path);
+        var absolute = Path.GetFullPath(path, call.WorkingDirectory ?? Directory.GetCurrentDirectory());
 
         if (!_policy.AllowWrite(absolute))
             return new ToolResult(Success: false, Content: $"Write blocked by policy: {absolute}");

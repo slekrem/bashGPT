@@ -10,9 +10,17 @@ namespace bashGPT.Agents.Dev;
 /// </summary>
 public sealed class DevAgent : AgentBase
 {
+    private readonly string _workingDirectory = Directory.GetCurrentDirectory();
+
     public override string Id => "dev";
 
     public override string Name => "Dev-Agent";
+
+    /// <summary>
+    /// Working directory captured at agent startup. Ensures all tool calls operate in the
+    /// same directory regardless of later process CWD changes.
+    /// </summary>
+    public override string? WorkingDirectory => _workingDirectory;
 
     // Context tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
@@ -77,9 +85,9 @@ public sealed class DevAgent : AgentBase
     /// Builds project context at runtime: git info plus all tracked files.
     /// Ignored files (.gitignore) are omitted. Rebuilt fresh for every chat request.
     /// </summary>
-    private static string BuildProjectContext()
+    private string BuildProjectContext()
     {
-        var cwd = Directory.GetCurrentDirectory();
+        var cwd = _workingDirectory;
         var sb  = new StringBuilder("# Project Context\n\n");
 
         sb.AppendLine($"**Directory:** `{cwd}`\n");

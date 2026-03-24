@@ -28,7 +28,7 @@ public sealed class GitLogTool : ITool
         int limit;
         try
         {
-            (repoPath, limit, branch) = ParseInput(call.ArgumentsJson);
+            (repoPath, limit, branch) = ParseInput(call.ArgumentsJson, call.WorkingDirectory);
         }
         catch (Exception ex)
         {
@@ -63,21 +63,22 @@ public sealed class GitLogTool : ITool
         return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 
-    private static (string Path, int Limit, string Branch) ParseInput(string json)
+    private static (string Path, int Limit, string Branch) ParseInput(string json, string? workingDirectory = null)
     {
+        var cwd = workingDirectory ?? Directory.GetCurrentDirectory();
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
         var path = root.TryGetProperty("path", out var p)
             ? p.ValueKind switch
             {
-                JsonValueKind.String => p.GetString() ?? Directory.GetCurrentDirectory(),
-                JsonValueKind.Null => Directory.GetCurrentDirectory(),
+                JsonValueKind.String => p.GetString() ?? cwd,
+                JsonValueKind.Null => cwd,
                 _ => throw new ArgumentException("invalid_type: 'path' must be a string."),
             }
-            : Directory.GetCurrentDirectory();
+            : cwd;
         if (string.IsNullOrWhiteSpace(path))
-            path = Directory.GetCurrentDirectory();
+            path = cwd;
 
         int limit = root.TryGetProperty("limit", out var l)
             ? l.ValueKind switch

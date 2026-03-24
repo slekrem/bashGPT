@@ -36,7 +36,7 @@ public sealed class FilesystemSearchTool : ITool
         int maxMatches;
         try
         {
-            (pattern, searchPath, glob, ignoreCase, maxMatches) = ParseInput(call.ArgumentsJson);
+            (pattern, searchPath, glob, ignoreCase, maxMatches) = ParseInput(call.ArgumentsJson, call.WorkingDirectory);
         }
         catch (ArgumentException ex)
         {
@@ -126,7 +126,7 @@ public sealed class FilesystemSearchTool : ITool
         return results;
     }
 
-    private static (string Pattern, string Path, string Glob, bool IgnoreCase, int MaxMatches) ParseInput(string json)
+    private static (string Pattern, string Path, string Glob, bool IgnoreCase, int MaxMatches) ParseInput(string json, string? workingDirectory = null)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -139,9 +139,9 @@ public sealed class FilesystemSearchTool : ITool
         if (string.IsNullOrWhiteSpace(pattern))
             throw new ArgumentException("invalid_value: 'pattern' must not be empty.");
 
-        var path = ReadOptionalString(root, "path") ?? Directory.GetCurrentDirectory();
+        var path = ReadOptionalString(root, "path") ?? workingDirectory ?? Directory.GetCurrentDirectory();
         if (string.IsNullOrWhiteSpace(path))
-            path = Directory.GetCurrentDirectory();
+            path = workingDirectory ?? Directory.GetCurrentDirectory();
 
         var glob = ReadOptionalString(root, "glob") ?? string.Empty;
         bool ignoreCase = ReadOptionalBool(root, "ignoreCase") ?? false;

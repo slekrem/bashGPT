@@ -75,6 +75,9 @@ public sealed class TestRunTool : ITool
             return new ToolResult(Success: false, Content: $"Invalid arguments: {ex.Message}");
         }
 
+        if (call.WorkingDirectory is not null)
+            input = input with { Cwd = input.Cwd ?? call.WorkingDirectory };
+
         if (!_runners.ContainsKey(input.Runner))
             return new ToolResult(Success: false, Content: $"Unknown runner '{input.Runner}'. Supported: {string.Join(", ", _runners.Keys)}");
 
