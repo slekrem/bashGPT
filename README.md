@@ -1,5 +1,10 @@
 # bashGPT
 
+[![CI](https://github.com/slekrem/bashGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/slekrem/bashGPT/actions/workflows/ci.yml)
+[![NuGet bashGPT.Tools](https://img.shields.io/nuget/v/bashGPT.Tools.svg?label=bashGPT.Tools)](https://www.nuget.org/packages/bashGPT.Tools)
+[![NuGet bashGPT.Agents](https://img.shields.io/nuget/v/bashGPT.Agents.svg?label=bashGPT.Agents)](https://www.nuget.org/packages/bashGPT.Agents)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Local AI assistant for shell workflows. bashGPT can optionally collect context such as the current directory, git status, OS, and shell, send it to an LLM through Ollama, and help execute the resulting shell commands with the right safety level.
 
 ## Features
@@ -129,12 +134,20 @@ Agents are specialized chat modes with their own system prompt and tool set. The
 
 External tools and agents can be developed as standalone .NET assemblies and loaded into bashGPT without recompiling the host.
 
-**NuGet packages:**
+**Install via NuGet:**
+
+```bash
+# Tool SDK — implement ITool
+dotnet add package bashGPT.Tools
+
+# Agent SDK — implement AgentBase (includes bashGPT.Tools transitively)
+dotnet add package bashGPT.Agents
+```
 
 | Package | Purpose |
 |---|---|
-| `bashGPT.Tools` | Implement custom `ITool` types |
-| `bashGPT.Agents` | Implement custom `AgentBase` subclasses (includes `bashGPT.Tools` transitively) |
+| [`bashGPT.Tools`](https://www.nuget.org/packages/bashGPT.Tools) | Implement custom `ITool` types |
+| [`bashGPT.Agents`](https://www.nuget.org/packages/bashGPT.Agents) | Implement custom `AgentBase` subclasses (includes `bashGPT.Tools` transitively) |
 
 Both packages are versioned with SemVer 2. While on `0.x`, minor bumps may contain breaking changes — pin to a compatible version in plugin projects.
 
