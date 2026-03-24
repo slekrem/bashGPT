@@ -14,7 +14,6 @@ namespace bashGPT.Server.Controllers;
 [Route("api/chat")]
 public sealed class ChatController(
     IChatHandler handler,
-    ServerOptions options,
     RunningChatRegistry runningChats,
     ServerSessionService sessionService,
     ToolRegistry? toolRegistry = null,
@@ -164,8 +163,8 @@ public sealed class ChatController(
         return new ServerChatOptions(
             Prompt: prompt,
             History: historySnapshot,
-            Model: options.Model,
-            Verbose: options.Verbose || verbose == true,
+            Model: null,
+            Verbose: verbose == true,
             OnToken: onToken,
             OnReasoningToken: onReasoning,
             OnEvent: onEvent,

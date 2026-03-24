@@ -13,7 +13,6 @@ internal static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddBashGptServer(
         this IServiceCollection services,
-        ServerOptions options,
         ConfigurationService configService,
         ToolRegistry toolRegistry,
         AgentRegistry agentRegistry,
@@ -22,7 +21,6 @@ internal static class ServiceCollectionExtensions
     {
         services.AddOpenApi();
 
-        services.AddSingleton(options);
         services.AddSingleton(configService);
         services.AddSingleton(toolRegistry);
         services.AddSingleton(agentRegistry);
@@ -70,7 +68,6 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton(sp => new LegacyController(sp.GetService<SessionStore>()));
         services.AddSingleton(sp => new ChatController(
             sp.GetRequiredService<IChatHandler>(),
-            sp.GetRequiredService<ServerOptions>(),
             sp.GetRequiredService<RunningChatRegistry>(),
             sp.GetRequiredService<ServerSessionService>(),
             sp.GetService<ToolRegistry>(),

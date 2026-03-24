@@ -32,8 +32,6 @@ internal static class TestServerFactory
         builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
         builder.Logging.ClearProviders();
 
-        var options = new ServerOptions(Port: port, NoBrowser: true, Model: null, Verbose: false);
-        builder.Services.AddSingleton(options);
         builder.Services.AddSingleton<IChatHandler>(handler);
         builder.Services.AddSingleton<RunningChatRegistry>();
         if (sessionStore is not null) builder.Services.AddSingleton(sessionStore);
