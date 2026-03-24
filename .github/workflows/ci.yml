@@ -36,6 +36,10 @@ jobs:
         working-directory: src/06_app/bashGPT.Web
         run: npm ci
 
+      - name: Test frontend
+        working-directory: src/06_app/bashGPT.Web
+        run: npm test
+
       - name: Build frontend
         working-directory: src/06_app/bashGPT.Web
         run: npm run build
