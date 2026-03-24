@@ -16,7 +16,7 @@ Local AI assistant for shell workflows. bashGPT can optionally collect context s
 - Browser UI with chat history, session management, and agent selection
 - Specialized agents (`shell`, `dev`) with dedicated tool sets
 - Modular tool ecosystem for filesystem, git, build, testing, fetch, and shell workflows
-- Plugin system for external tools and agents via `~/.config/bashgpt/plugins/`
+- Plugin system for external tools and agents via `~/.config/bashgpt/plugins/` (Windows: `%APPDATA%\bashgpt\plugins\`)
 - `bashGPT.Tools` and `bashGPT.Agents` available as NuGet packages for plugin development
 - MIT licensed
 
@@ -60,7 +60,7 @@ dotnet run --project src/06_app/bashGPT.Cli -- --force-tools "analyze this direc
 ```
 
 ## Configuration
-By default, the config file is stored at `~/.config/bashgpt/config.json`.
+By default, the config file is stored at `~/.config/bashgpt/config.json` (Windows: `%APPDATA%\bashgpt\config.json`).
 
 ```bash
 # Show configuration
@@ -116,7 +116,7 @@ Available server flags: `--provider`, `--model`, `--port`, `--no-browser`, `--ve
 
 Notes:
 - The UI provides chat history, session management, agent selection, manually selectable tools, and visibility into executed tool results.
-- Sessions are stored in `~/.config/bashgpt/sessions/` (max. 20 sessions).
+- Sessions are stored in `~/.config/bashgpt/sessions/` (Windows: `%APPDATA%\bashgpt\sessions\`), max. 20 sessions.
 - Available API endpoints include `/api/sessions/*`, `/api/agents`, `/api/agents/<id>/info-panel`, `/api/tools`, `/api/chat/stream`, and `/api/chat/cancel`.
 - All tools discovered in the plugin directory are available for selection in the browser UI. Tool selection is UI-driven.
 - Agents with fixed tool sets such as `shell` and `dev` remain an intentional trust boundary and can expose more powerful tools.

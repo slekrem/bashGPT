@@ -73,10 +73,17 @@ Optional overrides:
 The plugin directory must be named after the main assembly:
 
 ```
+# macOS / Linux
 ~/.config/bashgpt/plugins/
   MyPlugin/
     MyPlugin.dll        ← main assembly (name must match directory)
     SomeDependency.dll  ← private dependencies (optional)
+
+# Windows
+%APPDATA%\bashgpt\plugins\
+  MyPlugin\
+    MyPlugin.dll
+    SomeDependency.dll
 ```
 
 **Rules:**
@@ -87,9 +94,16 @@ The plugin directory must be named after the main assembly:
 ## Installation
 
 ```bash
+# macOS / Linux
 mkdir -p ~/.config/bashgpt/plugins/MyPlugin
 cp MyPlugin/bin/Release/net9.0/MyPlugin.dll ~/.config/bashgpt/plugins/MyPlugin/
 # copy optional dependencies as well
+```
+
+```powershell
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force "$env:APPDATA\bashgpt\plugins\MyPlugin"
+Copy-Item MyPlugin\bin\Release\net9.0\MyPlugin.dll "$env:APPDATA\bashgpt\plugins\MyPlugin\"
 ```
 
 The plugin is loaded automatically the next time `bashgpt-server` or `bashgpt` (CLI) starts.
