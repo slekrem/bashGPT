@@ -7,6 +7,8 @@
 
     <!-- NuGet packaging -->
     <IsPackable>true</IsPackable>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>bashGPT.Agents</PackageId>
     <Title>bashGPT Agent SDK</Title>
     <Description>Abstractions and base types for implementing agents for the bashGPT server. Subclass AgentBase to create a self-contained agent with its own tools, system prompts, and LLM configuration.</Description>

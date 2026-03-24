@@ -7,6 +7,8 @@
 
     <!-- NuGet packaging -->
     <IsPackable>true</IsPackable>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>bashGPT.Tools</PackageId>
     <Title>bashGPT Tool SDK</Title>
     <Description>Abstractions and base types for implementing tools that can be exposed to LLMs via the bashGPT server. Implement ITool and drop the assembly into the plugin directory to extend bashGPT without recompiling the host.</Description>

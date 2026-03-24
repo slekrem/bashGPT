@@ -1,0 +1,45 @@
+name: Publish NuGet
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Pack & Publish SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.301'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Pack bashGPT.Tools
+        run: >
+          dotnet pack src/02_abstractions/bashGPT.Tools/bashGPT.Tools.csproj
+          --no-restore
+          --configuration Release
+          -p:Version=${{ github.event.release.tag_name }}
+          --output ./nupkgs
+
+      - name: Pack bashGPT.Agents
+        run: >
+          dotnet pack src/02_abstractions/bashGPT.Agents/bashGPT.Agents.csproj
+          --no-restore
+          --configuration Release
+          -p:Version=${{ github.event.release.tag_name }}
+          --output ./nupkgs
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push ./nupkgs/*.nupkg
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
