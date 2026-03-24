@@ -11,5 +11,5 @@ public sealed class FakeAgentFixture : AgentBase
     public override string Name => "Fake Agent";
     public override IReadOnlyList<string> EnabledTools => [];
     public override IReadOnlyList<string> SystemPrompt => ["You are a fake agent."];
-    protected override string GetAgentMarkdown() => "# Fake Agent\n\nUsed in plugin loader tests.";
+    protected override string GetAgentMarkdown(string? sessionPath = null) => "# Fake Agent\n\nUsed in plugin loader tests.";
 }

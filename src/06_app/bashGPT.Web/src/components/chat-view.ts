@@ -770,7 +770,7 @@ export class ChatView extends LitElement {
     const id = this.agentId || 'generic'
     this._infoPanel = { markdown: '', loading: true }
     try {
-      const markdown = await getAgentInfoPanel(id)
+      const markdown = await getAgentInfoPanel(id, this.sessionId || undefined)
       this._infoPanel = { markdown, loading: false }
     } catch {
       this._infoPanel = { markdown: '', loading: false }

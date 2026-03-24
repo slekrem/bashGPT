@@ -68,7 +68,7 @@ internal static class ServiceCollectionExtensions
             sp.GetService<ConfigurationService>(),
             sp.GetService<ILogger<SettingsController>>()));
         services.AddSingleton(sp => new SessionsController(sp.GetService<SessionStore>()));
-        services.AddSingleton(sp => new AgentsController(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
+        services.AddSingleton(sp => new AgentsController(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>(), sp.GetRequiredService<ServerSessionService>()));
         services.AddSingleton(sp => new ToolsController(sp.GetService<ToolRegistry>()));
         services.AddSingleton(sp => new LegacyController(sp.GetService<SessionStore>()));
         services.AddSingleton(sp => new ChatController(

@@ -30,7 +30,7 @@ public sealed class ShellAgent : AgentBase
 
     public override IReadOnlyList<ITool> GetOwnedTools() => [_shellTool];
 
-    protected override string GetAgentMarkdown()
+    protected override string GetAgentMarkdown(string? sessionPath = null)
     {
         var toolName = _shellTool.Definition.Name;
         return $"""

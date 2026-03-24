@@ -1,13 +1,14 @@
 using bashGPT.Agents;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Providers.Abstractions;
+using bashGPT.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/agents")]
-public sealed class AgentsController(AgentRegistry? registry, ConfigurationService? configService) : ControllerBase
+public sealed class AgentsController(AgentRegistry? registry, ConfigurationService? configService, ServerSessionService sessionService) : ControllerBase
 {
     [HttpGet]
     public IActionResult GetAll()
@@ -20,7 +21,7 @@ public sealed class AgentsController(AgentRegistry? registry, ConfigurationServi
     }
 
     [HttpGet("{id}/info-panel")]
-    public async Task<IActionResult> GetInfoPanel(string id, CancellationToken ct)
+    public async Task<IActionResult> GetInfoPanel(string id, [FromQuery] string? sessionId, CancellationToken ct)
     {
         if (registry is null)
             return StatusCode(503, new { error = "Agent registry is unavailable." });
@@ -36,7 +37,8 @@ public sealed class AgentsController(AgentRegistry? registry, ConfigurationServi
             effectiveConfig = BuildEffectiveConfig(agent.LlmConfig, appConfig);
         }
 
-        return Ok(new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig) });
+        var sessionPath = sessionService.GetSessionPath(sessionId);
+        return Ok(new { markdown = agent.GetInfoPanelMarkdown(effectiveConfig, sessionPath) });
     }
 
     private static AgentLlmConfig BuildEffectiveConfig(AgentLlmConfig? agentConfig, AppConfig appConfig)

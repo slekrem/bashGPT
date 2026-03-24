@@ -100,17 +100,22 @@ public abstract class AgentBase
     /// <summary>
     /// Agent-specific markdown content for the info panel,
     /// excluding the LLM configuration section which is appended automatically.
+    /// Override when the panel content depends on session-scoped state
+    /// (e.g. loaded context files). The default implementation ignores
+    /// <paramref name="sessionPath"/>.
     /// </summary>
-    protected abstract string GetAgentMarkdown();
+    protected abstract string GetAgentMarkdown(string? sessionPath = null);
 
     /// <summary>
     /// Returns the full info-panel markdown for this agent.
     /// When <paramref name="effectiveConfig"/> is provided those values are used
     /// (e.g. already merged with provider defaults); otherwise <see cref="LlmConfig"/> is used.
+    /// When <paramref name="sessionPath"/> is provided it is forwarded to
+    /// <see cref="GetAgentMarkdown"/> so agents can render session-scoped state.
     /// </summary>
-    public string GetInfoPanelMarkdown(AgentLlmConfig? effectiveConfig = null)
+    public string GetInfoPanelMarkdown(AgentLlmConfig? effectiveConfig = null, string? sessionPath = null)
     {
-        var sb = new StringBuilder(GetAgentMarkdown().TrimEnd());
+        var sb = new StringBuilder(GetAgentMarkdown(sessionPath).TrimEnd());
 
         var cfg = effectiveConfig ?? LlmConfig;
         if (cfg is not null)
