@@ -93,6 +93,6 @@ public sealed class ServerApplicationTests
         public override string Name => id;
         public override IReadOnlyList<string> EnabledTools => [];
         public override IReadOnlyList<string> SystemPrompt => [];
-        protected override string GetAgentMarkdown() => string.Empty;
+        protected override string GetAgentMarkdown(string? sessionPath = null) => string.Empty;
     }
 }

@@ -10,7 +10,7 @@ file sealed class CustomAgent : AgentBase
     public override string Name => "Custom Agent";
     public override IReadOnlyList<string> EnabledTools => [];
     public override IReadOnlyList<string> SystemPrompt => ["You are a custom agent."];
-    protected override string GetAgentMarkdown() => "# Custom Agent";
+    protected override string GetAgentMarkdown(string? sessionPath = null) => "# Custom Agent";
 }
 
 public class AgentArchitectureGuardTests

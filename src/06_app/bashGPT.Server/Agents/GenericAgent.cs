@@ -23,7 +23,7 @@ internal sealed class GenericAgent : AgentBase
     public override IReadOnlyList<string> SystemPrompt =>
         ["You are a helpful assistant. Answer clearly and concisely."];
 
-    protected override string GetAgentMarkdown() => """
+    protected override string GetAgentMarkdown(string? sessionPath = null) => """
         # Generic Chat
 
         Default mode without specialized tools or an agent-specific system prompt.

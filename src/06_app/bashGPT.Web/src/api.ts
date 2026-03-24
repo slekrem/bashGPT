@@ -271,9 +271,11 @@ export async function getAgents(): Promise<Agent[]> {
   } catch { return [] }
 }
 
-export async function getAgentInfoPanel(id: string): Promise<string> {
+export async function getAgentInfoPanel(id: string, sessionId?: string): Promise<string> {
   try {
-    const res = await fetch(`/api/agents/${encodeURIComponent(id)}/info-panel`)
+    const url = new URL(`/api/agents/${encodeURIComponent(id)}/info-panel`, location.origin)
+    if (sessionId) url.searchParams.set('sessionId', sessionId)
+    const res = await fetch(url.toString())
     if (!res.ok) return ''
     const data = await res.json()
     return typeof data.markdown === 'string' ? data.markdown : ''

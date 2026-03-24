@@ -189,5 +189,5 @@ internal sealed class StubAgent(IReadOnlyList<ITool> ownedTools) : AgentBase
     public override string Name => "Stub Agent";
     public override IReadOnlyList<string> SystemPrompt => ["You are a stub."];
     public override IReadOnlyList<ITool> GetOwnedTools() => ownedTools;
-    protected override string GetAgentMarkdown() => "# Stub";
+    protected override string GetAgentMarkdown(string? sessionPath = null) => "# Stub";
 }

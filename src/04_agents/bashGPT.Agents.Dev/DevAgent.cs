@@ -168,40 +168,56 @@ public sealed class DevAgent : AgentBase
         }
     }
 
-    protected override string GetAgentMarkdown() => """
-        # Dev-Agent
+    protected override string GetAgentMarkdown(string? sessionPath = null)
+    {
+        var sb = new StringBuilder("""
+            # Dev-Agent
 
-        Specialized software development agent with full access to filesystem, git, build, and testing tools.
+            Specialized software development agent with full access to filesystem, git, build, and testing tools.
 
-        ## Capabilities
+            ## Capabilities
 
-        - Read, write, and search files
-        - Git operations (status, diff, log, branch, commit, checkout)
-        - Run builds and evaluate test results
-        - Execute shell commands
-        - Fetch web content
+            - Read, write, and search files
+            - Git operations (status, diff, log, branch, commit, checkout)
+            - Run builds and evaluate test results
+            - Execute shell commands
+            - Fetch web content
 
-        ## Enabled Tools
+            ## Enabled Tools
 
-        | Tool | Description |
-        |---|---|
-        | `fetch` | Fetch web content |
-        | `filesystem_read` | Read files and directories |
-        | `filesystem_write` | Create and edit files |
-        | `filesystem_search` | Search files by pattern |
-        | `git_status` | Show git status |
-        | `git_diff` | Compare changes |
-        | `git_log` | Inspect commit history |
-        | `git_branch` | Manage branches |
-        | `git_add` | Stage changes |
-        | `git_commit` | Create commits |
-        | `git_checkout` | Switch branches |
-        | `test_run` | Run tests |
-        | `build_run` | Start a build |
-        | `shell_exec` | Execute shell commands |
+            | Tool | Description |
+            |---|---|
+            | `fetch` | Fetch web content |
+            | `filesystem_read` | Read files and directories |
+            | `filesystem_write` | Create and edit files |
+            | `filesystem_search` | Search files by pattern |
+            | `git_status` | Show git status |
+            | `git_diff` | Compare changes |
+            | `git_log` | Inspect commit history |
+            | `git_branch` | Manage branches |
+            | `git_add` | Stage changes |
+            | `git_commit` | Create commits |
+            | `git_checkout` | Switch branches |
+            | `test_run` | Run tests |
+            | `build_run` | Start a build |
+            | `shell_exec` | Execute shell commands |
 
-        ## Notes
+            ## Notes
 
-        This agent follows strict tool-call rules and automatically retries invalid calls with corrected arguments.
-        """;
+            This agent follows strict tool-call rules and automatically retries invalid calls with corrected arguments.
+            """);
+
+        var loadedFiles = ContextFileCache.ReadFiles(sessionPath);
+        if (loadedFiles.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("## Loaded Context Files");
+            sb.AppendLine();
+            foreach (var path in loadedFiles)
+                sb.AppendLine($"- `{path}`");
+        }
+
+        return sb.ToString();
+    }
 }
