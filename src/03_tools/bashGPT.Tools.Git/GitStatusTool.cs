@@ -25,7 +25,7 @@ public sealed class GitStatusTool : ITool
         string repoPath;
         try
         {
-            repoPath = ParsePath(call.ArgumentsJson);
+            repoPath = ParsePath(call.ArgumentsJson, call.WorkingDirectory);
         }
         catch (ArgumentException ex)
         {
@@ -72,18 +72,19 @@ public sealed class GitStatusTool : ITool
         return new ToolResult(Success: true, Content: JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 
-    private static string ParsePath(string json)
+    private static string ParsePath(string json, string? workingDirectory = null)
     {
+        var cwd = workingDirectory ?? Directory.GetCurrentDirectory();
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (!root.TryGetProperty("path", out var p))
-            return Directory.GetCurrentDirectory();
+            return cwd;
         if (p.ValueKind is JsonValueKind.Null)
-            return Directory.GetCurrentDirectory();
+            return cwd;
         if (p.ValueKind is not JsonValueKind.String)
             throw new ArgumentException("invalid_type: 'path' must be a string.");
 
         var path = p.GetString();
-        return string.IsNullOrWhiteSpace(path) ? Directory.GetCurrentDirectory() : path;
+        return string.IsNullOrWhiteSpace(path) ? cwd : path;
     }
 }

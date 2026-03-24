@@ -87,9 +87,16 @@ public abstract class AgentBase
     {
         var tool = GetOwnedTools().FirstOrDefault(t => t.Definition.Name == toolName);
         if (tool is null) return null;
-        var result = await tool.ExecuteAsync(new ToolCall(toolName, argumentsJson, sessionPath), ct);
+        var result = await tool.ExecuteAsync(new ToolCall(toolName, argumentsJson, sessionPath, WorkingDirectory), ct);
         return result.Content;
     }
+
+    /// <summary>
+    /// Optional working directory for all tool calls of this agent.
+    /// When <c>null</c> the process CWD is used as fallback.
+    /// Explicit per-call paths provided by the LLM always take precedence.
+    /// </summary>
+    public virtual string? WorkingDirectory => null;
 
     /// <summary>
     /// Optional LLM configuration for this agent (model, temperature, top-p, etc.).

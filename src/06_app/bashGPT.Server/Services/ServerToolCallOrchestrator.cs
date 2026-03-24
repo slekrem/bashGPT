@@ -84,7 +84,7 @@ internal static class ServerToolCallOrchestrator
             try
             {
                 var result = await tool.ExecuteAsync(
-                    new bashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", sessionPath), ct);
+                    new bashGPT.Tools.Abstractions.ToolCall(call.Name, call.ArgumentsJson ?? "{}", sessionPath, agent?.WorkingDirectory), ct);
 
                 return (
                     result.Content,

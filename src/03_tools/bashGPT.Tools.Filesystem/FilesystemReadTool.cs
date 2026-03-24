@@ -41,7 +41,7 @@ public sealed class FilesystemReadTool : ITool
             return new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}");
         }
 
-        var absolute = Path.GetFullPath(path);
+        var absolute = Path.GetFullPath(path, call.WorkingDirectory ?? Directory.GetCurrentDirectory());
 
         if (!_policy.AllowRead(absolute))
             return new ToolResult(Success: false, Content: $"Read blocked by policy: {absolute}");
