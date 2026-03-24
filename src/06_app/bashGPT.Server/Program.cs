@@ -1,9 +1,7 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Logging;
+using System.Net;
 using bashGPT.Core;
 using bashGPT.Server.Extensions;
-
-const string Url = "http://127.0.0.1:5050";
 
 var configService = ServerApplication.CreateConfigurationService();
 var pluginResult = ServerApplication.LoadPlugins();
@@ -16,9 +14,19 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     ContentRootPath = AppContext.BaseDirectory,
 });
-builder.WebHost.UseUrls(Url);
-builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
-builder.Logging.SetMinimumLevel(LogLevel.Warning);
+
+var url = builder.Configuration.GetValue<string>("Server:Url") ?? "http://127.0.0.1:5050";
+var uri = new Uri(url);
+
+if (!IPAddress.TryParse(uri.Host, out var listenAddress))
+    listenAddress = IPAddress.Loopback;
+
+builder.WebHost.ConfigureKestrel(o =>
+{
+    o.Listen(listenAddress, uri.Port);
+    o.AllowSynchronousIO = true;
+});
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
 
 builder.Services.AddBashGptServer(
     configService, toolRegistry,
@@ -27,27 +35,24 @@ builder.Services.AddBashGptServer(
 var app = builder.Build();
 app.UseBashGptPipeline();
 
-Console.WriteLine($"bashGPT Server running on {Url}/");
-Console.WriteLine("Press Ctrl+C to stop.");
+app.Logger.LogInformation("bashGPT Server running on {Url}/", url);
+app.Logger.LogInformation("Press Ctrl+C to stop.");
 
-TryOpenBrowser($"{Url}/");
+// Open the browser only after the server is actually listening
+app.Lifetime.ApplicationStarted.Register(() => TryOpenBrowser($"{url}/", app.Logger));
 
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+await app.RunAsync();
 
-await app.RunAsync(cts.Token);
-
-static void TryOpenBrowser(string url)
+static void TryOpenBrowser(string url, ILogger logger)
 {
     try
     {
-        if (OperatingSystem.IsMacOS()) { Process.Start("open", url); return; }
-        if (OperatingSystem.IsWindows()) { Process.Start(new ProcessStartInfo("cmd", $"/c start {url}") { CreateNoWindow = true }); return; }
-        if (OperatingSystem.IsLinux()) Process.Start("xdg-open", url);
+        if (Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }) is null)
+            logger.LogWarning("Could not open browser for {Url}.", url);
     }
     catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
     {
-        _ = ex;
+        logger.LogWarning("Could not open browser: {Message}", ex.Message);
     }
 }
 
