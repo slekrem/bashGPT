@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **File-based logging** — Serilog rolling file sink writes warnings and errors to
+  `~/.config/bashgpt/logs/` (Windows: `%APPDATA%\bashgpt\logs\`); 14 daily files retained (#100)
+
 ## [0.1.0] - 2026-03-24
 
 ### Added

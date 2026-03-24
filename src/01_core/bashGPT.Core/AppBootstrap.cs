@@ -21,6 +21,9 @@ public static class AppBootstrap
     public static string GetPluginsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "plugins");
 
+    public static string GetLogsDir(string? configDir = null) =>
+        Path.Combine(configDir ?? GetDefaultConfigDir(), "logs");
+
     public static string GetSessionsDir(string? configDir = null) =>
         Path.Combine(configDir ?? GetDefaultConfigDir(), "sessions");
 
