@@ -49,6 +49,8 @@ npm test
   - the commands you ran for verification
   - any config, environment, or migration notes
 - Avoid mixing unrelated refactors with user-facing fixes.
+- Update `CHANGELOG.md` under `[Unreleased]` for any user-facing additions, changes,
+  fixes, or security improvements.
 
 ## Commit Messages
 Use short conventional-style messages such as:
