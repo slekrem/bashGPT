@@ -83,7 +83,7 @@ export class MessageBubble extends LitElement {
 
       .content { color: var(--color-text, #e5e7eb); }
 
-      /* Reasoning-Modus: gedämpfte Darstellung */
+      /* Reasoning mode: muted display */
       .reasoning-label {
         font-size: 10px;
         color: #475569;
@@ -97,7 +97,7 @@ export class MessageBubble extends LitElement {
         white-space: pre-wrap;
       }
 
-      /* Markdown-Stile */
+      /* Markdown styles */
       .content pre {
         background: #020617;
         border: 1px solid #1e293b;
@@ -146,10 +146,10 @@ export class MessageBubble extends LitElement {
 
   private get _html() {
     if (this.reasoning) {
-      // Reasoning live: plain text, kein Markdown-Parsing
+      // Reasoning live: plain text, no Markdown parsing
       return html`<span>${this.content}</span>`
     }
-    // Thinking-Blöcke (<thinking>…</thinking>) aus dem Content entfernen
+    // Remove thinking blocks (<thinking>…</thinking>) from content
     const clean = this.content
       .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
       .trim()
@@ -164,9 +164,9 @@ export class MessageBubble extends LitElement {
     return html`
       <div class="bubble ${this.role}">
         <div class="meta-row">
-          <span class="meta">${this.role === 'user' ? 'Du' : 'bashGPT'}</span>
+          <span class="meta">${this.role === 'user' ? 'You' : 'bashGPT'}</span>
         </div>
-        ${this.reasoning ? html`<div class="reasoning-label">Denkt…</div>` : ''}
+        ${this.reasoning ? html`<div class="reasoning-label">Thinking…</div>` : ''}
         <div class="content ${this.reasoning ? 'is-reasoning' : ''}">${this._html}</div>
       </div>
     `

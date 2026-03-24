@@ -55,7 +55,7 @@ export class ChatApp extends LitElement {
       }
       chatView.loadSnapshot?.(
         data.messages,
-        'Archivierte Session – Nachricht senden, um fortzufahren',
+        'Archived session – send a message to continue',
         data.enabledTools,
       )
       chatView.scrollToBottom?.()
@@ -141,7 +141,7 @@ export class ChatApp extends LitElement {
     if (!activeId) return
     if (!this._sessions.some(s => s.id === activeId)) {
       const now = new Date().toISOString()
-      this._sessions = [{ id: activeId, title: 'Aktueller Chat', createdAt: now, updatedAt: now }, ...this._sessions]
+      this._sessions = [{ id: activeId, title: 'Current Chat', createdAt: now, updatedAt: now }, ...this._sessions]
     }
     if (this._sm.useFallback) this._activeSessionId = LIVE_SESSION_ID
   }
@@ -169,7 +169,7 @@ export class ChatApp extends LitElement {
           <button
             class="hamburger"
             @click=${() => { this._mobileMenuOpen = !this._mobileMenuOpen }}
-            aria-label="Menü"
+            aria-label="Menu"
           >☰</button>
         </div>
       </header>

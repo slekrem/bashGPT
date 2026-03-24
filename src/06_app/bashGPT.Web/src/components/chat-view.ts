@@ -18,15 +18,15 @@ interface Message {
 
 @customElement('bashgpt-chat-view')
 export class ChatView extends LitElement {
-  /** Wird von außen gesetzt (Dashboard-Prompt) – löst sofortigen Send aus */
+  /** Set externally (dashboard prompt) – triggers immediate send */
   @property() pendingPrompt = ''
-  /** Gesetzt wenn die View aktiv (sichtbar) ist – lädt History wenn leer */
+  /** Set when the view is active (visible) – loads history if empty */
   @property({ type: Boolean }) active = false
-  /** One-shot Hook: wird vor dem ersten sendChat() der Session aufgerufen */
+  /** One-shot hook: called before the first sendChat() of the session */
   @property({ attribute: false }) beforeSend?: () => Promise<void>
-  /** Session-ID für server-seitige Persistenz (optional) */
+  /** Session ID for server-side persistence (optional) */
   @property() sessionId = ''
-  /** Agent-ID für agenten-spezifischen System-Prompt und Tools (optional) */
+  /** Agent ID for agent-specific system prompt and tools (optional) */
   @property() agentId = ''
 
   // ── Grouped reactive state (3 @state instead of 13) ───────────────────────
@@ -322,8 +322,8 @@ export class ChatView extends LitElement {
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('pendingPrompt') && this.pendingPrompt) {
-      // Verhindert Duplikate beim gleichen String, erlaubt aber erneutes Ausführen
-      // nachdem pendingPrompt im Parent kurz auf '' zurückgesetzt wurde.
+      // Prevents duplicates for the same string, but allows re-execution
+      // after pendingPrompt is briefly reset to '' in the parent.
       if (this.pendingPrompt !== this._lastHandledPendingPrompt) {
         this._lastHandledPendingPrompt = this.pendingPrompt
         this._sendPrompt(this.pendingPrompt)
@@ -331,20 +331,20 @@ export class ChatView extends LitElement {
     } else if (changed.has('pendingPrompt') && !this.pendingPrompt) {
       this._lastHandledPendingPrompt = ''
     }
-    // History nachladen, wenn die View aktiv wird und noch keine Nachrichten vorhanden sind
+    // Reload history when the view becomes active and no messages are present yet
     if (changed.has('active') && this.active && this._chat.messages.length === 0) {
       this._loadHistory()
     }
-    // Agenten-Daten neu laden, wenn sich der Agent ändert und das Panel offen ist
+    // Reload agent data when the agent changes and the info panel is open
     if (changed.has('agentId') && this._panels.infoOpen) {
       void this._loadInfoPanel()
     }
   }
 
-  /** Öffentlich: Snapshot-Messages laden (für archivierte Sessions) */
+  /** Public: load snapshot messages (for archived sessions) */
   loadSnapshot(messages: SnapshotMessage[], hint?: string, enabledTools?: string[]) {
-    // Laufendes _loadHistory() abbrechen – sonst würde der Server-Stand
-    // (text-only, ohne commands) die soeben gesetzten Daten überschreiben.
+    // Cancel running _loadHistory() – otherwise server state
+    // (text-only, without commands) would overwrite the just-set data.
     this._historyLoadSeq++
     const newMessages = messages
       .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content.trim() !== '')
@@ -366,7 +366,7 @@ export class ChatView extends LitElement {
     this._toolPickerOpen = false
   }
 
-  /** Öffentlich: Chat direkt zur letzten Nachricht scrollen */
+  /** Public: scroll chat to the latest message */
   scrollToBottom() {
     void this.updateComplete.then(() => {
       const chatEl = this.shadowRoot?.querySelector('#chat') as HTMLElement | null
@@ -375,7 +375,7 @@ export class ChatView extends LitElement {
     })
   }
 
-  /** Öffentlich: Aktuelle Messages als Snapshot auslesen */
+  /** Public: read current messages as a snapshot */
   getSnapshot(): SnapshotMessage[] {
     return this._chat.messages.map(m => ({
       role: m.role,
@@ -385,7 +385,7 @@ export class ChatView extends LitElement {
     }))
   }
 
-  /** Öffentlich: Session zurücksetzen */
+  /** Public: reset session */
   async reset() {
     try {
       // Only use the legacy history reset when no explicit session is active.
@@ -396,7 +396,7 @@ export class ChatView extends LitElement {
         ...this._chat,
         messages:   [],
         tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        statusText: 'Verlauf gelöscht',
+        statusText: 'History cleared',
         statusError: false,
       }
       this._enabledTools = []
@@ -405,7 +405,7 @@ export class ChatView extends LitElement {
     } catch (e) {
       this._chat = {
         ...this._chat,
-        statusText:  `Fehler: ${e instanceof Error ? e.message : String(e)}`,
+        statusText:  `Error: ${e instanceof Error ? e.message : String(e)}`,
         statusError: true,
       }
     }
@@ -416,8 +416,8 @@ export class ChatView extends LitElement {
     try {
       const history = await loadHistory()
       if (loadSeq !== this._historyLoadSeq) return
-      // Wenn zwischen Start und Ende bereits neue Messages entstanden sind
-      // (z. B. Dashboard-Prompt wurde gesendet), darf History diese nicht überschreiben.
+      // If new messages were created between start and end
+      // (e.g. a dashboard prompt was sent), history must not overwrite them.
       if (this._chat.messages.length > 0) return
 
       const newMessages = history.map(m => ({
@@ -435,7 +435,7 @@ export class ChatView extends LitElement {
       this._chat = {
         ...this._chat,
         statusError: true,
-        statusText:  `Fehler: ${e instanceof Error ? e.message : String(e)}`,
+        statusText:  `Error: ${e instanceof Error ? e.message : String(e)}`,
       }
     }
   }
@@ -443,12 +443,12 @@ export class ChatView extends LitElement {
   private async _sendPrompt(prompt: string) {
     if (!prompt.trim() || this._chat.loading) return
 
-    // Verhindert, dass ein parallel laufendes _loadHistory() den gerade
-    // angelegten User-Input nachträglich überschreibt.
+    // Prevents a concurrent _loadHistory() from overwriting
+    // the just-created user input afterwards.
     this._historyLoadSeq++
     this._activeRequestId = this._createRequestId()
     this._cancelRequested = false
-    // Platzhalter für die Assistant-Antwort, wird live befüllt
+    // Placeholder for the assistant response, filled live
     const assistantId = this._idCounter++
     this._streamingId = assistantId
     this._streamingContent = ''
@@ -463,7 +463,7 @@ export class ChatView extends LitElement {
         { id: assistantId, role: 'assistant' as const, content: '' },
       ],
       loading:     true,
-      statusText:  'Denke…',
+      statusText:  'Thinking…',
       statusError: false,
     }
     this.dispatchEvent(new CustomEvent('chat-started', { bubbles: true, composed: true }))
@@ -474,7 +474,7 @@ export class ChatView extends LitElement {
       const result = await streamChat(prompt, {
         onReasoningToken: token => {
           if (this._newRoundPending) {
-            // Erst beim ersten Token der neuen Runde resetten – bis dahin bleibt der alte Text sichtbar
+            // Reset only on the first token of the new round – until then the old text remains visible
             this._reasoningContent = token
             this._newRoundPending = false
           } else {
@@ -491,7 +491,7 @@ export class ChatView extends LitElement {
           }
         },
         onToolCall: data => {
-          this._chat = { ...this._chat, statusText: `Führe aus: ${data.command}` }
+          this._chat = { ...this._chat, statusText: `Running: ${data.command}` }
           this._streamingEntries = [
             ...this._streamingEntries,
             { toolName: data.name || 'tool', command: data.command, output: '', exitCode: -1, wasExecuted: false, status: 'running' },
@@ -518,10 +518,10 @@ export class ChatView extends LitElement {
             }
             return e
           })
-          this._chat = { ...this._chat, statusText: 'Verarbeite Ergebnis…' }
+          this._chat = { ...this._chat, statusText: 'Processing result…' }
         },
         onRoundStart: data => {
-          this._chat = { ...this._chat, statusText: `Tool-Runde ${data.round}…` }
+          this._chat = { ...this._chat, statusText: `Tool round ${data.round}…` }
           this._newRoundPending = true
         },
       }, this.sessionId || undefined, this._enabledTools.length ? this._enabledTools : undefined, this.agentId || undefined, this._activeRequestId || undefined)
@@ -539,7 +539,7 @@ export class ChatView extends LitElement {
         ? result.commands
         : streamedCommands
       const finalResponseText = result.finalStatus === 'user_cancelled'
-        ? (this._streamingContent || result.response || 'Vom Nutzer abgebrochen.')
+        ? (this._streamingContent || result.response || 'Cancelled by user.')
         : result.response
 
       const newMessages = this._chat.messages.map(m =>
@@ -553,7 +553,7 @@ export class ChatView extends LitElement {
           : m
       )
       const finalStatusText = result.finalStatus === 'user_cancelled'
-        ? 'Vom Nutzer abgebrochen'
+        ? 'Cancelled by user'
         : result.finalStatus === 'timeout'
           ? 'Timeout'
           : (this._enabledTools.length ? `Tools: ${this._enabledTools.join(', ')}` : '')
@@ -570,7 +570,7 @@ export class ChatView extends LitElement {
       this._streamingEntries = []
       this._emitMessagesChanged()
     } catch (e) {
-      const errText = `Fehler: ${e instanceof Error ? e.message : String(e)}`
+      const errText = `Error: ${e instanceof Error ? e.message : String(e)}`
       const newMessages = this._chat.messages.map(m =>
         m.id === assistantId ? { ...m, content: `⚠️ ${errText}` } : m
       )
@@ -610,14 +610,14 @@ export class ChatView extends LitElement {
   private async _cancelRun() {
     if (!this._activeRequestId || this._cancelRequested) return
     this._cancelRequested = true
-    this._chat = { ...this._chat, statusText: 'Abbruch angefordert…', statusError: false }
+    this._chat = { ...this._chat, statusText: 'Cancellation requested…', statusError: false }
 
     try {
       await cancelChat(this._activeRequestId)
     } catch (e) {
       this._chat = {
         ...this._chat,
-        statusText: `Fehler beim Abbrechen: ${e instanceof Error ? e.message : String(e)}`,
+        statusText: `Error while cancelling: ${e instanceof Error ? e.message : String(e)}`,
         statusError: true,
       }
     }
@@ -638,7 +638,7 @@ export class ChatView extends LitElement {
     }))
   }
 
-  /** Aggregiert alle CommandResults aus allen Nachrichten als ToolCallEntries */
+  /** Aggregates all CommandResults from all messages as ToolCallEntries */
   private _toolCallEntries(messages: Message[]): ToolCallEntry[] {
     const entries: ToolCallEntry[] = []
     for (const msg of messages) {
@@ -799,7 +799,7 @@ export class ChatView extends LitElement {
 
   private _workingText() {
     if (!this._chat.loading) return ''
-    return this._chat.statusText || 'Denke…'
+    return this._chat.statusText || 'Thinking…'
   }
 
   render() {
@@ -825,7 +825,7 @@ export class ChatView extends LitElement {
           <div
             class="resize-handle"
             role="separator"
-            aria-label="Breite Tool-Calls anpassen"
+            aria-label="Adjust Tool-Calls width"
             aria-orientation="vertical"
             tabindex="0"
             @pointerdown=${(ev: PointerEvent) => this._startResize('toolCalls', ev)}
@@ -840,7 +840,7 @@ export class ChatView extends LitElement {
               ? html`
                   <div class="empty-state">
                     <div class="icon">⌨️</div>
-                    <p>Stell mir eine Frage oder wähle einen Use-Case.</p>
+                    <p>Ask me a question or select a use case.</p>
                   </div>
                 `
               : repeat(
@@ -870,7 +870,7 @@ export class ChatView extends LitElement {
           <div
             class="resize-handle"
             role="separator"
-            aria-label="Breite Info-Panel anpassen"
+            aria-label="Adjust Info-Panel width"
             aria-orientation="vertical"
             tabindex="0"
             @pointerdown=${(ev: PointerEvent) => this._startResize('info', ev)}
@@ -889,9 +889,9 @@ export class ChatView extends LitElement {
       <footer>
         ${this._toolPickerOpen ? html`
           <div class="tool-picker">
-            <div class="tool-picker-title">🔧 Tools für diese Session</div>
+            <div class="tool-picker-title">🔧 Tools for this session</div>
             ${this._availableTools.length === 0
-              ? html`<span style="font-size:12px;color:#64748b">Keine Tools verfügbar.</span>`
+              ? html`<span style="font-size:12px;color:#64748b">No tools available.</span>`
               : html`
                 <div class="tool-picker-list">
                   ${this._availableTools.map(t => html`
@@ -908,8 +908,8 @@ export class ChatView extends LitElement {
 
         <div class="input-row">
           <textarea
-            placeholder="Nachricht eingeben… (Cmd+Enter zum Senden)"
-            aria-label="Nachricht eingeben"
+            placeholder="Enter message… (Cmd+Enter to send)"
+            aria-label="Enter message"
             @keydown=${this._onKeydown}
             ?disabled=${this._chat.loading}
           ></textarea>
@@ -918,22 +918,22 @@ export class ChatView extends LitElement {
           <button
             class="terminal-toggle ${this._toolPickerOpen || this._enabledTools.length > 0 ? 'active' : ''}"
             @click=${this._toggleToolPicker}
-            title="Tools für diese Session konfigurieren"
+            title="Configure tools for this session"
             aria-pressed=${this._toolPickerOpen ? 'true' : 'false'}
           >🔧 Tools${this._enabledTools.length > 0 ? ` (${this._enabledTools.length})` : ''}</button>
 
           <button
             class="terminal-toggle ${this._panels.toolCallsOpen ? 'active' : ''}"
             @click=${() => { this._panels = { ...this._panels, toolCallsOpen: !this._panels.toolCallsOpen } }}
-            title="Tool-Calls ein-/ausblenden"
+            title="Show/hide Tool-Calls"
             aria-pressed=${this._panels.toolCallsOpen ? 'true' : 'false'}
-            aria-label="Tool-Calls ein-/ausblenden"
+            aria-label="Show/hide Tool-Calls"
           >Tool Calls</button>
 
           <button
             class="terminal-toggle ${this._panels.infoOpen ? 'active' : ''}"
             @click=${this._toggleInfo}
-            title="Info-Panel ein-/ausblenden"
+            title="Show/hide Info-Panel"
             aria-pressed=${this._panels.infoOpen ? 'true' : 'false'}
           >ℹ Info</button>
 
@@ -950,9 +950,9 @@ export class ChatView extends LitElement {
               class="cancel"
               @click=${this._cancelRun}
               ?disabled=${this._cancelRequested}
-              aria-label="Laufenden Tool-Call abbrechen"
+              aria-label="Cancel running tool call"
             >
-              ${this._cancelRequested ? 'Abbrechen…' : 'Abbrechen'}
+              ${this._cancelRequested ? 'Cancelling…' : 'Cancel'}
             </button>
           ` : ''}
 
@@ -960,9 +960,9 @@ export class ChatView extends LitElement {
             class="primary"
             @click=${this._send}
             ?disabled=${this._chat.loading}
-            aria-label="Nachricht senden"
+            aria-label="Send message"
           >
-            Senden
+            Send
           </button>
         </div>
       </footer>
