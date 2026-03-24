@@ -29,7 +29,15 @@ public sealed class ServerHostTests : IAsyncLifetime
         Directory.CreateDirectory(_tempDir);
         var sessionStore = new SessionStore(Path.Combine(_tempDir, "sessions"));
 
-        (_app, _client) = await TestServerFactory.CreateAsync(_handler, sessionStore: sessionStore);
+        var webRoot = Path.Combine(_tempDir, "wwwroot");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "index.html"),
+            "<!DOCTYPE html><html><body>bashGPT</body></html>");
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "bundle.js"),
+            "// bashGPT bundle");
+
+        (_app, _client) = await TestServerFactory.CreateAsync(_handler, sessionStore: sessionStore,
+            webRootPath: webRoot);
     }
 
     public async Task DisposeAsync()

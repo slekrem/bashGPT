@@ -19,11 +19,15 @@ internal static class TestServerFactory
         SessionStore? sessionStore = null,
         ConfigurationService? configService = null,
         AgentRegistry? agentRegistry = null,
-        ToolRegistry? toolRegistry = null)
+        ToolRegistry? toolRegistry = null,
+        string? webRootPath = null)
     {
         var port = GetFreePort();
 
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            WebRootPath = webRootPath,
+        });
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
         builder.Logging.ClearProviders();
