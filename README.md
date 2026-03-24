@@ -117,6 +117,7 @@ Available server flags: `--provider`, `--model`, `--port`, `--no-browser`, `--ve
 Notes:
 - The UI provides chat history, session management, agent selection, manually selectable tools, and visibility into executed tool results.
 - Sessions are stored in `~/.config/bashgpt/sessions/` (Windows: `%APPDATA%\bashgpt\sessions\`), max. 20 sessions.
+- Log files are written to `~/.config/bashgpt/logs/` (Windows: `%APPDATA%\bashgpt\logs\`), rolling daily, 14 files retained.
 - Available API endpoints include `/api/sessions/*`, `/api/agents`, `/api/agents/<id>/info-panel`, `/api/tools`, `/api/chat/stream`, and `/api/chat/cancel`.
 - All tools discovered in the plugin directory are available for selection in the browser UI. Tool selection is UI-driven.
 - Agents with fixed tool sets such as `shell` and `dev` remain an intentional trust boundary and can expose more powerful tools.

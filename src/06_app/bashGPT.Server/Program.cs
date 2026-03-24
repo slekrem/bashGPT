@@ -1,11 +1,23 @@
 using System.Net;
 using bashGPT.Core;
 using bashGPT.Server.Extensions;
+using Serilog;
+using Serilog.Events;
 
-// Startup logger: used before the DI container is built (plugin loading, registry setup).
-// Disposed once the app is fully configured.
-using var startupLoggerFactory = LoggerFactory.Create(b =>
-    b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+var logsDir = AppBootstrap.GetLogsDir();
+Directory.CreateDirectory(logsDir);
+
+// Bootstrap logger: used before the DI container is built (plugin loading, registry setup).
+// Replaced by the full Serilog configuration once the host is built.
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Warning()
+    .WriteTo.File(
+        Path.Combine(logsDir, "server-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14)
+    .CreateBootstrapLogger();
+
+using var startupLoggerFactory = LoggerFactory.Create(b => b.AddSerilog());
 var startupLogger = startupLoggerFactory.CreateLogger("bashGPT.Server.Startup");
 
 var configService = ServerApplication.CreateConfigurationService();
@@ -31,7 +43,14 @@ builder.WebHost.ConfigureKestrel(o =>
     o.Listen(listenAddress, uri.Port);
     o.AllowSynchronousIO = true;
 });
-builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+builder.Host.UseSerilog((ctx, services, cfg) => cfg
+    .ReadFrom.Configuration(ctx.Configuration)
+    .ReadFrom.Services(services)
+    .WriteTo.File(
+        Path.Combine(logsDir, "server-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        restrictedToMinimumLevel: LogEventLevel.Warning));
 
 builder.Services.AddBashGptServer(
     configService, toolRegistry,
@@ -43,7 +62,14 @@ app.UseBashGptPipeline();
 app.Logger.LogInformation("bashGPT Server running on {Url}/", url);
 app.Logger.LogInformation("Press Ctrl+C to stop.");
 
-await app.RunAsync();
+try
+{
+    await app.RunAsync();
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
 
 // Required for WebApplicationFactory<Program> in tests
 public partial class Program { }

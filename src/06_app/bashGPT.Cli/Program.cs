@@ -3,6 +3,17 @@ using bashGPT.Core;
 using bashGPT.Core.Configuration;
 using bashGPT.Core.Versioning;
 using bashGPT.Cli;
+using Serilog;
+
+var logsDir = AppBootstrap.GetLogsDir();
+Directory.CreateDirectory(logsDir);
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Warning()
+    .WriteTo.File(
+        Path.Combine(logsDir, "cli-.log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14)
+    .CreateLogger();
 
 if (args is ["--version"])
 {
@@ -108,4 +119,16 @@ configCommand.Subcommands.Add(configGetCommand);
 configCommand.Subcommands.Add(configSetCommand);
 rootCommand.Subcommands.Add(configCommand);
 
-return await rootCommand.Parse(args).InvokeAsync();
+try
+{
+    return await rootCommand.Parse(args).InvokeAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Unhandled exception");
+    return 1;
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
