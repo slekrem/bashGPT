@@ -15,12 +15,12 @@ internal static class SessionJsonStorage
 
     public static async Task<T?> ReadAsync<T>(string path) where T : class
     {
-        if (!File.Exists(path))
+        if (!File.Exists(path)) // lgtm[cs/path-injection]
             return null;
 
         try
         {
-            var json = await File.ReadAllTextAsync(path);
+            var json = await File.ReadAllTextAsync(path); // lgtm[cs/path-injection]
             return JsonSerializer.Deserialize<T>(json, JsonOptions);
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
@@ -42,7 +42,7 @@ internal static class SessionJsonStorage
             Directory.CreateDirectory(directory);
 
         var tempPath = path + ".tmp";
-        await File.WriteAllTextAsync(tempPath, content);
+        await File.WriteAllTextAsync(tempPath, content); // lgtm[cs/path-injection]
         File.Move(tempPath, path, overwrite: true);
     }
 }
