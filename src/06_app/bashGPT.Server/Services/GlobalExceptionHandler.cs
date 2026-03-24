@@ -12,7 +12,7 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
     public async ValueTask<bool> TryHandleAsync(HttpContext ctx, Exception exception, CancellationToken ct)
     {
         logger.LogError(exception, "Unhandled exception at {Method} {Path}",
-            ctx.Request.Method, ctx.Request.Path.Value?.Replace('\r', ' ').Replace('\n', ' '));
+            ctx.Request.Method, ctx.Request.Path);
 
         ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await ctx.Response.WriteAsJsonAsync(new ProblemDetails

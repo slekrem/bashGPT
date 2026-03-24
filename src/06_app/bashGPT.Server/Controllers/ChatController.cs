@@ -118,7 +118,7 @@ public sealed class ChatController(
         {
             try
             {
-                logger?.LogError(ex, "Streaming request failed for requestId {RequestId}", requestId.Replace('\r', ' ').Replace('\n', ' '));
+                logger?.LogError(ex, "Streaming request failed for requestId {RequestId}", requestId);
                 sse.WriteError(ApiErrors.GenericServerError);
             }
             catch { }
