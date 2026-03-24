@@ -115,7 +115,7 @@ bashGPT.Server/
 ├── wwwroot/         ← static file root (frontend served from here when present)
 ├── appsettings.json
 ├── appsettings.Development.json
-└── Program.cs       ← CLI option parsing + host startup
+└── Program.cs       ← Web application bootstrap
 ```
 
 Server-side settings are intentionally simpler than before:
