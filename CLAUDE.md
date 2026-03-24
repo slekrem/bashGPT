@@ -33,7 +33,7 @@ cd src/06_app/bashGPT.Web && npm run dev
 ./scripts/coverage-report.sh
 ```
 
-`src/06_app/bashGPT.Server/bashGPT.Server.csproj` embeds `src/06_app/bashGPT.Web/dist/index.html` and `src/06_app/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
+`src/06_app/bashGPT.Server/bashGPT.Server.csproj` embeds `src/06_app/bashGPT.Web/dist/index.html` and `src/06_app/bashGPT.Web/dist/bundle.js` as resources. `dotnet build` restores frontend dependencies via `npm ci` and builds the frontend automatically — the frontend build is **incremental**: `npm run build` is skipped when no source file has changed since the last build. Required toolchain: `.NET 9 SDK` and `Node.js >= 20.19.0 || >= 22.12.0`.
 
 ## Architecture
 
@@ -147,10 +147,10 @@ Server-side settings are intentionally simpler than before:
 
 ### Agents
 
-Agents are defined in code, not JSON. The server registers:
-- `generic`
-- `dev`
-- `shell`
+Agents are defined in code, not JSON. The server registers one built-in agent:
+- `generic` — `GenericAgent` in `bashGPT.Server/Agents/`
+
+`dev` and `shell` are **not** built-in server agents; they are loaded at startup as bundled plugins from `~/.config/bashgpt/plugins/`. They appear in the UI only after the server project has been built at least once (the build copies plugin DLLs to that directory via `InstallPlugins`).
 
 `AgentBase` drives:
 - stable agent id
@@ -285,3 +285,4 @@ Those runtime defaults are now fixed internally via `AppDefaults`.
 - `PascalCase` for types/members, `camelCase` for locals
 - xUnit tests using `Method_Condition_Result`
 - conventional commits like `feat:`, `fix:`, `test:`, `docs:`
+- **Namespace convention for `bashGPT.Server`**: namespace must match the subfolder — `Controllers/` → `bashGPT.Server.Controllers`, `Services/` → `bashGPT.Server.Services`, `Models/` → `bashGPT.Server.Models`, `Extensions/` → `bashGPT.Server.Extensions`, `Agents/` → `bashGPT.Server.Agents`
