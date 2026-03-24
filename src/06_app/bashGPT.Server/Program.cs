@@ -32,7 +32,10 @@ rootCommand.SetAction(async (parseResult, ct) =>
     var sessionStore = AppBootstrap.CreateSessionStore();
     var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
 
-    var builder = WebApplication.CreateBuilder();
+    var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+    {
+        ContentRootPath = AppContext.BaseDirectory,
+    });
     builder.WebHost.UseUrls($"http://127.0.0.1:{serverOptions.Port}");
     builder.WebHost.UseKestrel(o => o.AllowSynchronousIO = true);
     builder.Logging.SetMinimumLevel(LogLevel.Warning);

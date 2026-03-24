@@ -116,4 +116,15 @@
     <Exec Command="npm run build" WorkingDirectory="$(WebFrontendDir)" EnvironmentVariables="$(NpmEnvPath)" />
   </Target>
 
+  <!-- Copy the built frontend files into the binary output so the server finds
+       them via AppContext.BaseDirectory regardless of the working directory. -->
+  <Target Name="CopyWwwrootToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_WwwrootFile Include="$(MSBuildProjectDirectory)\wwwroot\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WwwrootFile)"
+          DestinationFolder="$(OutputPath)wwwroot\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
