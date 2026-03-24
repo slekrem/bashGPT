@@ -11,7 +11,9 @@ namespace bashGPT.Server.Controllers;
 
 [ApiController]
 [Route("api/settings")]
-public sealed class SettingsController(ConfigurationService? configService) : ControllerBase
+public sealed class SettingsController(
+    ConfigurationService? configService = null,
+    ILogger<SettingsController>? logger = null) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -68,7 +70,7 @@ public sealed class SettingsController(ConfigurationService? configService) : Co
         }
         catch (LlmProviderException ex)
         {
-            Console.Error.WriteLine($"[server] Provider connectivity test failed: {ex}");
+            logger?.LogError(ex, "Provider connectivity test failed");
             return Ok(new { ok = false, error = ApiErrors.GenericProviderError });
         }
     }

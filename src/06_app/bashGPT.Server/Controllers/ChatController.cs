@@ -17,7 +17,8 @@ public sealed class ChatController(
     RunningChatRegistry runningChats,
     ServerSessionService sessionService,
     ToolRegistry? toolRegistry = null,
-    AgentRegistry? agentRegistry = null) : ControllerBase
+    AgentRegistry? agentRegistry = null,
+    ILogger<ChatController>? logger = null) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] ChatRequest body, CancellationToken ct)
@@ -117,7 +118,7 @@ public sealed class ChatController(
         {
             try
             {
-                Console.Error.WriteLine($"[server] Streaming request failed: {ex}");
+                logger?.LogError(ex, "Streaming request failed for requestId {RequestId}", requestId);
                 sse.WriteError(ApiErrors.GenericServerError);
             }
             catch { }

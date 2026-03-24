@@ -3,10 +3,16 @@ using System.Net;
 using bashGPT.Core;
 using bashGPT.Server.Extensions;
 
+// Startup logger: used before the DI container is built (plugin loading, registry setup).
+// Disposed once the app is fully configured.
+using var startupLoggerFactory = LoggerFactory.Create(b =>
+    b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+var startupLogger = startupLoggerFactory.CreateLogger("bashGPT.Server.Startup");
+
 var configService = ServerApplication.CreateConfigurationService();
-var pluginResult = ServerApplication.LoadPlugins();
-var toolRegistry = ServerApplication.CreateToolRegistry(pluginResult.Tools);
-var agentRegistry = ServerApplication.CreateAgentRegistry(pluginResult.Agents);
+var pluginResult = ServerApplication.LoadPlugins(logger: startupLogger);
+var toolRegistry = ServerApplication.CreateToolRegistry(pluginResult.Tools, startupLogger);
+var agentRegistry = ServerApplication.CreateAgentRegistry(pluginResult.Agents, startupLogger);
 var sessionStore = AppBootstrap.CreateSessionStore();
 var sessionRequestStore = AppBootstrap.CreateSessionRequestStore();
 

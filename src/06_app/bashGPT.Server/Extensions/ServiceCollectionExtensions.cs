@@ -45,6 +45,9 @@ internal static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddBashGptControllers(this IServiceCollection services)
     {
+        services.AddExceptionHandler<GlobalExceptionHandler>();
+        services.AddProblemDetails();
+
         services.ConfigureHttpJsonOptions(opts =>
         {
             opts.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -61,7 +64,9 @@ internal static class ServiceCollectionExtensions
 
         // Factory delegates support optional (nullable) constructor dependencies
         services.AddSingleton<VersionController>();
-        services.AddSingleton(sp => new SettingsController(sp.GetService<ConfigurationService>()));
+        services.AddSingleton(sp => new SettingsController(
+            sp.GetService<ConfigurationService>(),
+            sp.GetService<ILogger<SettingsController>>()));
         services.AddSingleton(sp => new SessionsController(sp.GetService<SessionStore>()));
         services.AddSingleton(sp => new AgentsController(sp.GetService<AgentRegistry>(), sp.GetService<ConfigurationService>()));
         services.AddSingleton(sp => new ToolsController(sp.GetService<ToolRegistry>()));
@@ -71,7 +76,8 @@ internal static class ServiceCollectionExtensions
             sp.GetRequiredService<RunningChatRegistry>(),
             sp.GetRequiredService<ServerSessionService>(),
             sp.GetService<ToolRegistry>(),
-            sp.GetService<AgentRegistry>()));
+            sp.GetService<AgentRegistry>(),
+            sp.GetService<ILogger<ChatController>>()));
 
         return services;
     }

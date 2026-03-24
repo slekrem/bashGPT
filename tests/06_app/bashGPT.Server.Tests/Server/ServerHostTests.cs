@@ -200,8 +200,9 @@ public sealed class ServerHostTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
 
+        // 500 responses now use RFC 7807 Problem Details format
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Internal server error.", json.GetProperty("error").GetString());
+        Assert.Equal("Internal server error.", json.GetProperty("detail").GetString());
         Assert.DoesNotContain("Simulierter Fehler", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
