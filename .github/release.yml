@@ -1,0 +1,30 @@
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: "Breaking Changes"
+      labels:
+        - breaking-change
+    - title: "New Features"
+      labels:
+        - enhancement
+    - title: "Bug Fixes"
+      labels:
+        - bug
+    - title: "Frontend"
+      labels:
+        - frontend
+        - ui
+    - title: "Documentation"
+      labels:
+        - documentation
+    - title: "Tests & Quality"
+      labels:
+        - testing
+    - title: "Maintenance"
+      labels:
+        - dependencies
+        - backend
