@@ -65,21 +65,31 @@ public sealed class DevAgent : AgentBase
 
     public override IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) =>
     [
-        """
-        You are an experienced software engineer. Solve tasks through focused tool usage.
-        Before working on a task, load relevant source files into context with 'context_load_files'.
-        """,
-        """
-        Tool call rules:
-        - Follow the schema strictly: correct types, all required fields, valid values.
-        - If a tool fails with "missing_required_field", add exactly that field and retry.
-        - If a tool fails with "invalid_type" or "invalid_value", correct only the named field.
-        - If a tool fails with "invalid_json", send valid JSON and retry.
-        - For missing optional paths, use "path": "." as the default.
-        """,
+        BuildRolePrompt(),
+        BuildToolCallRulesPrompt(),
         BuildProjectContext(),
         BuildLoadedFilesContext(sessionPath),
     ];
+
+    private static string BuildRolePrompt() =>
+        """
+        You are an experienced software engineer working inside a local dev environment.
+        Solve tasks step by step through focused, minimal tool usage — read before you write.
+        Always load the relevant source files with 'context_load_files' before starting work.
+        Prefer small, targeted changes over large rewrites. Never guess file contents.
+        """;
+
+    private static string BuildToolCallRulesPrompt() =>
+        """
+        Tool call rules — follow strictly, no exceptions:
+        - Match the schema exactly: correct types, all required fields, valid values.
+        - Never invent or omit fields; use the schema as the single source of truth.
+        - "missing_required_field": add the named field and retry.
+        - "invalid_type" / "invalid_value": correct only the named field and retry.
+        - "invalid_json": send well-formed JSON and retry.
+        - Missing optional path: default to "path": ".".
+        - Do not retry more than once per error; escalate if the same error repeats.
+        """;
 
     /// <summary>
     /// Builds project context at runtime: git info plus all tracked files.
