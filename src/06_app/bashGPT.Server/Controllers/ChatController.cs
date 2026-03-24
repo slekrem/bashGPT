@@ -118,7 +118,6 @@ public sealed class ChatController(
         {
             try
             {
-                // codeql[cs/log-forging] - requestId is sanitized (CR/LF stripped); Serilog structured logging parameterizes values
                 logger?.LogError(ex, "Streaming request failed for requestId {RequestId}", requestId.Replace('\r', ' ').Replace('\n', ' '));
                 sse.WriteError(ApiErrors.GenericServerError);
             }

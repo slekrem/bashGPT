@@ -102,7 +102,7 @@ public class SessionStore
 
     private void TryDeleteSessionDir(string id)
     {
-        try { Directory.Delete(SessionDir(id), recursive: true); } // codeql[cs/path-injection]
+        try { Directory.Delete(SessionDir(id), recursive: true); }
         catch { }
     }
 

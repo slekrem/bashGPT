@@ -11,7 +11,6 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext ctx, Exception exception, CancellationToken ct)
     {
-        // codeql[cs/log-forging] - Path is sanitized (CR/LF stripped); Serilog structured logging parameterizes values
         logger.LogError(exception, "Unhandled exception at {Method} {Path}",
             ctx.Request.Method, ctx.Request.Path.Value?.Replace('\r', ' ').Replace('\n', ' '));
 
