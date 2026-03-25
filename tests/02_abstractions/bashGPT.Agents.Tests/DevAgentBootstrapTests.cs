@@ -34,13 +34,12 @@ public class DevAgentTests
     }
 
     [Fact]
-    public void DevAgent_GetInfoPanelMarkdown_ContainsH1AndToolTable()
+    public void DevAgent_GetInfoPanelMarkdown_ContainsSystemPromptAndLlmConfig()
     {
         var md = _agent.GetInfoPanelMarkdown();
 
-        Assert.Contains("# Dev-Agent", md, StringComparison.Ordinal);
-        Assert.Contains("| `fetch`", md, StringComparison.Ordinal);
-        Assert.Contains("| `shell_exec`", md, StringComparison.Ordinal);
+        Assert.Contains("You are an experienced software engineer", md, StringComparison.Ordinal);
+        Assert.Contains("## LLM Configuration", md, StringComparison.Ordinal);
     }
 
     [Fact]

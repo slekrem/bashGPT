@@ -80,7 +80,7 @@ public sealed class AgentApiTests : IAsyncLifetime
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var markdown = json.GetProperty("markdown").GetString();
         Assert.False(string.IsNullOrWhiteSpace(markdown));
-        Assert.Contains("# Dev-Agent", markdown, StringComparison.Ordinal);
+        Assert.Contains("## LLM Configuration", markdown, StringComparison.Ordinal);
     }
 
     [Fact]
