@@ -167,7 +167,7 @@ public sealed class DevAgent : AgentBase
     }
 
     /// <summary>
-    /// Returns one system prompt message per open file.
+    /// Returns a single message containing all open files.
     /// File contents are re-read from disk on every request so changes are always current.
     /// </summary>
     private static IReadOnlyList<string> BuildEditorMessages(string? sessionPath = null)
@@ -175,7 +175,7 @@ public sealed class DevAgent : AgentBase
         var paths = EditorState.ReadFiles(sessionPath);
         if (paths.Count == 0) return [];
 
-        var messages = new List<string>();
+        var sb = new StringBuilder("# Editor\n\nThe following files reflect the exact current state on disk — treat them as ground truth.\n\n");
         foreach (var path in paths)
         {
             if (!File.Exists(path)) continue;
@@ -184,17 +184,18 @@ public sealed class DevAgent : AgentBase
                 var info = new FileInfo(path);
                 if (info.Length > 131_072)
                 {
-                    messages.Add($"# Editor\n\n## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.");
+                    sb.AppendLine($"> `{path}` — file too large ({info.Length / 1024} KB), skipped.\n");
                     continue;
                 }
-                messages.Add($"# Editor\n\nThe following file reflects the exact current state on disk — treat this as ground truth.\n\n{EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd()}");
+                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
+                sb.AppendLine();
             }
             catch (Exception ex)
             {
-                messages.Add($"# Editor\n\n## `{path}`\n\n> Read error: {ex.Message}");
+                sb.AppendLine($"> `{path}` — read error: {ex.Message}\n");
             }
         }
-        return messages;
+        return [sb.ToString().TrimEnd()];
     }
 
     private static string? Git(string args, string workingDirectory)
