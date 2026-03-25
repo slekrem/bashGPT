@@ -51,12 +51,14 @@ public sealed class DevAgent : AgentBase
     public override IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) =>
     [
         BuildRolePrompt(),
-        BuildGitContext(_workingDirectory),
-        BuildFileExplorerContext(_workingDirectory),
     ];
 
     public override IReadOnlyList<string> GetContextMessages(string? sessionPath = null) =>
-        BuildEditorMessages(sessionPath);
+    [
+        BuildGitContext(_workingDirectory),
+        BuildFileExplorerContext(_workingDirectory),
+        .. BuildEditorMessages(sessionPath),
+    ];
 
     private static string BuildRolePrompt() =>
         """
