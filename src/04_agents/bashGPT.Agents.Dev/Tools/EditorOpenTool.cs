@@ -6,16 +6,16 @@ using bashGPT.Tools.Abstractions;
 namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
-/// Built-in dev agent tool: loads file contents matching glob patterns into the context.
+/// Built-in dev agent tool: opens files matching glob patterns into the Editor.
 /// Uses git ls-files internally so .gitignore is respected automatically.
 /// </summary>
-public sealed class ContextLoadFilesTool : ITool
+public sealed class EditorOpenTool : ITool
 {
     private const int MaxFileSizeBytes = 131_072; // 128 KB per file
 
     public ToolDefinition Definition { get; } = new(
-        Name: "context_load_files",
-        Description: "Loads the content of files matching one or more glob patterns into context. Uses git ls-files internally, so .gitignore is respected automatically.",
+        Name: "editor_open",
+        Description: "Opens files matching one or more glob patterns into the Editor. Uses git ls-files internally, so .gitignore is respected automatically.",
         Parameters:
         [
             new ToolParameter("patterns", "array", "Glob patterns to match files, e.g. [\"src/**/*.cs\", \"*.sln\"]. Respects .gitignore.", Required: true),
@@ -58,7 +58,7 @@ public sealed class ContextLoadFilesTool : ITool
                         continue;
                     }
 
-                    sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+                    sb.Append(EditorState.FormatFileBlock(path, File.ReadAllText(path)));
                     loadedPaths.Add(path);
                 }
                 catch (Exception ex)
@@ -71,12 +71,12 @@ public sealed class ContextLoadFilesTool : ITool
         if (loadedPaths.Count == 0)
             return Task.FromResult(new ToolResult(Success: false, Content: "No files found for the given patterns."));
 
-        // Persist paths in the session cache so DevAgent.SystemPrompt picks them up on every request.
-        ContextFileCache.AddFiles(loadedPaths, call.SessionPath);
+        // Persist paths in the session so DevAgent.SystemPrompt picks them up on every request.
+        EditorState.AddFiles(loadedPaths, call.SessionPath);
 
         return Task.FromResult(new ToolResult(
             Success: true,
-            Content: $"{loadedPaths.Count} file(s) loaded into context: {string.Join(", ", loadedPaths)}"));
+            Content: $"{loadedPaths.Count} file(s) opened in Editor: {string.Join(", ", loadedPaths)}"));
     }
 
     private static string[] ParsePatterns(string json)
@@ -117,9 +117,19 @@ public sealed class ContextLoadFilesTool : ITool
 
     private static string? GitLsFiles(string pattern)
     {
+        // Tracked files + untracked files (respects .gitignore via --exclude-standard)
+        var tracked   = RunGit($"ls-files \"{pattern}\"");
+        var untracked = RunGit($"ls-files --others --exclude-standard \"{pattern}\"");
+        var combined  = string.Join('\n', new[] { tracked, untracked }
+            .Where(s => !string.IsNullOrWhiteSpace(s)));
+        return string.IsNullOrWhiteSpace(combined) ? null : combined;
+    }
+
+    private static string? RunGit(string args)
+    {
         try
         {
-            using var proc = Process.Start(new ProcessStartInfo("git", $"ls-files \"{pattern}\"")
+            using var proc = Process.Start(new ProcessStartInfo("git", args)
             {
                 RedirectStandardOutput = true,
                 UseShellExecute        = false,

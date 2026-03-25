@@ -22,19 +22,19 @@ public sealed class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Context tools are owned directly — no registry needed.
+    // Editor tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
-        new ContextLoadFilesTool(),
-        new ContextUnloadFilesTool(),
-        new ContextClearFilesTool(),
+        new EditorOpenTool(),
+        new EditorCloseTool(),
+        new EditorClearTool(),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: context_load_files, context_unload_files, context_clear_files
-        "fetch",
+        .. base.EnabledTools,   // owned: editor_open, editor_close, editor_clear
+        /*"fetch",
         "filesystem_read",
         "filesystem_write",
         "filesystem_search",
@@ -47,7 +47,7 @@ public sealed class DevAgent : AgentBase
         "git_checkout",
         "test_run",
         "build_run",
-        "shell_exec",
+        "shell_exec",*/
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -78,9 +78,9 @@ public sealed class DevAgent : AgentBase
         Solve tasks step by step through focused, minimal tool usage — read before you write.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
-        You have an Editor: use 'context_load_files' to open files into it before working on them.
+        You have an Editor: use 'editor_open' to open files into it before working on them.
         The Editor always reflects the latest file content and shows git diffs automatically on each request.
-        Use 'context_unload_files' to close files you no longer need, and 'context_clear_files' to reset.
+        Use 'editor_close' to close files you no longer need, and 'editor_clear' to reset.
         """;
 
     private static string BuildToolCallRulesPrompt() =>
@@ -196,7 +196,7 @@ public sealed class DevAgent : AgentBase
     /// </summary>
     private string BuildEditorContext(string? sessionPath = null)
     {
-        var paths = ContextFileCache.ReadFiles(sessionPath);
+        var paths = EditorState.ReadFiles(sessionPath);
         if (paths.Count == 0) return string.Empty;
 
         var sb = new StringBuilder("# Editor\n\n");
@@ -212,7 +212,7 @@ public sealed class DevAgent : AgentBase
                     continue;
                 }
 
-                sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+                sb.Append(EditorState.FormatFileBlock(path, File.ReadAllText(path)));
 
                 var diff = Git($"diff HEAD -- \"{path}\"", _workingDirectory);
                 if (diff is not null)

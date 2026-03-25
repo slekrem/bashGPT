@@ -4,16 +4,16 @@ using bashGPT.Tools.Abstractions;
 namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
-/// Built-in dev agent tool: removes file paths from the session-scoped context cache.
+/// Built-in dev agent tool: closes file paths from the Editor.
 /// </summary>
-public sealed class ContextUnloadFilesTool : ITool
+public sealed class EditorCloseTool : ITool
 {
     public ToolDefinition Definition { get; } = new(
-        Name: "context_unload_files",
-        Description: "Removes previously loaded files from the context. Accepts exact paths or glob patterns.",
+        Name: "editor_close",
+        Description: "Closes previously opened files from the Editor. Accepts exact paths or glob patterns.",
         Parameters:
         [
-            new ToolParameter("patterns", "array", "Exact file paths or glob patterns to remove, e.g. [\"src/Foo.cs\", \"tests/**/*.cs\"].", Required: true),
+            new ToolParameter("patterns", "array", "Exact file paths or glob patterns to close, e.g. [\"src/Foo.cs\", \"tests/**/*.cs\"].", Required: true),
         ]);
 
     public Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct)
@@ -32,29 +32,27 @@ public sealed class ContextUnloadFilesTool : ITool
             return Task.FromResult(new ToolResult(Success: false, Content: $"Invalid arguments [invalid_json]: {ex.Message}"));
         }
 
-        var cached  = ContextFileCache.ReadFiles(call.SessionPath);
-        var matched = cached
+        var open    = EditorState.ReadFiles(call.SessionPath);
+        var matched = open
             .Where(p => patterns.Any(pat => MatchesPattern(p, pat)))
             .ToList();
 
         if (matched.Count == 0)
             return Task.FromResult(new ToolResult(Success: false,
-                Content: "None of the specified files were in the context."));
+                Content: "None of the specified files were open in the Editor."));
 
-        ContextFileCache.RemoveFiles(matched, call.SessionPath);
+        EditorState.RemoveFiles(matched, call.SessionPath);
 
         return Task.FromResult(new ToolResult(
             Success: true,
-            Content: $"{matched.Count} file(s) removed from context: {string.Join(", ", matched)}"));
+            Content: $"{matched.Count} file(s) closed: {string.Join(", ", matched)}"));
     }
 
     private static bool MatchesPattern(string path, string pattern)
     {
-        // Exact match
         if (string.Equals(path, pattern, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Simple glob: only ** and * are supported
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
             .Replace(@"\*\*", ".*")
             .Replace(@"\*", "[^/\\\\]*") + "$";
