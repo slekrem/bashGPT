@@ -5,15 +5,15 @@ public record ChatMessage(
     string Content,
     IReadOnlyList<ToolCall>? ToolCalls = null,
     string? ToolCallId = null,
-    string? ToolName = null,
-    bool IsContext = false)
+    string? ToolName = null)
 {
     public string RoleString => Role switch
     {
-        ChatRole.System => "system",
-        ChatRole.User => "user",
+        ChatRole.System    => "system",
+        ChatRole.User      => "user",
+        ChatRole.Context   => "user",
         ChatRole.Assistant => "assistant",
-        ChatRole.Tool => "tool",
+        ChatRole.Tool      => "tool",
         _ => throw new ArgumentOutOfRangeException()
     };
 

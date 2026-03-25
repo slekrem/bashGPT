@@ -55,12 +55,12 @@ public sealed class ChatSessionState(
         if (contextMessages is null)
             return;
 
-        // Remove all previously injected context messages (identified by IsContext flag).
-        Messages.RemoveAll(m => m.IsContext);
+        // Remove all previously injected context messages.
+        Messages.RemoveAll(m => m.Role == ChatRole.Context);
 
         var fresh = contextMessages()
             .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => new ChatMessage(ChatRole.User, c, IsContext: true))
+            .Select(c => new ChatMessage(ChatRole.Context, c))
             .ToList();
 
         if (fresh.Count == 0) return;

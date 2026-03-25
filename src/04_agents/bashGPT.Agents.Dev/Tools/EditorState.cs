@@ -36,6 +36,7 @@ public static class EditorState
         if (!File.Exists(cachePath)) return [];
         return File.ReadAllLines(cachePath)
             .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
