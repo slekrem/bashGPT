@@ -72,7 +72,8 @@ public sealed class DevAgent : AgentBase
         """;
 
     /// <summary>
-    /// Builds a git context: branch, upstream, recent commits, and working tree status.
+    /// Builds a git context: branch, upstream/base divergence, recent commits,
+    /// working tree status, and diff stats for staged and unstaged changes.
     /// </summary>
     private static string BuildGitContext(string workingDirectory)
     {
@@ -81,16 +82,32 @@ public sealed class DevAgent : AgentBase
 
         var sb = new StringBuilder("# Git Context\n\n");
 
+        // Branch + upstream sync
         var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}", workingDirectory);
         sb.AppendLine(upstream is not null
             ? $"**Branch:** `{branch}` → `{upstream}`"
             : $"**Branch:** `{branch}` (no upstream)");
 
-        var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
-        var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
-        if (ahead is not null && behind is not null)
-            sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind");
+        if (upstream is not null)
+        {
+            var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
+            var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
+            if (ahead is not null && behind is not null)
+                sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind upstream");
+        }
 
+        // Divergence from default branch (main/master), if different from upstream
+        var defaultBranch = Git("rev-parse --abbrev-ref origin/HEAD", workingDirectory)
+            ?.Replace("origin/", "");
+        if (defaultBranch is not null && defaultBranch != branch)
+        {
+            var aheadBase  = Git($"rev-list --count origin/{defaultBranch}..HEAD", workingDirectory);
+            var behindBase = Git($"rev-list --count HEAD..origin/{defaultBranch}", workingDirectory);
+            if (aheadBase is not null && behindBase is not null)
+                sb.AppendLine($"**vs `{defaultBranch}`:** {aheadBase} ahead, {behindBase} behind");
+        }
+
+        // Recent commits
         var log = Git("log -5 --oneline", workingDirectory);
         if (log is not null)
         {
@@ -99,13 +116,34 @@ public sealed class DevAgent : AgentBase
                 sb.AppendLine($"- `{line}`");
         }
 
+        // Working tree status (XY flags)
         var status = Git("status --short", workingDirectory);
-        if (status is not null)
+        if (!string.IsNullOrWhiteSpace(status))
         {
             sb.AppendLine("\n**Working tree:**");
             sb.AppendLine("```");
             sb.AppendLine(status);
-            sb.Append("```");
+            sb.AppendLine("```");
+        }
+
+        // Staged changes (diff stat)
+        var stagedStat = Git("diff --cached --stat", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(stagedStat))
+        {
+            sb.AppendLine("**Staged changes:**");
+            sb.AppendLine("```");
+            sb.AppendLine(stagedStat);
+            sb.AppendLine("```");
+        }
+
+        // Unstaged changes (diff stat)
+        var unstagedStat = Git("diff --stat", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(unstagedStat))
+        {
+            sb.AppendLine("**Unstaged changes:**");
+            sb.AppendLine("```");
+            sb.AppendLine(unstagedStat);
+            sb.AppendLine("```");
         }
 
         return sb.ToString().TrimEnd();
