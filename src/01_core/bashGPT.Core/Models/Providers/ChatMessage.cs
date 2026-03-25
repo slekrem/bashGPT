@@ -9,10 +9,11 @@ public record ChatMessage(
 {
     public string RoleString => Role switch
     {
-        ChatRole.System => "system",
-        ChatRole.User => "user",
+        ChatRole.System    => "system",
+        ChatRole.User      => "user",
+        ChatRole.Context   => "user",
         ChatRole.Assistant => "assistant",
-        ChatRole.Tool => "tool",
+        ChatRole.Tool      => "tool",
         _ => throw new ArgumentOutOfRangeException()
     };
 

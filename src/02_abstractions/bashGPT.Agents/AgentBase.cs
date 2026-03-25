@@ -67,6 +67,13 @@ public abstract class AgentBase
     public virtual IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) => SystemPrompt;
 
     /// <summary>
+    /// Returns content strings to inject as user messages just before the current user prompt.
+    /// These are refreshed on every LLM call round — ideal for file contents that change between rounds.
+    /// The default implementation returns an empty list.
+    /// </summary>
+    public virtual IReadOnlyList<string> GetContextMessages(string? sessionPath = null) => [];
+
+    /// <summary>
     /// Returns the tool instances owned by this agent.
     /// These are used to resolve tool definitions for the LLM and to execute tool calls
     /// without relying on the global tool registry.

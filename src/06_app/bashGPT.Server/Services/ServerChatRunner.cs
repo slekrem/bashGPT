@@ -29,6 +29,7 @@ public sealed class ServerChatRunner(
             opts.History,
             opts.Prompt,
             systemPrompt: opts.SystemPrompt is not null ? () => opts.SystemPrompt(sessionPath) : null,
+            contextMessages: opts.ContextMessages is not null ? () => opts.ContextMessages(sessionPath) : null,
             llmConfig: opts.LlmConfig,
             onReasoningToken: opts.OnReasoningToken,
             onLlmRequestJson: opts.OnLlmRequestJson,
@@ -71,7 +72,7 @@ public sealed class ServerChatRunner(
                         ct,
                         opts.Agent));
                 },
-                beforeNextCall: chatSession.RefreshSystemMessages,
+                beforeNextCall: () => { chatSession.RefreshSystemMessages(); chatSession.RefreshContextMessages(); },
                 ct);
 
             if (runResult.Error is not null)

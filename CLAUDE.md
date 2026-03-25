@@ -54,7 +54,7 @@ bashGPT is a local Ollama-based shell assistant with two hosts:
 | `bashGPT.Tools.Git` | `src/03_tools/bashGPT.Tools.Git` | `git_status`, `git_diff`, `git_log`, `git_branch`, `git_add`, `git_commit`, `git_checkout` |
 | `bashGPT.Tools.Shell` | `src/03_tools/bashGPT.Tools.Shell` | `shell_exec` (generic), `bash_exec`, `cmd_exec`, `pwsh_exec` — all extend `ShellExecBase` |
 | `bashGPT.Tools.Testing` | `src/03_tools/bashGPT.Tools.Testing` | `test_run` |
-| `bashGPT.Agents.Dev` | `src/04_agents/bashGPT.Agents.Dev` | Dev agent plus `context_*` tools and `ContextFileCache` |
+| `bashGPT.Agents.Dev` | `src/04_agents/bashGPT.Agents.Dev` | Dev agent plus `editor_*` tools and `EditorState` |
 | `bashGPT.Agents.Shell` | `src/04_agents/bashGPT.Agents.Shell` | Shell agent — detects active shell at startup, owns and executes its tool directly |
 | `bashGPT.Plugins` | `src/05_plugins/bashGPT.Plugins` | `PluginLoader`, `PluginLoadContext` — discovers external tools and agents from `~/.config/bashgpt/plugins/` |
 | `bashGPT.Plugins.TestFixtures` | `src/05_plugins/bashGPT.Plugins.TestFixtures` | `FakeToolFixture`, `FakeAgentFixture` — test helpers for plugin loader tests (not packaged) |
@@ -139,7 +139,7 @@ Server-side settings are intentionally simpler than before:
 | `SessionStore` | `src/01_core/bashGPT.Core/Storage/SessionStore.cs` | thread-safe session persistence |
 | `AgentBase` | `src/02_abstractions/bashGPT.Agents/AgentBase.cs` | code-first base type for agents |
 | `AgentRegistry` | `src/02_abstractions/bashGPT.Agents/AgentRegistry.cs` | in-memory agent lookup |
-| `ContextFileCache` | `src/04_agents/bashGPT.Agents.Dev/ContextFileCache.cs` | loaded-file cache for dev agent |
+| `EditorState` | `src/04_agents/bashGPT.Agents.Dev/Tools/EditorState.cs` | open-file list for the dev agent Editor |
 | `ToolRegistry` | `src/02_abstractions/bashGPT.Tools/Registration/ToolRegistry.cs` | available `ITool` implementations |
 | `RunningChatRegistry` | `src/06_app/bashGPT.Server/Services/RunningChatRegistry.cs` | request cancellation support |
 | `ServerSessionService` | `src/06_app/bashGPT.Server/Services/ServerSessionService.cs` | session load/persist/history for the server |

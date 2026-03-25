@@ -72,37 +72,32 @@ public class AgentOwnedToolsTests
     // --- DevAgent ------------------------------------------------------------
 
     [Fact]
-    public void DevAgent_GetOwnedTools_ContainsContextTools()
+    public void DevAgent_GetOwnedTools_ContainsEditorTools()
     {
         var agent = new DevAgent();
         var ownedNames = agent.GetOwnedTools().Select(t => t.Definition.Name).ToArray();
 
-        Assert.Contains("context_load_files",   ownedNames);
-        Assert.Contains("context_unload_files", ownedNames);
-        Assert.Contains("context_clear_files",  ownedNames);
+        Assert.Contains("open_file",  ownedNames);
+        Assert.Contains("close_file", ownedNames);
     }
 
     [Fact]
-    public void DevAgent_EnabledTools_ContainsBothOwnedAndRegistryTools()
+    public void DevAgent_EnabledTools_ContainsOwnedTools()
     {
         var agent = new DevAgent();
 
-        // owned
-        Assert.Contains("context_load_files", agent.EnabledTools);
-        // registry
-        Assert.Contains("shell_exec",          agent.EnabledTools);
-        Assert.Contains("filesystem_read",     agent.EnabledTools);
-        Assert.Contains("git_status",          agent.EnabledTools);
+        Assert.Contains("open_file",  agent.EnabledTools);
+        Assert.Contains("close_file", agent.EnabledTools);
     }
 
     [Fact]
-    public async Task DevAgent_TryHandleToolCallAsync_HandlesOwnedContextTool()
+    public async Task DevAgent_TryHandleToolCallAsync_HandlesOwnedEditorTool()
     {
         var agent = new DevAgent();
         var args  = """{"paths": []}""";
 
         var result = await agent.TryHandleToolCallAsync(
-            "context_load_files", args, null, CancellationToken.None);
+            "open_file", args, null, CancellationToken.None);
 
         Assert.NotNull(result);
     }

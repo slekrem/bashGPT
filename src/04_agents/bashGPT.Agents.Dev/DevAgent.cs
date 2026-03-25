@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using bashGPT.Agents;
+using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Agents.Dev;
@@ -22,32 +22,17 @@ public sealed class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Context tools are owned directly — no registry needed.
+    // Editor tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
-        new ContextLoadFilesTool(),
-        new ContextUnloadFilesTool(),
-        new ContextClearFilesTool(),
+        new OpenFileTool(_workingDirectory),
+        new CloseFileTool(),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: context_load_files, context_unload_files, context_clear_files
-        "fetch",
-        "filesystem_read",
-        "filesystem_write",
-        "filesystem_search",
-        "git_status",
-        "git_diff",
-        "git_log",
-        "git_branch",
-        "git_add",
-        "git_commit",
-        "git_checkout",
-        "test_run",
-        "build_run",
-        "shell_exec",
+        .. base.EnabledTools,   // owned: open_file, close_file
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -55,7 +40,7 @@ public sealed class DevAgent : AgentBase
         TopP:              0.95,
         NumCtx:            65536,  // 64k context for files, diffs, and logs
         MaxTokens:         8192,   // enough output room for complex coding tasks
-        ReasoningEffort:   "high", // complex tasks benefit from strong reasoning
+        ReasoningEffort:   "medium", // "high" causes reasoning loops in Ollama >= 0.12.4 (ollama/ollama#12606)
         FrequencyPenalty:  0.1,    // dampen repetitive tool-call loops
         ParallelToolCalls: false,  // sequential is safer for file mutations
         Stream:            true
@@ -65,74 +50,132 @@ public sealed class DevAgent : AgentBase
 
     public override IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) =>
     [
-        """
-        You are an experienced software engineer. Solve tasks through focused tool usage.
-        Before working on a task, load relevant source files into context with 'context_load_files'.
-        """,
-        """
-        Tool call rules:
-        - Follow the schema strictly: correct types, all required fields, valid values.
-        - If a tool fails with "missing_required_field", add exactly that field and retry.
-        - If a tool fails with "invalid_type" or "invalid_value", correct only the named field.
-        - If a tool fails with "invalid_json", send valid JSON and retry.
-        - For missing optional paths, use "path": "." as the default.
-        """,
-        BuildProjectContext(),
-        BuildLoadedFilesContext(sessionPath),
+        BuildRolePrompt(),
     ];
 
-    /// <summary>
-    /// Builds project context at runtime: git info plus all tracked files.
-    /// Ignored files (.gitignore) are omitted. Rebuilt fresh for every chat request.
-    /// </summary>
-    private string BuildProjectContext()
-    {
-        var cwd = _workingDirectory;
-        var sb  = new StringBuilder("# Project Context\n\n");
+    public override IReadOnlyList<string> GetContextMessages(string? sessionPath = null) =>
+    [
+        BuildGitContext(_workingDirectory),
+        BuildFileExplorerContext(_workingDirectory),
+        .. BuildEditorMessages(sessionPath),
+    ];
 
-        sb.AppendLine($"**Directory:** `{cwd}`\n");
-        var branch     = Git("rev-parse --abbrev-ref HEAD");
-        var lastCommit = Git("log -1 --oneline");
-        if (branch is not null)
+    private static string BuildRolePrompt() =>
+        """
+        You are an experienced software engineer working inside a local dev environment.
+        Solve tasks step by step through focused, minimal tool usage — read before you write.
+        Prefer small, targeted changes over large rewrites. Never guess file contents.
+
+        You have an Editor: use 'open_file' to open files into it before working on them.
+        The Editor always reflects the latest file content. Re-read from disk on every request.
+        Use 'close_file' to close files you no longer need. Pass [] to close all open files.
+        """;
+
+    /// <summary>
+    /// Builds a git context: branch, upstream, recent commits, and working tree status.
+    /// </summary>
+    private static string BuildGitContext(string workingDirectory)
+    {
+        var branch = Git("rev-parse --abbrev-ref HEAD", workingDirectory);
+        if (branch is null) return string.Empty;
+
+        var sb = new StringBuilder("# Git Context\n\n");
+
+        var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}", workingDirectory);
+        sb.AppendLine(upstream is not null
+            ? $"**Branch:** `{branch}` → `{upstream}`"
+            : $"**Branch:** `{branch}` (no upstream)");
+
+        var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
+        var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
+        if (ahead is not null && behind is not null)
+            sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind");
+
+        var log = Git("log -5 --oneline", workingDirectory);
+        if (log is not null)
         {
-            sb.AppendLine("**Git:**");
-            sb.AppendLine($"- Branch: `{branch}`");
-            if (lastCommit is not null)
-                sb.AppendLine($"- Last commit: `{lastCommit}`");
-            sb.AppendLine();
+            sb.AppendLine("\n**Recent commits:**");
+            foreach (var line in log.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                sb.AppendLine($"- `{line}`");
         }
 
-        var files = Git("ls-files");
-        if (files is not null)
+        var status = Git("status --short", workingDirectory);
+        if (status is not null)
         {
-            var grouped = files
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .GroupBy(f => f.Contains('/') ? f[..f.IndexOf('/')] : ".")
-                .OrderBy(g => g.Key);
-
-            sb.AppendLine("**Files (git tracked):**");
-            foreach (var group in grouped)
-            {
-                sb.AppendLine($"\n`{group.Key}/`");
-                foreach (var file in group.Order())
-                    sb.AppendLine($"  - `{file}`");
-            }
-            sb.AppendLine();
+            sb.AppendLine("\n**Working tree:**");
+            sb.AppendLine("```");
+            sb.AppendLine(status);
+            sb.Append("```");
         }
 
         return sb.ToString().TrimEnd();
     }
 
     /// <summary>
-    /// Loads all files stored in the cache and returns their content as formatted text.
-    /// Empty strings are filtered automatically by ServerChatRunner.
+    /// Builds a directory tree of all git-tracked and untracked files.
+    /// Untracked files are marked with (*).
     /// </summary>
-    private static string BuildLoadedFilesContext(string? sessionPath = null)
+    private static string BuildFileExplorerContext(string workingDirectory)
     {
-        var paths = ContextFileCache.ReadFiles(sessionPath);
-        if (paths.Count == 0) return string.Empty;
+        var tracked   = Git("ls-files", workingDirectory)?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var untracked = Git("ls-files --others --exclude-standard", workingDirectory)?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
-        var sb = new StringBuilder("# Loaded Files\n\n");
+        if (tracked.Length == 0 && untracked.Length == 0) return string.Empty;
+
+        var untrackedSet = new HashSet<string>(untracked);
+        var root = new SortedDictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in tracked.Concat(untracked).Distinct().Order())
+        {
+            var parts = path.Split('/');
+            InsertIntoTree(root, parts, 0, untrackedSet.Contains(path));
+        }
+
+        var sb = new StringBuilder("# File Explorer\n\n```\n");
+        RenderTree(sb, root, "");
+        sb.Append("```");
+        if (untrackedSet.Count > 0)
+            sb.Append("\n\n`*` = untracked (not yet staged)");
+        return sb.ToString();
+    }
+
+    private static void InsertIntoTree(SortedDictionary<string, object?> node, string[] parts, int depth, bool untracked)
+    {
+        if (depth == parts.Length - 1)
+        {
+            node[untracked ? parts[depth] + " *" : parts[depth]] = null;
+            return;
+        }
+        var dir = parts[depth] + "/";
+        if (!node.TryGetValue(dir, out var child) || child is not SortedDictionary<string, object?>)
+        {
+            child = new SortedDictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            node[dir] = child;
+        }
+        InsertIntoTree((SortedDictionary<string, object?>)child, parts, depth + 1, untracked);
+    }
+
+    private static void RenderTree(StringBuilder sb, SortedDictionary<string, object?> node, string prefix)
+    {
+        var entries = node.ToList();
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var isLast = i == entries.Count - 1;
+            sb.AppendLine($"{prefix}{(isLast ? "└── " : "├── ")}{entries[i].Key}");
+            if (entries[i].Value is SortedDictionary<string, object?> child)
+                RenderTree(sb, child, prefix + (isLast ? "    " : "│   "));
+        }
+    }
+
+    /// <summary>
+    /// Returns a single message containing all open files.
+    /// File contents are re-read from disk on every request so changes are always current.
+    /// </summary>
+    private static IReadOnlyList<string> BuildEditorMessages(string? sessionPath = null)
+    {
+        var paths = EditorState.ReadFiles(sessionPath);
+        if (paths.Count == 0) return [];
+
+        var sb = new StringBuilder("# Editor\n\nThe following files reflect the exact current state on disk — treat them as ground truth.\n\n");
         foreach (var path in paths)
         {
             if (!File.Exists(path)) continue;
@@ -141,27 +184,27 @@ public sealed class DevAgent : AgentBase
                 var info = new FileInfo(path);
                 if (info.Length > 131_072)
                 {
-                    sb.AppendLine($"## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.\n");
+                    sb.AppendLine($"> `{path}` — file too large ({info.Length / 1024} KB), skipped.\n");
                     continue;
                 }
-
-                sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
+                sb.AppendLine();
             }
             catch (Exception ex)
             {
-                sb.AppendLine($"## `{path}`\n\n> Read error: {ex.Message}\n");
+                sb.AppendLine($"> `{path}` — read error: {ex.Message}\n");
             }
         }
-
-        return sb.ToString().TrimEnd();
+        return [sb.ToString().TrimEnd()];
     }
 
-    private static string? Git(string args)
+    private static string? Git(string args, string workingDirectory)
     {
         try
         {
             using var proc = Process.Start(new ProcessStartInfo("git", args)
             {
+                WorkingDirectory       = workingDirectory,
                 RedirectStandardOutput = true,
                 UseShellExecute        = false,
                 CreateNoWindow         = true,
@@ -176,56 +219,6 @@ public sealed class DevAgent : AgentBase
         }
     }
 
-    protected override string GetAgentMarkdown(string? sessionPath = null)
-    {
-        var sb = new StringBuilder("""
-            # Dev-Agent
-
-            Specialized software development agent with full access to filesystem, git, build, and testing tools.
-
-            ## Capabilities
-
-            - Read, write, and search files
-            - Git operations (status, diff, log, branch, commit, checkout)
-            - Run builds and evaluate test results
-            - Execute shell commands
-            - Fetch web content
-
-            ## Enabled Tools
-
-            | Tool | Description |
-            |---|---|
-            | `fetch` | Fetch web content |
-            | `filesystem_read` | Read files and directories |
-            | `filesystem_write` | Create and edit files |
-            | `filesystem_search` | Search files by pattern |
-            | `git_status` | Show git status |
-            | `git_diff` | Compare changes |
-            | `git_log` | Inspect commit history |
-            | `git_branch` | Manage branches |
-            | `git_add` | Stage changes |
-            | `git_commit` | Create commits |
-            | `git_checkout` | Switch branches |
-            | `test_run` | Run tests |
-            | `build_run` | Start a build |
-            | `shell_exec` | Execute shell commands |
-
-            ## Notes
-
-            This agent follows strict tool-call rules and automatically retries invalid calls with corrected arguments.
-            """);
-
-        var loadedFiles = ContextFileCache.ReadFiles(sessionPath);
-        if (loadedFiles.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine();
-            sb.AppendLine("## Loaded Context Files");
-            sb.AppendLine();
-            foreach (var path in loadedFiles)
-                sb.AppendLine($"- `{path}`");
-        }
-
-        return sb.ToString();
-    }
+    protected override string GetAgentMarkdown(string? sessionPath = null) =>
+        string.Join("\n\n---\n\n", GetSystemPrompt(sessionPath).Where(s => !string.IsNullOrWhiteSpace(s)));
 }

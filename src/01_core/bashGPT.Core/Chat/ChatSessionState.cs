@@ -11,7 +11,8 @@ public sealed class ChatSessionState(
     AgentLlmConfig? llmConfig = null,
     Action<string>? onReasoningToken = null,
     Func<int, string, Task>? onLlmRequestJson = null,
-    Func<int, string, Task>? onLlmResponseJson = null)
+    Func<int, string, Task>? onLlmResponseJson = null,
+    Func<IReadOnlyList<string>>? contextMessages = null)
 {
     public ILlmProvider Provider { get; } = provider;
     public List<ChatMessage> Messages { get; } = [];
@@ -28,6 +29,7 @@ public sealed class ChatSessionState(
         RefreshSystemMessages();
         Messages.AddRange(history);
         Messages.Add(new ChatMessage(ChatRole.User, prompt));
+        RefreshContextMessages();
     }
 
     public void RefreshSystemMessages()
@@ -46,6 +48,28 @@ public sealed class ChatSessionState(
 
         for (var i = freshPrompts.Count - 1; i >= 0; i--)
             Messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
+    }
+
+    public void RefreshContextMessages()
+    {
+        if (contextMessages is null)
+            return;
+
+        // Remove all previously injected context messages.
+        Messages.RemoveAll(m => m.Role == ChatRole.Context);
+
+        var fresh = contextMessages()
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => new ChatMessage(ChatRole.Context, c))
+            .ToList();
+
+        if (fresh.Count == 0) return;
+
+        // Always insert right after system messages, before history and the current prompt.
+        var insertAt = Messages.FindIndex(m => m.Role != ChatRole.System);
+        if (insertAt < 0) insertAt = Messages.Count;
+
+        Messages.InsertRange(insertAt, fresh);
     }
 
     public async Task<(LlmChatResponse Response, string? Error)> CallOnceAsync(

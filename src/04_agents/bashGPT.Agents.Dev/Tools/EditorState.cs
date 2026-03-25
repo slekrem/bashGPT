@@ -1,15 +1,15 @@
 using System.Text;
 
-namespace bashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
-/// Manages a persistent list of file paths that the dev agent loads into context.
-/// Stored as "context-files" in the session directory.
+/// Manages the list of files currently open in the Editor.
+/// Stored as "editor-files" in the session directory.
 /// The session path is passed explicitly via the <c>sessionPath</c> parameter on each method.
 /// </summary>
-public static class ContextFileCache
+public static class EditorState
 {
-    private const string CacheFileName = "context-files";
+    private const string CacheFileName = "editor-files";
 
     public static string GetCachePath(string? sessionPath = null)
     {
@@ -18,7 +18,7 @@ public static class ContextFileCache
         return Path.Combine(dir, CacheFileName);
     }
 
-    /// <summary>Adds new paths to the cache, ignoring duplicates.</summary>
+    /// <summary>Adds new paths to the editor, ignoring duplicates.</summary>
     public static void AddFiles(IEnumerable<string> paths, string? sessionPath = null)
     {
         var existing = ReadFiles(sessionPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -29,7 +29,7 @@ public static class ContextFileCache
         File.AppendAllLines(cachePath, newPaths);
     }
 
-    /// <summary>Returns all stored file paths.</summary>
+    /// <summary>Returns all currently open file paths.</summary>
     public static IReadOnlyList<string> ReadFiles(string? sessionPath = null)
     {
         var cachePath = GetCachePath(sessionPath);
@@ -40,7 +40,7 @@ public static class ContextFileCache
             .ToList();
     }
 
-    /// <summary>Removes specific paths from the cache.</summary>
+    /// <summary>Removes specific paths from the editor.</summary>
     public static void RemoveFiles(IEnumerable<string> paths, string? sessionPath = null)
     {
         var toRemove = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -62,6 +62,9 @@ public static class ContextFileCache
     {
         var ext   = Path.GetExtension(path).TrimStart('.');
         var lines = content.Split('\n');
+        // Drop trailing empty element produced by a final newline
+        if (lines.Length > 0 && string.IsNullOrEmpty(lines[^1].TrimEnd()))
+            lines = lines[..^1];
         var width = lines.Length.ToString().Length;
         var sb    = new StringBuilder();
         sb.AppendLine($"## `{path}`\n\n```{ext}");
@@ -71,7 +74,7 @@ public static class ContextFileCache
         return sb.ToString();
     }
 
-    /// <summary>Deletes the cache file.</summary>
+    /// <summary>Closes all open files.</summary>
     public static void Clear(string? sessionPath = null)
     {
         var cachePath = GetCachePath(sessionPath);

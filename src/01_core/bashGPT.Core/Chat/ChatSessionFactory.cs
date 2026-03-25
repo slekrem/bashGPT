@@ -15,7 +15,8 @@ public static class ChatSessionFactory
         AgentLlmConfig? llmConfig = null,
         Action<string>? onReasoningToken = null,
         Func<int, string, Task>? onLlmRequestJson = null,
-        Func<int, string, Task>? onLlmResponseJson = null)
+        Func<int, string, Task>? onLlmResponseJson = null,
+        Func<IReadOnlyList<string>>? contextMessages = null)
     {
         var session = new ChatSessionState(
             provider,
@@ -25,7 +26,8 @@ public static class ChatSessionFactory
             llmConfig,
             onReasoningToken,
             onLlmRequestJson,
-            onLlmResponseJson);
+            onLlmResponseJson,
+            contextMessages);
 
         session.InitializeMessages(history, prompt);
         return session;
