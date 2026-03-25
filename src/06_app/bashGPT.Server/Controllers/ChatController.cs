@@ -177,6 +177,7 @@ public sealed class ChatController(
                 : null,
             Tools: resolvedTools.Count > 0 ? resolvedTools : null,
             SystemPrompt: agent is not null ? sp => agent.GetSystemPrompt(sp) : null,
+            ContextMessages: agent is not null ? sp => agent.GetContextMessages(sp) : null,
             LlmConfig: llmConfig,
             SessionPath: sessionService.GetSessionPath(sessionId),
             Agent: agent);

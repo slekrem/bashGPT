@@ -15,6 +15,7 @@ public static class ChatSessionBootstrap
         string prompt,
         Func<AppConfig, string?>? toolChoiceFactory = null,
         Func<IReadOnlyList<string>>? systemPrompt = null,
+        Func<IReadOnlyList<string>>? contextMessages = null,
         AgentLlmConfig? llmConfig = null,
         Action<string>? onReasoningToken = null,
         Func<int, string, Task>? onLlmRequestJson = null,
@@ -45,7 +46,8 @@ public static class ChatSessionBootstrap
             llmConfig,
             onReasoningToken,
             onLlmRequestJson,
-            onLlmResponseJson);
+            onLlmResponseJson,
+            contextMessages);
 
         return new ChatSessionBootstrapResult(
             providerBootstrap.Config,

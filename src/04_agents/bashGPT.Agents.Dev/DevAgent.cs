@@ -53,8 +53,10 @@ public sealed class DevAgent : AgentBase
         BuildRolePrompt(),
         BuildGitContext(_workingDirectory),
         BuildFileExplorerContext(_workingDirectory),
-        BuildEditorContext(sessionPath),
     ];
+
+    public override IReadOnlyList<string> GetContextMessages(string? sessionPath = null) =>
+        BuildEditorMessages(sessionPath);
 
     private static string BuildRolePrompt() =>
         """
@@ -163,15 +165,15 @@ public sealed class DevAgent : AgentBase
     }
 
     /// <summary>
-    /// Builds the Editor context: current file contents plus git diff for each loaded file.
+    /// Returns one system prompt message per open file.
     /// File contents are re-read from disk on every request so changes are always current.
     /// </summary>
-    private static string BuildEditorContext(string? sessionPath = null)
+    private static IReadOnlyList<string> BuildEditorMessages(string? sessionPath = null)
     {
         var paths = EditorState.ReadFiles(sessionPath);
-        if (paths.Count == 0) return string.Empty;
+        if (paths.Count == 0) return [];
 
-        var sb = new StringBuilder("# Editor\n\n");
+        var messages = new List<string>();
         foreach (var path in paths)
         {
             if (!File.Exists(path)) continue;
@@ -180,19 +182,17 @@ public sealed class DevAgent : AgentBase
                 var info = new FileInfo(path);
                 if (info.Length > 131_072)
                 {
-                    sb.AppendLine($"## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.\n");
+                    messages.Add($"# Editor\n\n## `{path}`\n\n> File too large ({info.Length / 1024} KB), skipped.");
                     continue;
                 }
-
-                sb.Append(EditorState.FormatFileBlock(path, File.ReadAllText(path)));
+                messages.Add($"# Editor\n\nThe following file reflects the exact current state on disk — treat this as ground truth.\n\n{EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd()}");
             }
             catch (Exception ex)
             {
-                sb.AppendLine($"## `{path}`\n\n> Read error: {ex.Message}\n");
+                messages.Add($"# Editor\n\n## `{path}`\n\n> Read error: {ex.Message}");
             }
         }
-
-        return sb.ToString().TrimEnd();
+        return messages;
     }
 
     private static string? Git(string args, string workingDirectory)

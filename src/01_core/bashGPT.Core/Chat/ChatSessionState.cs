@@ -11,7 +11,8 @@ public sealed class ChatSessionState(
     AgentLlmConfig? llmConfig = null,
     Action<string>? onReasoningToken = null,
     Func<int, string, Task>? onLlmRequestJson = null,
-    Func<int, string, Task>? onLlmResponseJson = null)
+    Func<int, string, Task>? onLlmResponseJson = null,
+    Func<IReadOnlyList<string>>? contextMessages = null)
 {
     public ILlmProvider Provider { get; } = provider;
     public List<ChatMessage> Messages { get; } = [];
@@ -22,11 +23,17 @@ public sealed class ChatSessionState(
     public int TotalInputTokens { get; private set; }
     public int TotalOutputTokens { get; private set; }
 
+    // Tracks index of the current user prompt so context messages can be refreshed around it.
+    private int _promptIndex = -1;
+    private int _contextCount = 0;
+
     public void InitializeMessages(IEnumerable<ChatMessage> history, string prompt)
     {
         Messages.Clear();
         RefreshSystemMessages();
         Messages.AddRange(history);
+        RefreshContextMessages();
+        _promptIndex = Messages.Count;
         Messages.Add(new ChatMessage(ChatRole.User, prompt));
     }
 
@@ -46,6 +53,38 @@ public sealed class ChatSessionState(
 
         for (var i = freshPrompts.Count - 1; i >= 0; i--)
             Messages.Insert(0, new ChatMessage(ChatRole.System, freshPrompts[i]));
+
+        // Keep _promptIndex in sync with the change in system message count.
+        if (_promptIndex >= 0)
+            _promptIndex += freshPrompts.Count - removeCount;
+    }
+
+    public void RefreshContextMessages()
+    {
+        if (contextMessages is null)
+            return;
+
+        // Remove previously injected context messages just before the prompt.
+        if (_promptIndex >= 0 && _contextCount > 0)
+        {
+            var removeAt = _promptIndex - _contextCount;
+            Messages.RemoveRange(removeAt, _contextCount);
+            _promptIndex -= _contextCount;
+        }
+
+        var fresh = contextMessages()
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => new ChatMessage(ChatRole.User, c, IsContext: true))
+            .ToList();
+
+        if (fresh.Count > 0)
+        {
+            var insertAt = _promptIndex >= 0 ? _promptIndex : Messages.Count;
+            Messages.InsertRange(insertAt, fresh);
+            if (_promptIndex >= 0) _promptIndex += fresh.Count;
+        }
+
+        _contextCount = fresh.Count;
     }
 
     public async Task<(LlmChatResponse Response, string? Error)> CallOnceAsync(

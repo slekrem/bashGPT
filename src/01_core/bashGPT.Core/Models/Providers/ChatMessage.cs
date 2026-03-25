@@ -5,7 +5,8 @@ public record ChatMessage(
     string Content,
     IReadOnlyList<ToolCall>? ToolCalls = null,
     string? ToolCallId = null,
-    string? ToolName = null)
+    string? ToolName = null,
+    bool IsContext = false)
 {
     public string RoleString => Role switch
     {
