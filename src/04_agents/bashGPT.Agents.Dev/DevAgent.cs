@@ -67,7 +67,8 @@ public sealed class DevAgent : AgentBase
     [
         BuildRolePrompt(),
         BuildToolCallRulesPrompt(),
-        BuildProjectContext(),
+        BuildGitContext(),
+        BuildFileExplorerContext(),
         BuildLoadedFilesContext(sessionPath),
     ];
 
@@ -92,45 +93,98 @@ public sealed class DevAgent : AgentBase
         """;
 
     /// <summary>
-    /// Builds project context at runtime: git info plus all tracked files.
-    /// Ignored files (.gitignore) are omitted. Rebuilt fresh for every chat request.
+    /// Builds a git context: branch, upstream, recent commits, and working tree status.
     /// </summary>
-    private string BuildProjectContext()
+    private static string BuildGitContext()
     {
-        var cwd = _workingDirectory;
-        var sb  = new StringBuilder("# Project Context\n\n");
+        var branch = Git("rev-parse --abbrev-ref HEAD");
+        if (branch is null) return string.Empty;
 
-        sb.AppendLine($"**Directory:** `{cwd}`\n");
-        var branch     = Git("rev-parse --abbrev-ref HEAD");
-        var lastCommit = Git("log -1 --oneline");
-        if (branch is not null)
+        var sb = new StringBuilder("# Git Context\n\n");
+
+        var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}");
+        sb.AppendLine(upstream is not null
+            ? $"**Branch:** `{branch}` → `{upstream}`"
+            : $"**Branch:** `{branch}` (no upstream)");
+
+        var ahead  = Git("rev-list --count @{u}..HEAD 2>/dev/null");
+        var behind = Git("rev-list --count HEAD..@{u} 2>/dev/null");
+        if (ahead is not null && behind is not null)
+            sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind");
+
+        var log = Git("log -5 --oneline");
+        if (log is not null)
         {
-            sb.AppendLine("**Git:**");
-            sb.AppendLine($"- Branch: `{branch}`");
-            if (lastCommit is not null)
-                sb.AppendLine($"- Last commit: `{lastCommit}`");
-            sb.AppendLine();
+            sb.AppendLine("\n**Recent commits:**");
+            foreach (var line in log.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                sb.AppendLine($"- `{line}`");
         }
 
-        var files = Git("ls-files");
-        if (files is not null)
+        var status = Git("status --short");
+        if (status is not null)
         {
-            var grouped = files
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .GroupBy(f => f.Contains('/') ? f[..f.IndexOf('/')] : ".")
-                .OrderBy(g => g.Key);
-
-            sb.AppendLine("**Files (git tracked):**");
-            foreach (var group in grouped)
-            {
-                sb.AppendLine($"\n`{group.Key}/`");
-                foreach (var file in group.Order())
-                    sb.AppendLine($"  - `{file}`");
-            }
-            sb.AppendLine();
+            sb.AppendLine("\n**Working tree:**");
+            sb.AppendLine("```");
+            sb.AppendLine(status);
+            sb.Append("```");
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Builds a directory tree of all git-tracked and untracked files.
+    /// Untracked files are marked with (*).
+    /// </summary>
+    private static string BuildFileExplorerContext()
+    {
+        var tracked   = Git("ls-files")?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var untracked = Git("ls-files --others --exclude-standard")?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
+
+        if (tracked.Length == 0 && untracked.Length == 0) return string.Empty;
+
+        var untrackedSet = new HashSet<string>(untracked);
+        var root = new SortedDictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in tracked.Concat(untracked).Distinct().Order())
+        {
+            var parts = path.Split('/');
+            InsertIntoTree(root, parts, 0, untrackedSet.Contains(path));
+        }
+
+        var sb = new StringBuilder("# File Explorer\n\n```\n");
+        RenderTree(sb, root, "");
+        sb.Append("```");
+        if (untrackedSet.Count > 0)
+            sb.Append("\n\n`*` = untracked (not yet staged)");
+        return sb.ToString();
+    }
+
+    private static void InsertIntoTree(SortedDictionary<string, object?> node, string[] parts, int depth, bool untracked)
+    {
+        if (depth == parts.Length - 1)
+        {
+            node[untracked ? parts[depth] + " *" : parts[depth]] = null;
+            return;
+        }
+        var dir = parts[depth] + "/";
+        if (!node.TryGetValue(dir, out var child) || child is not SortedDictionary<string, object?>)
+        {
+            child = new SortedDictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            node[dir] = child;
+        }
+        InsertIntoTree((SortedDictionary<string, object?>)child, parts, depth + 1, untracked);
+    }
+
+    private static void RenderTree(StringBuilder sb, SortedDictionary<string, object?> node, string prefix)
+    {
+        var entries = node.ToList();
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var isLast = i == entries.Count - 1;
+            sb.AppendLine($"{prefix}{(isLast ? "└── " : "├── ")}{entries[i].Key}");
+            if (entries[i].Value is SortedDictionary<string, object?> child)
+                RenderTree(sb, child, prefix + (isLast ? "    " : "│   "));
+        }
     }
 
     /// <summary>
