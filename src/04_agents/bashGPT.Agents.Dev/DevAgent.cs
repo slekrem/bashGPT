@@ -25,29 +25,14 @@ public sealed class DevAgent : AgentBase
     // Editor tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
-        new EditorOpenTool(),
-        new EditorCloseTool(),
-        new EditorClearTool(),
+        new OpenFileTool(_workingDirectory),
+        new CloseFileTool(),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: editor_open, editor_close, editor_clear
-        /*"fetch",
-        "filesystem_read",
-        "filesystem_write",
-        "filesystem_search",
-        "git_status",
-        "git_diff",
-        "git_log",
-        "git_branch",
-        "git_add",
-        "git_commit",
-        "git_checkout",
-        "test_run",
-        "build_run",
-        "shell_exec",*/
+        .. base.EnabledTools,   // owned: open_file, close_file
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -66,7 +51,6 @@ public sealed class DevAgent : AgentBase
     public override IReadOnlyList<string> GetSystemPrompt(string? sessionPath = null) =>
     [
         BuildRolePrompt(),
-        BuildToolCallRulesPrompt(),
         BuildGitContext(_workingDirectory),
         BuildFileExplorerContext(_workingDirectory),
         BuildEditorContext(sessionPath),
@@ -78,21 +62,9 @@ public sealed class DevAgent : AgentBase
         Solve tasks step by step through focused, minimal tool usage — read before you write.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
-        You have an Editor: use 'editor_open' to open files into it before working on them.
-        The Editor always reflects the latest file content and shows git diffs automatically on each request.
-        Use 'editor_close' to close files you no longer need, and 'editor_clear' to reset.
-        """;
-
-    private static string BuildToolCallRulesPrompt() =>
-        """
-        Tool call rules — follow strictly, no exceptions:
-        - Match the schema exactly: correct types, all required fields, valid values.
-        - Never invent or omit fields; use the schema as the single source of truth.
-        - "missing_required_field": add the named field and retry.
-        - "invalid_type" / "invalid_value": correct only the named field and retry.
-        - "invalid_json": send well-formed JSON and retry.
-        - Missing optional path: default to "path": ".".
-        - Do not retry more than once per error; escalate if the same error repeats.
+        You have an Editor: use 'open_file' to open files into it before working on them.
+        The Editor always reflects the latest file content. Re-read from disk on every request.
+        Use 'close_file' to close files you no longer need. Pass [] to close all open files.
         """;
 
     /// <summary>
@@ -194,7 +166,7 @@ public sealed class DevAgent : AgentBase
     /// Builds the Editor context: current file contents plus git diff for each loaded file.
     /// File contents are re-read from disk on every request so changes are always current.
     /// </summary>
-    private string BuildEditorContext(string? sessionPath = null)
+    private static string BuildEditorContext(string? sessionPath = null)
     {
         var paths = EditorState.ReadFiles(sessionPath);
         if (paths.Count == 0) return string.Empty;
@@ -213,15 +185,6 @@ public sealed class DevAgent : AgentBase
                 }
 
                 sb.Append(EditorState.FormatFileBlock(path, File.ReadAllText(path)));
-
-                var diff = Git($"diff HEAD -- \"{path}\"", _workingDirectory);
-                if (diff is not null)
-                {
-                    sb.AppendLine("\n**Changes since last commit:**");
-                    sb.AppendLine("```diff");
-                    sb.AppendLine(diff);
-                    sb.AppendLine("```");
-                }
             }
             catch (Exception ex)
             {

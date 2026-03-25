@@ -77,22 +77,17 @@ public class AgentOwnedToolsTests
         var agent = new DevAgent();
         var ownedNames = agent.GetOwnedTools().Select(t => t.Definition.Name).ToArray();
 
-        Assert.Contains("editor_open",  ownedNames);
-        Assert.Contains("editor_close", ownedNames);
-        Assert.Contains("editor_clear", ownedNames);
+        Assert.Contains("open_file",  ownedNames);
+        Assert.Contains("close_file", ownedNames);
     }
 
     [Fact]
-    public void DevAgent_EnabledTools_ContainsBothOwnedAndRegistryTools()
+    public void DevAgent_EnabledTools_ContainsOwnedTools()
     {
         var agent = new DevAgent();
 
-        // owned
-        Assert.Contains("editor_open",     agent.EnabledTools);
-        // registry
-        Assert.Contains("shell_exec",      agent.EnabledTools);
-        Assert.Contains("filesystem_read", agent.EnabledTools);
-        Assert.Contains("git_status",      agent.EnabledTools);
+        Assert.Contains("open_file",  agent.EnabledTools);
+        Assert.Contains("close_file", agent.EnabledTools);
     }
 
     [Fact]
@@ -102,7 +97,7 @@ public class AgentOwnedToolsTests
         var args  = """{"paths": []}""";
 
         var result = await agent.TryHandleToolCallAsync(
-            "editor_open", args, null, CancellationToken.None);
+            "open_file", args, null, CancellationToken.None);
 
         Assert.NotNull(result);
     }

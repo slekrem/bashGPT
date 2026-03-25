@@ -14,23 +14,17 @@ public class DevAgentTests
     }
 
     [Fact]
-    public void DevAgent_EnabledTools_ContainsExpectedTools()
+    public void DevAgent_EnabledTools_ContainsEditorTools()
     {
-        Assert.Contains("fetch", _agent.EnabledTools);
-        Assert.Contains("filesystem_search", _agent.EnabledTools);
-        Assert.Contains("shell_exec", _agent.EnabledTools);
-        Assert.Contains("git_status", _agent.EnabledTools);
-        Assert.Contains("test_run", _agent.EnabledTools);
-        Assert.Contains("build_run", _agent.EnabledTools);
+        Assert.Contains("open_file",  _agent.EnabledTools);
+        Assert.Contains("close_file", _agent.EnabledTools);
     }
 
     [Fact]
-    public void DevAgent_SystemPrompt_ContainsToolCallRules()
+    public void DevAgent_SystemPrompt_ContainsEditorInstructions()
     {
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_json", StringComparison.Ordinal));
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("missing_required_field", StringComparison.Ordinal));
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_type", StringComparison.Ordinal));
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("invalid_value", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("open_file", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("close_file", StringComparison.Ordinal));
     }
 
     [Fact]
