@@ -67,8 +67,8 @@ public sealed class DevAgent : AgentBase
     [
         BuildRolePrompt(),
         BuildToolCallRulesPrompt(),
-        BuildGitContext(),
-        BuildFileExplorerContext(),
+        BuildGitContext(_workingDirectory),
+        BuildFileExplorerContext(_workingDirectory),
         BuildEditorContext(sessionPath),
     ];
 
@@ -98,24 +98,24 @@ public sealed class DevAgent : AgentBase
     /// <summary>
     /// Builds a git context: branch, upstream, recent commits, and working tree status.
     /// </summary>
-    private static string BuildGitContext()
+    private static string BuildGitContext(string workingDirectory)
     {
-        var branch = Git("rev-parse --abbrev-ref HEAD");
+        var branch = Git("rev-parse --abbrev-ref HEAD", workingDirectory);
         if (branch is null) return string.Empty;
 
         var sb = new StringBuilder("# Git Context\n\n");
 
-        var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}");
+        var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}", workingDirectory);
         sb.AppendLine(upstream is not null
             ? $"**Branch:** `{branch}` → `{upstream}`"
             : $"**Branch:** `{branch}` (no upstream)");
 
-        var ahead  = Git("rev-list --count @{u}..HEAD 2>/dev/null");
-        var behind = Git("rev-list --count HEAD..@{u} 2>/dev/null");
+        var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
+        var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
         if (ahead is not null && behind is not null)
             sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind");
 
-        var log = Git("log -5 --oneline");
+        var log = Git("log -5 --oneline", workingDirectory);
         if (log is not null)
         {
             sb.AppendLine("\n**Recent commits:**");
@@ -123,7 +123,7 @@ public sealed class DevAgent : AgentBase
                 sb.AppendLine($"- `{line}`");
         }
 
-        var status = Git("status --short");
+        var status = Git("status --short", workingDirectory);
         if (status is not null)
         {
             sb.AppendLine("\n**Working tree:**");
@@ -139,10 +139,10 @@ public sealed class DevAgent : AgentBase
     /// Builds a directory tree of all git-tracked and untracked files.
     /// Untracked files are marked with (*).
     /// </summary>
-    private static string BuildFileExplorerContext()
+    private static string BuildFileExplorerContext(string workingDirectory)
     {
-        var tracked   = Git("ls-files")?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        var untracked = Git("ls-files --others --exclude-standard")?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var tracked   = Git("ls-files", workingDirectory)?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var untracked = Git("ls-files --others --exclude-standard", workingDirectory)?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
         if (tracked.Length == 0 && untracked.Length == 0) return string.Empty;
 
@@ -194,7 +194,7 @@ public sealed class DevAgent : AgentBase
     /// Builds the Editor context: current file contents plus git diff for each loaded file.
     /// File contents are re-read from disk on every request so changes are always current.
     /// </summary>
-    private static string BuildEditorContext(string? sessionPath = null)
+    private string BuildEditorContext(string? sessionPath = null)
     {
         var paths = ContextFileCache.ReadFiles(sessionPath);
         if (paths.Count == 0) return string.Empty;
@@ -214,7 +214,7 @@ public sealed class DevAgent : AgentBase
 
                 sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
 
-                var diff = Git($"diff HEAD -- \"{path}\"");
+                var diff = Git($"diff HEAD -- \"{path}\"", _workingDirectory);
                 if (diff is not null)
                 {
                     sb.AppendLine("\n**Changes since last commit:**");
@@ -232,12 +232,13 @@ public sealed class DevAgent : AgentBase
         return sb.ToString().TrimEnd();
     }
 
-    private static string? Git(string args)
+    private static string? Git(string args, string workingDirectory)
     {
         try
         {
             using var proc = Process.Start(new ProcessStartInfo("git", args)
             {
+                WorkingDirectory       = workingDirectory,
                 RedirectStandardOutput = true,
                 UseShellExecute        = false,
                 CreateNoWindow         = true,
