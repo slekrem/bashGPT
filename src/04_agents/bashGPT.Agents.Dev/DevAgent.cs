@@ -69,15 +69,18 @@ public sealed class DevAgent : AgentBase
         BuildToolCallRulesPrompt(),
         BuildGitContext(),
         BuildFileExplorerContext(),
-        BuildLoadedFilesContext(sessionPath),
+        BuildEditorContext(sessionPath),
     ];
 
     private static string BuildRolePrompt() =>
         """
         You are an experienced software engineer working inside a local dev environment.
         Solve tasks step by step through focused, minimal tool usage — read before you write.
-        Always load the relevant source files with 'context_load_files' before starting work.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
+
+        You have an Editor: use 'context_load_files' to open files into it before working on them.
+        The Editor always reflects the latest file content and shows git diffs automatically on each request.
+        Use 'context_unload_files' to close files you no longer need, and 'context_clear_files' to reset.
         """;
 
     private static string BuildToolCallRulesPrompt() =>
@@ -188,15 +191,15 @@ public sealed class DevAgent : AgentBase
     }
 
     /// <summary>
-    /// Loads all files stored in the cache and returns their content as formatted text.
-    /// Empty strings are filtered automatically by ServerChatRunner.
+    /// Builds the Editor context: current file contents plus git diff for each loaded file.
+    /// File contents are re-read from disk on every request so changes are always current.
     /// </summary>
-    private static string BuildLoadedFilesContext(string? sessionPath = null)
+    private static string BuildEditorContext(string? sessionPath = null)
     {
         var paths = ContextFileCache.ReadFiles(sessionPath);
         if (paths.Count == 0) return string.Empty;
 
-        var sb = new StringBuilder("# Loaded Files\n\n");
+        var sb = new StringBuilder("# Editor\n\n");
         foreach (var path in paths)
         {
             if (!File.Exists(path)) continue;
@@ -210,6 +213,15 @@ public sealed class DevAgent : AgentBase
                 }
 
                 sb.Append(ContextFileCache.FormatFileBlock(path, File.ReadAllText(path)));
+
+                var diff = Git($"diff HEAD -- \"{path}\"");
+                if (diff is not null)
+                {
+                    sb.AppendLine("\n**Changes since last commit:**");
+                    sb.AppendLine("```diff");
+                    sb.AppendLine(diff);
+                    sb.AppendLine("```");
+                }
             }
             catch (Exception ex)
             {
