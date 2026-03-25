@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace bashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
 /// Manages a persistent list of file paths that the dev agent loads into context.

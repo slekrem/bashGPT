@@ -1,6 +1,6 @@
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Agents.Dev;
+namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
 /// Built-in dev agent tool: clears the entire session-scoped context cache.

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using bashGPT.Agents;
+using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Agents.Dev;
