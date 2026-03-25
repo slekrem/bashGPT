@@ -55,7 +55,7 @@ public sealed class DevAgent : AgentBase
         TopP:              0.95,
         NumCtx:            65536,  // 64k context for files, diffs, and logs
         MaxTokens:         8192,   // enough output room for complex coding tasks
-        ReasoningEffort:   "high", // complex tasks benefit from strong reasoning
+        ReasoningEffort:   "medium", // "high" causes reasoning loops in Ollama >= 0.12.4 (ollama/ollama#12606)
         FrequencyPenalty:  0.1,    // dampen repetitive tool-call loops
         ParallelToolCalls: false,  // sequential is safer for file mutations
         Stream:            true
