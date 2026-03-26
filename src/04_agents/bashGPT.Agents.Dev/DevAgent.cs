@@ -120,6 +120,8 @@ public sealed partial class DevAgent : AgentBase
         edit_file  — replaces an exact string in an existing file with a new string.
           {"path": "src/Foo.cs", "old_string": "... exact text ...", "new_string": "... replacement ..."}
           old_string must match exactly once — add surrounding context if needed to make it unique.
+          new_string must use the exact same indentation (spaces or tabs) as the surrounding code.
+          Include enough lines in old_string so the insertion point is unambiguous.
           Prefer this over write_file for small, targeted changes.
           Always read the file first so old_string matches the actual content exactly.
 
@@ -192,35 +194,35 @@ public sealed partial class DevAgent : AgentBase
                 sb.AppendLine($"- `{line}`");
         }
 
+        // Stash entries
+        var stashList = Git("stash list", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(stashList))
+        {
+            sb.AppendLine("\n**Stash entries:**");
+            sb.AppendLine("```");
+            sb.AppendLine(stashList);
+            sb.AppendLine("```");
+        }
+
+        // Merge/Rebase status
+        var mergeHead  = Git("rev-parse -q --verify MERGE_HEAD",  workingDirectory);
+        var rebaseHead = Git("rev-parse -q --verify REBASE_HEAD", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(mergeHead))
+        {
+            sb.AppendLine("\n**Merge in progress:**");
+            sb.AppendLine("```");
+            sb.AppendLine(mergeHead);
+            sb.AppendLine("```");
+        }
+        else if (!string.IsNullOrWhiteSpace(rebaseHead))
+        {
+            sb.AppendLine("\n**Rebase in progress:**");
+            sb.AppendLine("```");
+            sb.AppendLine(rebaseHead);
+            sb.AppendLine("```");
+        }
+
         // Working tree status (XY flags)
-
-// Stash entries
-var stashList = Git("stash list", workingDirectory);
-if (!string.IsNullOrWhiteSpace(stashList))
-{
-    sb.AppendLine("\n**Stash entries:**");
-    sb.AppendLine("```");
-    sb.AppendLine(stashList);
-    sb.AppendLine("```");
-}
-
-// Merge/Rebase status
-var mergeHead = Git("rev-parse -q --verify MERGE_HEAD", workingDirectory);
-var rebaseHead = Git("rev-parse -q --verify REBASE_HEAD", workingDirectory);
-if (!string.IsNullOrWhiteSpace(mergeHead))
-{
-    sb.AppendLine("\n**Merge in progress:**");
-    sb.AppendLine("```");
-    sb.AppendLine(mergeHead);
-    sb.AppendLine("```");
-}
-else if (!string.IsNullOrWhiteSpace(rebaseHead))
-{
-    sb.AppendLine("\n**Rebase in progress:**");
-    sb.AppendLine("```");
-    sb.AppendLine(rebaseHead);
-    sb.AppendLine("```");
-}
         var status = Git("status --short", workingDirectory);
         if (!string.IsNullOrWhiteSpace(status))
         {

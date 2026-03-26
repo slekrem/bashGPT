@@ -21,7 +21,7 @@ public sealed class EditFileTool(string workingDirectory) : ITool
         [
             new ToolParameter("path",       "string", "Relative file path inside the repository, e.g. \"src/Foo.cs\".", Required: true),
             new ToolParameter("old_string", "string", "The exact string to find and replace. Must be unique in the file.", Required: true),
-            new ToolParameter("new_string", "string", "The replacement string.", Required: true),
+            new ToolParameter("new_string", "string", "The replacement string. Must use the exact same indentation style (spaces/tabs) as the surrounding code in the file.", Required: true),
         ]);
 
     public Task<ToolResult> ExecuteAsync(ToolCall call, CancellationToken ct)
