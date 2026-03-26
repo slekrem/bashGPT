@@ -14,17 +14,15 @@ public class DevAgentTests
     }
 
     [Fact]
-    public void DevAgent_EnabledTools_ContainsEditorTools()
+    public void DevAgent_EnabledTools_ContainsReadFileTool()
     {
-        Assert.Contains("open_file",  _agent.EnabledTools);
-        Assert.Contains("close_file", _agent.EnabledTools);
+        Assert.Contains("read_file", _agent.EnabledTools);
     }
 
     [Fact]
-    public void DevAgent_SystemPrompt_ContainsEditorInstructions()
+    public void DevAgent_SystemPrompt_ContainsReadFileInstruction()
     {
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("open_file", StringComparison.Ordinal));
-        Assert.Contains(_agent.SystemPrompt, p => p.Contains("close_file", StringComparison.Ordinal));
+        Assert.Contains(_agent.SystemPrompt, p => p.Contains("read_file", StringComparison.Ordinal));
     }
 
     [Fact]

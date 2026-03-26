@@ -24,17 +24,16 @@ public sealed partial class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Editor tools are owned directly — no registry needed.
+    // Read tool is owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
-        new OpenFileTool(_workingDirectory),
-        new CloseFileTool(),
+        new ReadFileTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: open_file, close_file
+        .. base.EnabledTools,   // owned: read_file
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -60,7 +59,6 @@ public sealed partial class DevAgent : AgentBase
         BuildGitContext(_workingDirectory),
         BuildGitHubContext(_workingDirectory),
         BuildFileExplorerContext(_workingDirectory),
-        .. BuildEditorMessages(sessionPath),
     ];
 
     private static string BuildRolePrompt() =>
@@ -69,9 +67,7 @@ public sealed partial class DevAgent : AgentBase
         Solve tasks step by step through focused, minimal tool usage — read before you write.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
-        You have an Editor: use 'open_file' to load files — the tool result contains the current content.
-        Open files stay in the Editor and are refreshed on every request so you always see the latest state.
-        Use 'close_file' to remove files you no longer need. Pass [] to close all open files.
+        Use 'read_file' to read files before working on them — the tool result contains the current content.
         """;
 
     /// <summary>
@@ -367,38 +363,6 @@ public sealed partial class DevAgent : AgentBase
             if (entries[i].Value is SortedDictionary<string, object?> child)
                 RenderTree(sb, child, prefix + (isLast ? "    " : "│   "));
         }
-    }
-
-    /// <summary>
-    /// Returns a single message containing all open files.
-    /// File contents are re-read from disk on every request so changes are always current.
-    /// </summary>
-    private static IReadOnlyList<string> BuildEditorMessages(string? sessionPath = null)
-    {
-        var paths = EditorState.ReadFiles(sessionPath);
-        if (paths.Count == 0) return [];
-
-        var sb = new StringBuilder("# Editor\n\nThe following files reflect the exact current state on disk — treat them as ground truth.\n\n");
-        foreach (var path in paths)
-        {
-            if (!File.Exists(path)) continue;
-            try
-            {
-                var info = new FileInfo(path);
-                if (info.Length > 131_072)
-                {
-                    sb.AppendLine($"> `{path}` — file too large ({info.Length / 1024} KB), skipped.\n");
-                    continue;
-                }
-                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
-                sb.AppendLine();
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine($"> `{path}` — read error: {ex.Message}\n");
-            }
-        }
-        return [sb.ToString().TrimEnd()];
     }
 
     private static string? Git(string args, string workingDirectory)

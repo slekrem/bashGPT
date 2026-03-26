@@ -1,20 +1,21 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using bashGPT.Tools.Abstractions;
 
 namespace bashGPT.Agents.Dev.Tools;
 
 /// <summary>
-/// Built-in dev agent tool: opens one or more files into the Editor.
+/// Built-in dev agent tool: reads one or more files and returns their content.
 /// Only accepts paths that are visible in the File Explorer (git-tracked or untracked, not gitignored).
 /// </summary>
-public sealed class OpenFileTool(string workingDirectory) : ITool
+public sealed class ReadFileTool(string workingDirectory) : ITool
 {
     private const int MaxFileSizeBytes = 131_072; // 128 KB per file
 
     public ToolDefinition Definition { get; } = new(
-        Name: "open_file",
-        Description: "Opens files from the File Explorer into the Editor and returns their current content. Only paths visible in the File Explorer are accepted — no external or gitignored files.",
+        Name: "read_file",
+        Description: "Reads files from the File Explorer and returns their current content. Only paths visible in the File Explorer are accepted — no external or gitignored files.",
         Parameters:
         [
             new ToolParameter("paths", "array", "Exact file paths from the File Explorer, e.g. [\"src/Foo.cs\", \"src/Bar.cs\"].", Required: true),
@@ -37,9 +38,8 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
         }
 
         var projectFiles = GetProjectFiles();
-        var opened   = new List<string>();
+        var sb       = new StringBuilder();
         var rejected = new List<string>();
-        var skipped  = new List<string>();
 
         foreach (var path in paths)
         {
@@ -52,33 +52,13 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
             try
             {
                 var info = new FileInfo(path);
-                if (info.Length > MaxFileSizeBytes) { skipped.Add($"{path} (too large, {info.Length / 1024} KB)"); continue; }
-                opened.Add(path);
-            }
-            catch (Exception ex) { skipped.Add($"{path} ({ex.Message})"); }
-        }
-
-        if (opened.Count == 0)
-        {
-            var reasons = new List<string>();
-            if (rejected.Count > 0) reasons.Add($"not in File Explorer: {string.Join(", ", rejected)}");
-            if (skipped.Count  > 0) reasons.Add($"unreadable: {string.Join(", ", skipped)}");
-            return Task.FromResult(new ToolResult(Success: false, Content: $"No files opened. {string.Join("; ", reasons)}"));
-        }
-
-        EditorState.AddFiles(opened, call.SessionPath);
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Opened in Editor: {string.Join(", ", opened)}");
-        if (rejected.Count > 0) sb.AppendLine($"Not in File Explorer: {string.Join(", ", rejected)}");
-        if (skipped.Count  > 0) sb.AppendLine($"Skipped: {string.Join(", ", skipped)}");
-        sb.AppendLine();
-
-        foreach (var path in opened)
-        {
-            try
-            {
-                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
+                if (info.Length > MaxFileSizeBytes)
+                {
+                    sb.AppendLine($"> `{path}` — file too large ({info.Length / 1024} KB), skipped.");
+                    sb.AppendLine();
+                    continue;
+                }
+                sb.AppendLine(FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
                 sb.AppendLine();
             }
             catch (Exception ex)
@@ -87,6 +67,17 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
                 sb.AppendLine();
             }
         }
+
+        if (sb.Length == 0)
+        {
+            var reasons = rejected.Count > 0
+                ? $"not in File Explorer: {string.Join(", ", rejected)}"
+                : "no files could be read";
+            return Task.FromResult(new ToolResult(Success: false, Content: $"No files read. {reasons}"));
+        }
+
+        if (rejected.Count > 0)
+            sb.AppendLine($"Not in File Explorer (skipped): {string.Join(", ", rejected)}");
 
         return Task.FromResult(new ToolResult(Success: true, Content: sb.ToString().TrimEnd()));
     }
@@ -122,6 +113,22 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
         if (string.IsNullOrWhiteSpace(output)) yield break;
         foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             yield return line.Trim();
+    }
+
+    internal static string FormatFileBlock(string path, string content)
+    {
+        var ext   = Path.GetExtension(path).TrimStart('.');
+        var lines = content.Split('\n');
+        // Drop trailing empty element produced by a final newline
+        if (lines.Length > 0 && string.IsNullOrEmpty(lines[^1].TrimEnd()))
+            lines = lines[..^1];
+        var width = lines.Length.ToString().Length;
+        var sb    = new StringBuilder();
+        sb.AppendLine($"## `{path}`\n\n```{ext}");
+        for (var i = 0; i < lines.Length; i++)
+            sb.AppendLine($"{(i + 1).ToString().PadLeft(width)}\t{lines[i].TrimEnd()}");
+        sb.AppendLine("```\n");
+        return sb.ToString();
     }
 
     private static string[] ParsePaths(string json)
