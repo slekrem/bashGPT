@@ -24,18 +24,19 @@ public sealed partial class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Read/write tools are owned directly — no registry needed.
+    // All tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
         new ReadFileTool(_workingDirectory),
         new WriteFileTool(_workingDirectory),
         new EditFileTool(_workingDirectory),
+        new SearchTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file, edit_file
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -87,7 +88,7 @@ public sealed partial class DevAgent : AgentBase
           Use this to find exact file paths. Do not guess paths and do not search for files.
 
         ## Available tools
-        You have exactly THREE tools: 'read_file', 'write_file', and 'edit_file'.
+        You have exactly FOUR tools: 'read_file', 'write_file', 'edit_file', and 'search'.
         Do NOT call any other tool — there are no other tools available.
         Do NOT invent parameters — use only the schemas below.
 
@@ -104,6 +105,10 @@ public sealed partial class DevAgent : AgentBase
           old_string must match exactly once — add surrounding context if needed to make it unique.
           Prefer this over write_file for small, targeted changes.
           Always read the file first so old_string matches the actual content exactly.
+
+        search     — searches for a text string across files and returns matching lines with file:line.
+          {"query": "BuildGitContext"}
+          {"query": "BuildGitContext", "path": "src", "max_results": 20}
 
         ## How to read files
         Only call read_file when you actually need to see file contents.
