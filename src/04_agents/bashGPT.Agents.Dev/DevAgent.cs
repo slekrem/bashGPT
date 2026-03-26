@@ -32,6 +32,8 @@ public sealed partial class DevAgent : AgentBase
         new EditFileTool(_workingDirectory),
         new SearchTool(_workingDirectory),
         new GhPrCreateTool(_workingDirectory),
+        new GhPrDiffTool(_workingDirectory),
+        new GhPrReviewTool(_workingDirectory),
         new GhCommentTool(_workingDirectory),
         new GitCommitTool(_workingDirectory),
     ];
@@ -39,7 +41,7 @@ public sealed partial class DevAgent : AgentBase
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, gh_pr_create, gh_comment, git_commit
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, git_commit, gh_pr_create, gh_pr_diff, gh_pr_review, gh_comment
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -132,6 +134,16 @@ public sealed partial class DevAgent : AgentBase
         gh_pr_create — creates a GitHub pull request for the current branch.
           {"title": "feat: my feature", "body": "## Summary\n...", "draft": false}
           Only call this when explicitly asked to create a PR or when the task is fully complete.
+
+        gh_pr_diff   — returns the diff of a PR (defaults to the current branch's PR).
+          {"number": 42}  or  {}
+
+        gh_pr_review — submits a PR review: approve, request changes, or comment.
+          {"event": "approve"}
+          {"event": "request-changes", "body": "Please fix the indentation.", "number": 42}
+          {"event": "comment", "body": "Looks good overall, one minor note.", "number": 42}
+          event must be 'approve', 'request-changes', or 'comment'.
+          body is required for 'request-changes' and 'comment'.
 
         gh_comment   — adds a comment to a GitHub issue or PR.
           {"number": 42, "body": "Done — implemented in commit abc123.", "type": "issue"}
