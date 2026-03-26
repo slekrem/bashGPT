@@ -193,6 +193,34 @@ public sealed partial class DevAgent : AgentBase
         }
 
         // Working tree status (XY flags)
+
+// Stash entries
+var stashList = Git("stash list", workingDirectory);
+if (!string.IsNullOrWhiteSpace(stashList))
+{
+    sb.AppendLine("\n**Stash entries:**");
+    sb.AppendLine("```");
+    sb.AppendLine(stashList);
+    sb.AppendLine("```");
+}
+
+// Merge/Rebase status
+var mergeHead = Git("rev-parse -q --verify MERGE_HEAD", workingDirectory);
+var rebaseHead = Git("rev-parse -q --verify REBASE_HEAD", workingDirectory);
+if (!string.IsNullOrWhiteSpace(mergeHead))
+{
+    sb.AppendLine("\n**Merge in progress:**");
+    sb.AppendLine("```");
+    sb.AppendLine(mergeHead);
+    sb.AppendLine("```");
+}
+else if (!string.IsNullOrWhiteSpace(rebaseHead))
+{
+    sb.AppendLine("\n**Rebase in progress:**");
+    sb.AppendLine("```");
+    sb.AppendLine(rebaseHead);
+    sb.AppendLine("```");
+}
         var status = Git("status --short", workingDirectory);
         if (!string.IsNullOrWhiteSpace(status))
         {
