@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
@@ -9,7 +10,7 @@ namespace bashGPT.Agents.Dev;
 /// <summary>
 /// Specialized development agent with access to filesystem, git, build, and test tools.
 /// </summary>
-public sealed class DevAgent : AgentBase
+public sealed partial class DevAgent : AgentBase
 {
     private readonly string _workingDirectory = Directory.GetCurrentDirectory();
 
@@ -153,66 +154,139 @@ public sealed class DevAgent : AgentBase
 
     /// <summary>
     /// Builds a GitHub context using the gh CLI (if available).
-    /// Shows the open PR for the current branch including review decision and CI checks.
+    /// Shows the linked issue (parsed from the branch name), the open PR with review
+    /// decision and CI checks, and inline review comments.
     /// Returns an empty string when gh is not installed or not authenticated.
     /// </summary>
     private static string BuildGitHubContext(string workingDirectory)
     {
         if (!IsGhAvailable(workingDirectory)) return string.Empty;
 
-        var prJson = Gh("pr view --json number,title,state,url,isDraft,reviewDecision", workingDirectory);
-        if (prJson is null) return string.Empty;
-
-        JsonElement pr;
-        try { pr = JsonDocument.Parse(prJson).RootElement; }
-        catch (JsonException) { return string.Empty; }
-
         var sb = new StringBuilder("# GitHub Context\n\n");
+        var hasContent = false;
 
-        var number = pr.TryGetProperty("number",         out var n) ? n.GetInt32().ToString() : null;
-        var title  = pr.TryGetProperty("title",          out var t) ? t.GetString()           : null;
-        var state  = pr.TryGetProperty("state",          out var s) ? s.GetString()           : null;
-        var url    = pr.TryGetProperty("url",            out var u) ? u.GetString()           : null;
-        var draft  = pr.TryGetProperty("isDraft",        out var d) && d.GetBoolean();
-        var review = pr.TryGetProperty("reviewDecision", out var r) ? r.GetString()           : null;
+        // Linked issue — infer number from branch name (e.g. "248-feat-foo" → #248)
+        var branch = Git("rev-parse --abbrev-ref HEAD", workingDirectory);
+        var issueNumber = branch is not null
+            ? LeadingDigits().Match(branch).Value
+            : null;
 
-        var stateLabel = draft ? "Draft" : state ?? "unknown";
-        sb.AppendLine($"**PR #{number}:** {title}");
-        sb.AppendLine($"**State:** {stateLabel}{(url is not null ? $" — {url}" : "")}");
+        if (!string.IsNullOrEmpty(issueNumber))
+        {
+            var issueJson = Gh($"issue view {issueNumber} --json number,title,state,body,labels", workingDirectory);
+            if (issueJson is not null)
+            {
+                try
+                {
+                    var issue = JsonDocument.Parse(issueJson).RootElement;
+                    var iTitle  = issue.TryGetProperty("title",  out var it) ? it.GetString() : null;
+                    var iState  = issue.TryGetProperty("state",  out var is_) ? is_.GetString() : null;
+                    var iBody   = issue.TryGetProperty("body",   out var ib) ? ib.GetString() : null;
+                    var iLabels = issue.TryGetProperty("labels", out var il)
+                        ? string.Join(", ", il.EnumerateArray()
+                            .Select(l => l.TryGetProperty("name", out var ln) ? ln.GetString() : null)
+                            .Where(l => l is not null))
+                        : null;
 
-        if (!string.IsNullOrEmpty(review) && review != "REVIEW_REQUIRED")
-            sb.AppendLine($"**Review:** {review}");
+                    sb.AppendLine($"## Issue #{issueNumber}: {iTitle}");
+                    if (!string.IsNullOrEmpty(iState))   sb.AppendLine($"**State:** {iState}");
+                    if (!string.IsNullOrEmpty(iLabels))  sb.AppendLine($"**Labels:** {iLabels}");
+                    if (!string.IsNullOrWhiteSpace(iBody))
+                    {
+                        sb.AppendLine();
+                        // Truncate long bodies to keep context size manageable
+                        var body = iBody.Length > 1000 ? iBody[..1000] + "\n…(truncated)" : iBody;
+                        sb.AppendLine(body);
+                    }
+                    hasContent = true;
+                }
+                catch (JsonException) { /* skip */ }
+            }
+        }
 
-        // CI checks
-        var checksOutput = Gh("pr checks --json name,state,conclusion", workingDirectory);
-        if (checksOutput is not null)
+        // Open PR for the current branch
+        var prJson = Gh("pr view --json number,title,state,url,isDraft,reviewDecision", workingDirectory);
+        if (prJson is not null)
         {
             try
             {
-                var checks = JsonDocument.Parse(checksOutput).RootElement;
-                if (checks.ValueKind == JsonValueKind.Array && checks.GetArrayLength() > 0)
+                var pr     = JsonDocument.Parse(prJson).RootElement;
+                var number = pr.TryGetProperty("number",         out var n) ? n.GetInt32().ToString() : null;
+                var title  = pr.TryGetProperty("title",          out var t) ? t.GetString()           : null;
+                var state  = pr.TryGetProperty("state",          out var s) ? s.GetString()           : null;
+                var url    = pr.TryGetProperty("url",            out var u) ? u.GetString()           : null;
+                var draft  = pr.TryGetProperty("isDraft",        out var d) && d.GetBoolean();
+                var review = pr.TryGetProperty("reviewDecision", out var r) ? r.GetString()           : null;
+
+                if (hasContent) sb.AppendLine();
+                sb.AppendLine($"## PR #{number}: {title}");
+                var stateLabel = draft ? "Draft" : state ?? "unknown";
+                sb.AppendLine($"**State:** {stateLabel}{(url is not null ? $" — {url}" : "")}");
+                if (!string.IsNullOrEmpty(review) && review != "REVIEW_REQUIRED")
+                    sb.AppendLine($"**Review:** {review}");
+
+                // Review comments
+                var reviewsJson = Gh("pr view --json reviews", workingDirectory);
+                if (reviewsJson is not null)
                 {
-                    sb.AppendLine("\n**CI Checks:**");
-                    foreach (var check in checks.EnumerateArray())
+                    try
                     {
-                        var checkName       = check.TryGetProperty("name",       out var cn) ? cn.GetString() : "?";
-                        var checkConclusion = check.TryGetProperty("conclusion", out var cc) ? cc.GetString() : null;
-                        var checkState      = check.TryGetProperty("state",      out var cs) ? cs.GetString() : null;
-                        var status = checkConclusion ?? checkState ?? "pending";
-                        var icon   = status.ToUpperInvariant() switch
+                        var reviews = JsonDocument.Parse(reviewsJson).RootElement
+                            .GetProperty("reviews");
+                        var nonEmpty = reviews.EnumerateArray()
+                            .Where(rv => rv.TryGetProperty("body", out var b) && !string.IsNullOrWhiteSpace(b.GetString()))
+                            .ToList();
+                        if (nonEmpty.Count > 0)
                         {
-                            "SUCCESS" => "✓",
-                            "FAILURE" or "ERROR" => "✗",
-                            _ => "○"
-                        };
-                        sb.AppendLine($"- {icon} `{checkName}` — {status}");
+                            sb.AppendLine("\n**Review comments:**");
+                            foreach (var rv in nonEmpty)
+                            {
+                                var author = rv.TryGetProperty("author", out var a)
+                                    && a.TryGetProperty("login", out var l) ? l.GetString() : "?";
+                                var rvState = rv.TryGetProperty("state", out var rs) ? rs.GetString() : null;
+                                var body    = rv.TryGetProperty("body",  out var rb) ? rb.GetString() : "";
+                                if (body?.Length > 300) body = body[..300] + "…";
+                                sb.AppendLine($"- **{author}** ({rvState}): {body}");
+                            }
+                        }
                     }
+                    catch (JsonException) { /* skip */ }
                 }
+
+                // CI checks
+                var checksOutput = Gh("pr checks --json name,state,conclusion", workingDirectory);
+                if (checksOutput is not null)
+                {
+                    try
+                    {
+                        var checks = JsonDocument.Parse(checksOutput).RootElement;
+                        if (checks.ValueKind == JsonValueKind.Array && checks.GetArrayLength() > 0)
+                        {
+                            sb.AppendLine("\n**CI Checks:**");
+                            foreach (var check in checks.EnumerateArray())
+                            {
+                                var checkName       = check.TryGetProperty("name",       out var cn) ? cn.GetString() : "?";
+                                var checkConclusion = check.TryGetProperty("conclusion", out var cc) ? cc.GetString() : null;
+                                var checkState      = check.TryGetProperty("state",      out var cs) ? cs.GetString() : null;
+                                var status = checkConclusion ?? checkState ?? "pending";
+                                var icon   = status.ToUpperInvariant() switch
+                                {
+                                    "SUCCESS" => "✓",
+                                    "FAILURE" or "ERROR" => "✗",
+                                    _ => "○"
+                                };
+                                sb.AppendLine($"- {icon} `{checkName}` — {status}");
+                            }
+                        }
+                    }
+                    catch (JsonException) { /* skip */ }
+                }
+                hasContent = true;
             }
-            catch (JsonException) { /* checks output not parseable, skip */ }
+            catch (JsonException) { /* skip */ }
         }
 
-        return sb.ToString().TrimEnd();
+        return hasContent ? sb.ToString().TrimEnd() : string.Empty;
     }
 
     private static bool IsGhAvailable(string workingDirectory) =>
@@ -353,4 +427,7 @@ public sealed class DevAgent : AgentBase
             GetSystemPrompt(sessionPath)
                 .Concat(GetContextMessages(sessionPath))
                 .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    [GeneratedRegex(@"^\d+")]
+    private static partial Regex LeadingDigits();
 }
