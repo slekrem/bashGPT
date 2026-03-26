@@ -33,12 +33,13 @@ public sealed partial class DevAgent : AgentBase
         new SearchTool(_workingDirectory),
         new GhPrCreateTool(_workingDirectory),
         new GhCommentTool(_workingDirectory),
+        new GitCommitTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, gh_pr_create, gh_comment
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, gh_pr_create, gh_comment, git_commit
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -133,6 +134,11 @@ public sealed partial class DevAgent : AgentBase
         gh_comment   — adds a comment to a GitHub issue or PR.
           {"number": 42, "body": "Done — implemented in commit abc123.", "type": "issue"}
           type is either "issue" or "pr" (defaults to "issue").
+
+        git_commit   — stages files and creates a commit.
+          {"message": "feat: add stash support to git context"}
+          {"message": "fix: correct indentation", "paths": ["src/Foo.cs", "src/Bar.cs"]}
+          Use conventional commit format. If paths is omitted, all changes are staged.
 
         ## How to read files
         Only call read_file when you actually need to see file contents.
