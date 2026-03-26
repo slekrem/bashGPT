@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
@@ -56,6 +57,7 @@ public sealed class DevAgent : AgentBase
     public override IReadOnlyList<string> GetContextMessages(string? sessionPath = null) =>
     [
         BuildGitContext(_workingDirectory),
+        BuildGitHubContext(_workingDirectory),
         BuildFileExplorerContext(_workingDirectory),
         .. BuildEditorMessages(sessionPath),
     ];
@@ -147,6 +149,95 @@ public sealed class DevAgent : AgentBase
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Builds a GitHub context using the gh CLI (if available).
+    /// Shows the open PR for the current branch including review decision and CI checks.
+    /// Returns an empty string when gh is not installed or not authenticated.
+    /// </summary>
+    private static string BuildGitHubContext(string workingDirectory)
+    {
+        if (!IsGhAvailable(workingDirectory)) return string.Empty;
+
+        var prJson = Gh("pr view --json number,title,state,url,isDraft,reviewDecision", workingDirectory);
+        if (prJson is null) return string.Empty;
+
+        JsonElement pr;
+        try { pr = JsonDocument.Parse(prJson).RootElement; }
+        catch (JsonException) { return string.Empty; }
+
+        var sb = new StringBuilder("# GitHub Context\n\n");
+
+        var number = pr.TryGetProperty("number",         out var n) ? n.GetInt32().ToString() : null;
+        var title  = pr.TryGetProperty("title",          out var t) ? t.GetString()           : null;
+        var state  = pr.TryGetProperty("state",          out var s) ? s.GetString()           : null;
+        var url    = pr.TryGetProperty("url",            out var u) ? u.GetString()           : null;
+        var draft  = pr.TryGetProperty("isDraft",        out var d) && d.GetBoolean();
+        var review = pr.TryGetProperty("reviewDecision", out var r) ? r.GetString()           : null;
+
+        var stateLabel = draft ? "Draft" : state ?? "unknown";
+        sb.AppendLine($"**PR #{number}:** {title}");
+        sb.AppendLine($"**State:** {stateLabel}{(url is not null ? $" — {url}" : "")}");
+
+        if (!string.IsNullOrEmpty(review) && review != "REVIEW_REQUIRED")
+            sb.AppendLine($"**Review:** {review}");
+
+        // CI checks
+        var checksOutput = Gh("pr checks --json name,state,conclusion", workingDirectory);
+        if (checksOutput is not null)
+        {
+            try
+            {
+                var checks = JsonDocument.Parse(checksOutput).RootElement;
+                if (checks.ValueKind == JsonValueKind.Array && checks.GetArrayLength() > 0)
+                {
+                    sb.AppendLine("\n**CI Checks:**");
+                    foreach (var check in checks.EnumerateArray())
+                    {
+                        var checkName       = check.TryGetProperty("name",       out var cn) ? cn.GetString() : "?";
+                        var checkConclusion = check.TryGetProperty("conclusion", out var cc) ? cc.GetString() : null;
+                        var checkState      = check.TryGetProperty("state",      out var cs) ? cs.GetString() : null;
+                        var status = checkConclusion ?? checkState ?? "pending";
+                        var icon   = status.ToUpperInvariant() switch
+                        {
+                            "SUCCESS" => "✓",
+                            "FAILURE" or "ERROR" => "✗",
+                            _ => "○"
+                        };
+                        sb.AppendLine($"- {icon} `{checkName}` — {status}");
+                    }
+                }
+            }
+            catch (JsonException) { /* checks output not parseable, skip */ }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static bool IsGhAvailable(string workingDirectory) =>
+        Gh("--version", workingDirectory) is not null;
+
+    private static string? Gh(string args, string workingDirectory)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo("gh", args)
+            {
+                WorkingDirectory       = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            });
+            var output = proc?.StandardOutput.ReadToEnd().Trim();
+            proc?.WaitForExit();
+            return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
