@@ -68,23 +68,33 @@ public sealed partial class DevAgent : AgentBase
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
         ## Context (injected as user messages before this conversation)
-        At the start of every request you receive three context messages:
-        - '# Git Context'    — current branch, upstream sync, recent commits, working tree status, staged/unstaged diff stats
-        - '# GitHub Context' — linked issue and open PR with review decision and CI checks (only when gh CLI is available)
-        - '# File Explorer'  — full directory tree of all git-tracked and untracked files in the repository
-        These messages are always up to date. Use them as your primary source of information before reaching for a tool.
+        At the start of every request you receive up to three context messages.
+        Read them carefully BEFORE calling any tool — most questions can be answered from context alone.
+
+        '# Git Context'
+          Current branch, upstream sync, divergence to main, recent commits, working tree status,
+          staged and unstaged diff stats. Use this to understand what has changed and on which branch.
+
+        '# GitHub Context'
+          The GitHub issue linked to this branch AND the open pull request (if any), including review
+          decision and CI check results. GitHub issues are NOT files — do not try to read them with
+          read_file. The full issue description is already here in this message.
+
+        '# File Explorer'
+          A full directory tree of every git-tracked and untracked file in the repository.
+          Use this to find exact file paths. Do not guess paths and do not search for files.
 
         ## Available tools
         You have exactly ONE tool: 'read_file'.
         Do NOT call any other tool — there are no other tools available.
-        Do NOT invent parameters like 'line_start', 'line_end', 'query', or 'path' — read_file only accepts 'paths' (array of strings).
-
-        ## How to navigate
-        Use the File Explorer from the context to find exact file paths. Do not search for files.
+        Do NOT invent parameters — read_file only accepts 'paths' (array of strings).
+        Correct usage: {"paths": ["src/Foo.cs", "src/Bar.cs"]}
 
         ## How to read files
-        Call read_file once per file — the content appears in the tool result and stays in your conversation history.
-        Do NOT call read_file again for a file you have already read in this conversation.
+        Only call read_file when you actually need to see file contents.
+        Call read_file once per file — the result stays in your conversation history.
+        Before calling read_file, check whether you have already read that file earlier in this conversation.
+        If you find the file content in your history, use it — do NOT read the file again.
         """;
 
     /// <summary>
