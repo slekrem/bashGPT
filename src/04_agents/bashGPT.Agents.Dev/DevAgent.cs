@@ -31,12 +31,14 @@ public sealed partial class DevAgent : AgentBase
         new WriteFileTool(_workingDirectory),
         new EditFileTool(_workingDirectory),
         new SearchTool(_workingDirectory),
+        new GhPrCreateTool(_workingDirectory),
+        new GhCommentTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, gh_pr_create, gh_comment
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -123,6 +125,14 @@ public sealed partial class DevAgent : AgentBase
         search     — searches for a text string across files and returns matching lines with file:line.
           {"query": "BuildGitContext"}
           {"query": "BuildGitContext", "path": "src", "max_results": 20}
+
+        gh_pr_create — creates a GitHub pull request for the current branch.
+          {"title": "feat: my feature", "body": "## Summary\n...", "draft": false}
+          Only call this when explicitly asked to create a PR or when the task is fully complete.
+
+        gh_comment   — adds a comment to a GitHub issue or PR.
+          {"number": 42, "body": "Done — implemented in commit abc123.", "type": "issue"}
+          type is either "issue" or "pr" (defaults to "issue").
 
         ## How to read files
         Only call read_file when you actually need to see file contents.
