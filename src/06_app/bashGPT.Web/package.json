@@ -13,15 +13,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.3.3",
     "highlight.js": "^11.11.1",
     "lit": "^3.3.1",
-    "marked": "^17.0.3"
+    "marked": "^17.0.5"
   },
   "devDependencies": {
-    "happy-dom": "^20.7.0",
-    "typescript": "~5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "happy-dom": "^20.8.8",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.1"
   }
 }
