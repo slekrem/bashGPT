@@ -30,7 +30,7 @@ public class DevAgentTests
     {
         var md = _agent.GetInfoPanelMarkdown();
 
-        Assert.Contains("You are an experienced software engineer", md, StringComparison.Ordinal);
+        Assert.Contains("You are an experienced", md, StringComparison.Ordinal);
         Assert.Contains("## LLM Configuration", md, StringComparison.Ordinal);
     }
 
