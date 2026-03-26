@@ -67,7 +67,17 @@ public sealed partial class DevAgent : AgentBase
         Solve tasks step by step through focused, minimal tool usage — read before you write.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
-        Use 'read_file' to read files before working on them — the tool result contains the current content.
+        ## Available tools
+        You have exactly ONE tool: 'read_file'.
+        Do NOT call any other tool — there are no other tools available.
+        Do NOT invent parameters like 'line_start', 'line_end', 'query', or 'path' — read_file only accepts 'paths' (array of strings).
+
+        ## How to navigate
+        Use the File Explorer in the context to find file paths. Do not search for files.
+
+        ## How to read files
+        Call read_file once per file — the content appears in the tool result and stays in your conversation history.
+        Do NOT call read_file again for a file you have already read in this conversation.
         """;
 
     /// <summary>
