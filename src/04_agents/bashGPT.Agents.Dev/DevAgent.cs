@@ -29,12 +29,13 @@ public sealed partial class DevAgent : AgentBase
     [
         new ReadFileTool(_workingDirectory),
         new WriteFileTool(_workingDirectory),
+        new EditFileTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -86,7 +87,7 @@ public sealed partial class DevAgent : AgentBase
           Use this to find exact file paths. Do not guess paths and do not search for files.
 
         ## Available tools
-        You have exactly TWO tools: 'read_file' and 'write_file'.
+        You have exactly THREE tools: 'read_file', 'write_file', and 'edit_file'.
         Do NOT call any other tool — there are no other tools available.
         Do NOT invent parameters — use only the schemas below.
 
@@ -95,8 +96,14 @@ public sealed partial class DevAgent : AgentBase
 
         write_file — writes the COMPLETE content of a single file (creates or overwrites).
           {"path": "src/Foo.cs", "content": "... full file content ..."}
-          Always read a file before writing it so you have the current content.
+          Use this to create new files or when rewriting most of the file.
           Always write the complete file — partial content will truncate the file.
+
+        edit_file  — replaces an exact string in an existing file with a new string.
+          {"path": "src/Foo.cs", "old_string": "... exact text ...", "new_string": "... replacement ..."}
+          old_string must match exactly once — add surrounding context if needed to make it unique.
+          Prefer this over write_file for small, targeted changes.
+          Always read the file first so old_string matches the actual content exactly.
 
         ## How to read files
         Only call read_file when you actually need to see file contents.
