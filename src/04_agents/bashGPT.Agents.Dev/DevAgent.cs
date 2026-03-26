@@ -24,16 +24,17 @@ public sealed partial class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Read tool is owned directly — no registry needed.
+    // Read/write tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
         new ReadFileTool(_workingDirectory),
+        new WriteFileTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file
+        .. base.EnabledTools,   // owned: read_file, write_file
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -85,10 +86,17 @@ public sealed partial class DevAgent : AgentBase
           Use this to find exact file paths. Do not guess paths and do not search for files.
 
         ## Available tools
-        You have exactly ONE tool: 'read_file'.
+        You have exactly TWO tools: 'read_file' and 'write_file'.
         Do NOT call any other tool — there are no other tools available.
-        Do NOT invent parameters — read_file only accepts 'paths' (array of strings).
-        Correct usage: {"paths": ["src/Foo.cs", "src/Bar.cs"]}
+        Do NOT invent parameters — use only the schemas below.
+
+        read_file  — reads one or more files and returns their content.
+          {"paths": ["src/Foo.cs", "src/Bar.cs"]}
+
+        write_file — writes the COMPLETE content of a single file (creates or overwrites).
+          {"path": "src/Foo.cs", "content": "... full file content ..."}
+          Always read a file before writing it so you have the current content.
+          Always write the complete file — partial content will truncate the file.
 
         ## How to read files
         Only call read_file when you actually need to see file contents.
