@@ -69,9 +69,9 @@ public sealed partial class DevAgent : AgentBase
         Solve tasks step by step through focused, minimal tool usage — read before you write.
         Prefer small, targeted changes over large rewrites. Never guess file contents.
 
-        You have an Editor: use 'open_file' to open files into it before working on them.
-        The Editor always reflects the latest file content. Re-read from disk on every request.
-        Use 'close_file' to close files you no longer need. Pass [] to close all open files.
+        You have an Editor: use 'open_file' to load files — the tool result contains the current content.
+        Open files stay in the Editor and are refreshed on every request so you always see the latest state.
+        Use 'close_file' to remove files you no longer need. Pass [] to close all open files.
         """;
 
     /// <summary>

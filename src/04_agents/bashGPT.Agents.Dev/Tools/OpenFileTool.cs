@@ -14,7 +14,7 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
 
     public ToolDefinition Definition { get; } = new(
         Name: "open_file",
-        Description: "Opens files from the File Explorer into the Editor. Only paths visible in the File Explorer are accepted — no external or gitignored files. File content will appear in the Editor section on the next message, not in this tool result.",
+        Description: "Opens files from the File Explorer into the Editor and returns their current content. Only paths visible in the File Explorer are accepted — no external or gitignored files.",
         Parameters:
         [
             new ToolParameter("paths", "array", "Exact file paths from the File Explorer, e.g. [\"src/Foo.cs\", \"src/Bar.cs\"].", Required: true),
@@ -68,10 +68,27 @@ public sealed class OpenFileTool(string workingDirectory) : ITool
 
         EditorState.AddFiles(opened, call.SessionPath);
 
-        var msg = $"Opened in Editor: {string.Join(", ", opened)}";
-        if (rejected.Count > 0) msg += $"\nNot in File Explorer: {string.Join(", ", rejected)}";
-        if (skipped.Count  > 0) msg += $"\nSkipped: {string.Join(", ", skipped)}";
-        return Task.FromResult(new ToolResult(Success: true, Content: msg));
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Opened in Editor: {string.Join(", ", opened)}");
+        if (rejected.Count > 0) sb.AppendLine($"Not in File Explorer: {string.Join(", ", rejected)}");
+        if (skipped.Count  > 0) sb.AppendLine($"Skipped: {string.Join(", ", skipped)}");
+        sb.AppendLine();
+
+        foreach (var path in opened)
+        {
+            try
+            {
+                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
+                sb.AppendLine();
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"> `{path}` — read error: {ex.Message}");
+                sb.AppendLine();
+            }
+        }
+
+        return Task.FromResult(new ToolResult(Success: true, Content: sb.ToString().TrimEnd()));
     }
 
     private HashSet<string> GetProjectFiles()
