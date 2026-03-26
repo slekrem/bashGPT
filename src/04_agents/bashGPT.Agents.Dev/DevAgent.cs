@@ -258,5 +258,8 @@ public sealed class DevAgent : AgentBase
     }
 
     protected override string GetAgentMarkdown(string? sessionPath = null) =>
-        string.Join("\n\n---\n\n", GetSystemPrompt(sessionPath).Where(s => !string.IsNullOrWhiteSpace(s)));
+        string.Join("\n\n---\n\n",
+            GetSystemPrompt(sessionPath)
+                .Concat(GetContextMessages(sessionPath))
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
 }
