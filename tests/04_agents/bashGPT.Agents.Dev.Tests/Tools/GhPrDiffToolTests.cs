@@ -1,4 +1,4 @@
-using bashGPT.Agents.Dev.Tools;
+using bashGPT.Tools.GitHub.PullRequests;
 
 namespace bashGPT.Agents.Dev.Tests.Tools;
 
@@ -7,7 +7,7 @@ public class GhPrDiffToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidPrNumber()
     {
-        var tool = new GhPrDiffTool(Dir);
+        var tool = new GhPrDiffTool();
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_diff", """{"number":-1}"""),
@@ -20,7 +20,7 @@ public class GhPrDiffToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidJson()
     {
-        var tool = new GhPrDiffTool(Dir);
+        var tool = new GhPrDiffTool();
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_diff", "bad"),
