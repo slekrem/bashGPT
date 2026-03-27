@@ -1,7 +1,7 @@
 using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
-namespace bashGPT.Agents.Tests;
+namespace bashGPT.Agents.Dev.Tests;
 
 /// <summary>
 /// Tests for the built-in DevAgent tools:
