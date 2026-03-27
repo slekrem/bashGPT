@@ -59,3 +59,41 @@ jobs:
         with:
           name: test-results-${{ matrix.os }}
           path: '**/test-results.trx'
+
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.301'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: 'npm'
+          cache-dependency-path: src/06_app/bashGPT.Web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/06_app/bashGPT.Web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: src/06_app/bashGPT.Web
+        run: npm run build
+
+      - name: Run coverage report
+        run: bash scripts/coverage-report.sh
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/report/

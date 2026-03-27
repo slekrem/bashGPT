@@ -31,8 +31,7 @@ for project in "${TEST_PROJECTS[@]}"; do
   dotnet test "${project}" \
     --nologo \
     --collect:"XPlat Code Coverage;Format=opencover" \
-    --results-directory "${RESULTS_DIR}" \
-    /m:1
+    --results-directory "${RESULTS_DIR}"
 done
 
 declare -a COVERAGE_FILES=()
@@ -58,13 +57,31 @@ fi
 echo "[coverage] Restoring local dotnet tools..."
 dotnet tool restore
 
-REPORTS_INPUT="$(printf '%s;' "${COVERAGE_FILES[@]}")"
+# Convert a path to the native format expected by .NET tools.
+# On Windows (Git Bash / MSYS2) cygpath translates POSIX → Windows paths.
+# On Linux/macOS the function is a no-op.
+to_native_path() {
+  if command -v cygpath &>/dev/null; then
+    cygpath -w "$1"
+  else
+    echo "$1"
+  fi
+}
+
+declare -a NATIVE_COVERAGE_FILES=()
+for f in "${COVERAGE_FILES[@]}"; do
+  NATIVE_COVERAGE_FILES+=("$(to_native_path "${f}")")
+done
+
+REPORTS_INPUT="$(printf '%s;' "${NATIVE_COVERAGE_FILES[@]}")"
 REPORTS_INPUT="${REPORTS_INPUT%;}"
+
+NATIVE_REPORT_DIR="$(to_native_path "${REPORT_DIR}")"
 
 echo "[coverage] Generating HTML report..."
 dotnet tool run reportgenerator \
   "-reports:${REPORTS_INPUT}" \
-  "-targetdir:${REPORT_DIR}" \
+  "-targetdir:${NATIVE_REPORT_DIR}" \
   "-reporttypes:Html;HtmlSummary;TextSummary" \
   "-riskhotspotassemblyfilters:+*" \
   "-riskhotspotclassfilters:+*" \

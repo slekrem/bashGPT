@@ -72,13 +72,12 @@ public class AgentOwnedToolsTests
     // --- DevAgent ------------------------------------------------------------
 
     [Fact]
-    public void DevAgent_GetOwnedTools_ContainsEditorTools()
+    public void DevAgent_GetOwnedTools_ContainsReadFileTool()
     {
         var agent = new DevAgent();
         var ownedNames = agent.GetOwnedTools().Select(t => t.Definition.Name).ToArray();
 
-        Assert.Contains("open_file",  ownedNames);
-        Assert.Contains("close_file", ownedNames);
+        Assert.Contains("read_file", ownedNames);
     }
 
     [Fact]
@@ -86,18 +85,17 @@ public class AgentOwnedToolsTests
     {
         var agent = new DevAgent();
 
-        Assert.Contains("open_file",  agent.EnabledTools);
-        Assert.Contains("close_file", agent.EnabledTools);
+        Assert.Contains("read_file", agent.EnabledTools);
     }
 
     [Fact]
-    public async Task DevAgent_TryHandleToolCallAsync_HandlesOwnedEditorTool()
+    public async Task DevAgent_TryHandleToolCallAsync_HandlesOwnedReadFileTool()
     {
         var agent = new DevAgent();
         var args  = """{"paths": []}""";
 
         var result = await agent.TryHandleToolCallAsync(
-            "open_file", args, null, CancellationToken.None);
+            "read_file", args, null, CancellationToken.None);
 
         Assert.NotNull(result);
     }

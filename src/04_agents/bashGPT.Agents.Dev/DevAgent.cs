@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
 
@@ -8,7 +10,7 @@ namespace bashGPT.Agents.Dev;
 /// <summary>
 /// Specialized development agent with access to filesystem, git, build, and test tools.
 /// </summary>
-public sealed class DevAgent : AgentBase
+public sealed partial class DevAgent : AgentBase
 {
     private readonly string _workingDirectory = Directory.GetCurrentDirectory();
 
@@ -22,17 +24,24 @@ public sealed class DevAgent : AgentBase
     /// </summary>
     public override string? WorkingDirectory => _workingDirectory;
 
-    // Editor tools are owned directly — no registry needed.
+    // All tools are owned directly — no registry needed.
     public override IReadOnlyList<ITool> GetOwnedTools() =>
     [
-        new OpenFileTool(_workingDirectory),
-        new CloseFileTool(),
+        new ReadFileTool(_workingDirectory),
+        new WriteFileTool(_workingDirectory),
+        new EditFileTool(_workingDirectory),
+        new SearchTool(_workingDirectory),
+        new GhPrCreateTool(_workingDirectory),
+        new GhPrDiffTool(_workingDirectory),
+        new GhPrReviewTool(_workingDirectory),
+        new GhCommentTool(_workingDirectory),
+        new GitCommitTool(_workingDirectory),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: open_file, close_file
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, git_commit, gh_pr_create, gh_pr_diff, gh_pr_review, gh_comment
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -56,23 +65,105 @@ public sealed class DevAgent : AgentBase
     public override IReadOnlyList<string> GetContextMessages(string? sessionPath = null) =>
     [
         BuildGitContext(_workingDirectory),
+        BuildGitHubContext(_workingDirectory),
         BuildFileExplorerContext(_workingDirectory),
-        .. BuildEditorMessages(sessionPath),
     ];
 
     private static string BuildRolePrompt() =>
         """
-        You are an experienced software engineer working inside a local dev environment.
-        Solve tasks step by step through focused, minimal tool usage — read before you write.
-        Prefer small, targeted changes over large rewrites. Never guess file contents.
+        You are an experienced, proactive software engineer working inside a local dev environment.
+        When given a task, you complete it fully and independently — without asking for confirmation
+        at every step. You read what you need, make the change, and report what you did.
 
-        You have an Editor: use 'open_file' to open files into it before working on them.
-        The Editor always reflects the latest file content. Re-read from disk on every request.
-        Use 'close_file' to close files you no longer need. Pass [] to close all open files.
+        ## How to approach a task
+        1. Read the context messages carefully first — Git Context, GitHub Context, File Explorer.
+           Most orientation questions (branch, issue, open files) are already answered there.
+        2. Search or read the relevant files to understand the existing code.
+        3. Make all necessary changes — implement, fix, refactor, or extend as needed.
+        4. Spot and address related issues proactively: missing tests, broken references,
+           inconsistent naming, or anything else that is clearly part of the task.
+        5. Report concisely what you did and why. If you notice other problems outside the task
+           scope, mention them briefly — but do not fix them unless asked.
+
+        Do NOT ask for permission before reading files or making changes.
+        Do NOT wait for confirmation between steps.
+        Do NOT stop halfway and ask "should I continue?" — just continue.
+
+        ## Context (injected as user messages before this conversation)
+        At the start of every request you receive up to three context messages.
+        Read them carefully BEFORE calling any tool — most questions can be answered from context alone.
+
+        '# Git Context'
+          Current branch, upstream sync, divergence to main, recent commits, working tree status,
+          staged and unstaged diff stats. Use this to understand what has changed and on which branch.
+
+        '# GitHub Context'
+          The GitHub issue linked to this branch AND the open pull request (if any), including review
+          decision and CI check results. GitHub issues are NOT files — do not try to read them with
+          read_file. The full issue description is already here in this message.
+
+        '# File Explorer'
+          A full directory tree of every git-tracked and untracked file in the repository.
+          Use this to find exact file paths. Do not guess paths and do not search for files.
+
+        ## Available tools
+        You have exactly FOUR tools: 'read_file', 'write_file', 'edit_file', and 'search'.
+        Do NOT call any other tool — there are no other tools available.
+        Do NOT invent parameters — use only the schemas below.
+
+        read_file  — reads one or more files and returns their content.
+          {"paths": ["src/Foo.cs", "src/Bar.cs"]}
+
+        write_file — writes the COMPLETE content of a single file (creates or overwrites).
+          {"path": "src/Foo.cs", "content": "... full file content ..."}
+          Use this to create new files or when rewriting most of the file.
+          Always write the complete file — partial content will truncate the file.
+
+        edit_file  — replaces an exact string in an existing file with a new string.
+          {"path": "src/Foo.cs", "old_string": "... exact text ...", "new_string": "... replacement ..."}
+          old_string must match exactly once — add surrounding context if needed to make it unique.
+          new_string must use the exact same indentation (spaces or tabs) as the surrounding code.
+          Include enough lines in old_string so the insertion point is unambiguous.
+          Prefer this over write_file for small, targeted changes.
+          Always read the file first so old_string matches the actual content exactly.
+
+        search     — searches for a text string across files and returns matching lines with file:line.
+          {"query": "BuildGitContext"}
+          {"query": "BuildGitContext", "path": "src", "max_results": 20}
+
+        gh_pr_create — creates a GitHub pull request for the current branch.
+          {"title": "feat: my feature", "body": "## Summary\n...", "draft": false}
+          Only call this when explicitly asked to create a PR or when the task is fully complete.
+
+        gh_pr_diff   — returns the diff of a PR (defaults to the current branch's PR).
+          {"number": 42}  or  {}
+
+        gh_pr_review — submits a PR review: approve, request changes, or comment.
+          {"event": "approve"}
+          {"event": "request-changes", "body": "Please fix the indentation.", "number": 42}
+          {"event": "comment", "body": "Looks good overall, one minor note.", "number": 42}
+          event must be 'approve', 'request-changes', or 'comment'.
+          body is required for 'request-changes' and 'comment'.
+
+        gh_comment   — adds a comment to a GitHub issue or PR.
+          {"number": 42, "body": "Done — implemented in commit abc123.", "type": "issue"}
+          type is either "issue" or "pr" (defaults to "issue").
+
+        git_commit   — stages files and creates a commit.
+          {"message": "feat: add stash support to git context"}
+          {"message": "fix: correct indentation", "paths": ["src/Foo.cs", "src/Bar.cs"]}
+          Use conventional commit format. If paths is omitted, all changes are staged.
+
+        ## How to read files
+        Only call read_file when you actually need to see file contents.
+        Call read_file once per file — the result stays in your conversation history.
+        Before calling read_file, check whether you have already read that file earlier in this conversation.
+        If you find the file content in your history, use it — do NOT read the file again.
         """;
 
     /// <summary>
-    /// Builds a git context: branch, upstream, recent commits, and working tree status.
+    /// Builds a git context: branch, upstream/base divergence, recent commits,
+    /// working tree status, and diff stats for staged and unstaged changes.
     /// </summary>
     private static string BuildGitContext(string workingDirectory)
     {
@@ -81,16 +172,52 @@ public sealed class DevAgent : AgentBase
 
         var sb = new StringBuilder("# Git Context\n\n");
 
+        // Branch + upstream sync
         var upstream = Git("rev-parse --abbrev-ref --symbolic-full-name @{u}", workingDirectory);
         sb.AppendLine(upstream is not null
             ? $"**Branch:** `{branch}` → `{upstream}`"
             : $"**Branch:** `{branch}` (no upstream)");
 
-        var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
-        var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
-        if (ahead is not null && behind is not null)
-            sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind");
+        if (upstream is not null)
+        {
+            var ahead  = Git("rev-list --count @{u}..HEAD", workingDirectory);
+            var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
+            if (ahead is not null && behind is not null)
+                sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind upstream");
 
+            // Diff stat against upstream
+            var upstreamDiff = Git("diff --stat @{u}", workingDirectory);
+            if (!string.IsNullOrWhiteSpace(upstreamDiff))
+            {
+                sb.AppendLine("\n**Diff vs upstream:**");
+                sb.AppendLine("```");
+                sb.AppendLine(upstreamDiff);
+                sb.AppendLine("```");
+            }
+        }
+
+        // Divergence from default branch (main/master), if different from upstream
+        var defaultBranch = Git("rev-parse --abbrev-ref origin/HEAD", workingDirectory)
+            ?.Replace("origin/", "");
+        if (defaultBranch is not null && defaultBranch != branch)
+        {
+            var aheadBase  = Git($"rev-list --count origin/{defaultBranch}..HEAD", workingDirectory);
+            var behindBase = Git($"rev-list --count HEAD..origin/{defaultBranch}", workingDirectory);
+            if (aheadBase is not null && behindBase is not null)
+                sb.AppendLine($"**vs `{defaultBranch}`:** {aheadBase} ahead, {behindBase} behind");
+
+            // Diff stat against default branch
+            var defaultDiff = Git($"diff --stat origin/{defaultBranch}", workingDirectory);
+            if (!string.IsNullOrWhiteSpace(defaultDiff))
+            {
+                sb.AppendLine("\n**Diff vs `" + defaultBranch + "`**:");
+                sb.AppendLine("```");
+                sb.AppendLine(defaultDiff);
+                sb.AppendLine("```");
+            }
+        }
+
+        // Recent commits
         var log = Git("log -5 --oneline", workingDirectory);
         if (log is not null)
         {
@@ -99,16 +226,227 @@ public sealed class DevAgent : AgentBase
                 sb.AppendLine($"- `{line}`");
         }
 
+        // Stash entries
+        var stashList = Git("stash list", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(stashList))
+        {
+            sb.AppendLine("\n**Stash entries:**");
+            sb.AppendLine("```");
+            sb.AppendLine(stashList);
+            sb.AppendLine("```");
+        }
+
+        // Merge/Rebase status
+        var mergeHead  = Git("rev-parse -q --verify MERGE_HEAD",  workingDirectory);
+        var rebaseHead = Git("rev-parse -q --verify REBASE_HEAD", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(mergeHead))
+        {
+            sb.AppendLine("\n**Merge in progress:**");
+            sb.AppendLine("```");
+            sb.AppendLine(mergeHead);
+            sb.AppendLine("```");
+        }
+        else if (!string.IsNullOrWhiteSpace(rebaseHead))
+        {
+            sb.AppendLine("\n**Rebase in progress:**");
+            sb.AppendLine("```");
+            sb.AppendLine(rebaseHead);
+            sb.AppendLine("```");
+        }
+
+        // Working tree status (XY flags)
         var status = Git("status --short", workingDirectory);
-        if (status is not null)
+        if (!string.IsNullOrWhiteSpace(status))
         {
             sb.AppendLine("\n**Working tree:**");
             sb.AppendLine("```");
             sb.AppendLine(status);
-            sb.Append("```");
+            sb.AppendLine("```");
+        }
+
+        // Staged changes (diff stat)
+        var stagedStat = Git("diff --cached --stat", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(stagedStat))
+        {
+            sb.AppendLine("**Staged changes:**");
+            sb.AppendLine("```");
+            sb.AppendLine(stagedStat);
+            sb.AppendLine("```");
+        }
+
+        // Unstaged changes (diff stat)
+        var unstagedStat = Git("diff --stat", workingDirectory);
+        if (!string.IsNullOrWhiteSpace(unstagedStat))
+        {
+            sb.AppendLine("**Unstaged changes:**");
+            sb.AppendLine("```");
+            sb.AppendLine(unstagedStat);
+            sb.AppendLine("```");
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Builds a GitHub context using the gh CLI (if available).
+    /// Shows the linked issue (parsed from the branch name), the open PR with review
+    /// decision and CI checks, and inline review comments.
+    /// Returns an empty string when gh is not installed or not authenticated.
+    /// </summary>
+    private static string BuildGitHubContext(string workingDirectory)
+    {
+        if (!IsGhAvailable(workingDirectory)) return string.Empty;
+
+        var sb = new StringBuilder("# GitHub Context\n\n");
+        var hasContent = false;
+
+        // Linked issue — infer number from branch name (e.g. "248-feat-foo" → #248)
+        var branch = Git("rev-parse --abbrev-ref HEAD", workingDirectory);
+        var issueNumber = branch is not null
+            ? LeadingDigits().Match(branch).Value
+            : null;
+
+        if (!string.IsNullOrEmpty(issueNumber))
+        {
+            var issueJson = Gh($"issue view {issueNumber} --json number,title,state,body,labels", workingDirectory);
+            if (issueJson is not null)
+            {
+                try
+                {
+                    var issue = JsonDocument.Parse(issueJson).RootElement;
+                    var iTitle  = issue.TryGetProperty("title",  out var it) ? it.GetString() : null;
+                    var iState  = issue.TryGetProperty("state",  out var is_) ? is_.GetString() : null;
+                    var iBody   = issue.TryGetProperty("body",   out var ib) ? ib.GetString() : null;
+                    var iLabels = issue.TryGetProperty("labels", out var il)
+                        ? string.Join(", ", il.EnumerateArray()
+                            .Select(l => l.TryGetProperty("name", out var ln) ? ln.GetString() : null)
+                            .Where(l => l is not null))
+                        : null;
+
+                    sb.AppendLine($"## Issue #{issueNumber}: {iTitle}");
+                    if (!string.IsNullOrEmpty(iState))   sb.AppendLine($"**State:** {iState}");
+                    if (!string.IsNullOrEmpty(iLabels))  sb.AppendLine($"**Labels:** {iLabels}");
+                    if (!string.IsNullOrWhiteSpace(iBody))
+                    {
+                        sb.AppendLine();
+                        // Truncate long bodies to keep context size manageable
+                        var body = iBody.Length > 1000 ? iBody[..1000] + "\n…(truncated)" : iBody;
+                        sb.AppendLine(body);
+                    }
+                    hasContent = true;
+                }
+                catch (JsonException) { /* skip */ }
+            }
+        }
+
+        // Open PR for the current branch
+        var prJson = Gh("pr view --json number,title,state,url,isDraft,reviewDecision", workingDirectory);
+        if (prJson is not null)
+        {
+            try
+            {
+                var pr     = JsonDocument.Parse(prJson).RootElement;
+                var number = pr.TryGetProperty("number",         out var n) ? n.GetInt32().ToString() : null;
+                var title  = pr.TryGetProperty("title",          out var t) ? t.GetString()           : null;
+                var state  = pr.TryGetProperty("state",          out var s) ? s.GetString()           : null;
+                var url    = pr.TryGetProperty("url",            out var u) ? u.GetString()           : null;
+                var draft  = pr.TryGetProperty("isDraft",        out var d) && d.GetBoolean();
+                var review = pr.TryGetProperty("reviewDecision", out var r) ? r.GetString()           : null;
+
+                if (hasContent) sb.AppendLine();
+                sb.AppendLine($"## PR #{number}: {title}");
+                var stateLabel = draft ? "Draft" : state ?? "unknown";
+                sb.AppendLine($"**State:** {stateLabel}{(url is not null ? $" — {url}" : "")}");
+                if (!string.IsNullOrEmpty(review) && review != "REVIEW_REQUIRED")
+                    sb.AppendLine($"**Review:** {review}");
+
+                // Review comments
+                var reviewsJson = Gh("pr view --json reviews", workingDirectory);
+                if (reviewsJson is not null)
+                {
+                    try
+                    {
+                        var reviews = JsonDocument.Parse(reviewsJson).RootElement
+                            .GetProperty("reviews");
+                        var nonEmpty = reviews.EnumerateArray()
+                            .Where(rv => rv.TryGetProperty("body", out var b) && !string.IsNullOrWhiteSpace(b.GetString()))
+                            .ToList();
+                        if (nonEmpty.Count > 0)
+                        {
+                            sb.AppendLine("\n**Review comments:**");
+                            foreach (var rv in nonEmpty)
+                            {
+                                var author = rv.TryGetProperty("author", out var a)
+                                    && a.TryGetProperty("login", out var l) ? l.GetString() : "?";
+                                var rvState = rv.TryGetProperty("state", out var rs) ? rs.GetString() : null;
+                                var body    = rv.TryGetProperty("body",  out var rb) ? rb.GetString() : "";
+                                if (body?.Length > 300) body = body[..300] + "…";
+                                sb.AppendLine($"- **{author}** ({rvState}): {body}");
+                            }
+                        }
+                    }
+                    catch (JsonException) { /* skip */ }
+                }
+
+                // CI checks
+                var checksOutput = Gh("pr checks --json name,state,conclusion", workingDirectory);
+                if (checksOutput is not null)
+                {
+                    try
+                    {
+                        var checks = JsonDocument.Parse(checksOutput).RootElement;
+                        if (checks.ValueKind == JsonValueKind.Array && checks.GetArrayLength() > 0)
+                        {
+                            sb.AppendLine("\n**CI Checks:**");
+                            foreach (var check in checks.EnumerateArray())
+                            {
+                                var checkName       = check.TryGetProperty("name",       out var cn) ? cn.GetString() : "?";
+                                var checkConclusion = check.TryGetProperty("conclusion", out var cc) ? cc.GetString() : null;
+                                var checkState      = check.TryGetProperty("state",      out var cs) ? cs.GetString() : null;
+                                var status = checkConclusion ?? checkState ?? "pending";
+                                var icon   = status.ToUpperInvariant() switch
+                                {
+                                    "SUCCESS" => "✓",
+                                    "FAILURE" or "ERROR" => "✗",
+                                    _ => "○"
+                                };
+                                sb.AppendLine($"- {icon} `{checkName}` — {status}");
+                            }
+                        }
+                    }
+                    catch (JsonException) { /* skip */ }
+                }
+                hasContent = true;
+            }
+            catch (JsonException) { /* skip */ }
+        }
+
+        return hasContent ? sb.ToString().TrimEnd() : string.Empty;
+    }
+
+    private static bool IsGhAvailable(string workingDirectory) =>
+        Gh("--version", workingDirectory) is not null;
+
+    private static string? Gh(string args, string workingDirectory)
+    {
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo("gh", args)
+            {
+                WorkingDirectory       = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+            });
+            var output = proc?.StandardOutput.ReadToEnd().Trim();
+            proc?.WaitForExit();
+            return proc?.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -166,38 +504,6 @@ public sealed class DevAgent : AgentBase
         }
     }
 
-    /// <summary>
-    /// Returns a single message containing all open files.
-    /// File contents are re-read from disk on every request so changes are always current.
-    /// </summary>
-    private static IReadOnlyList<string> BuildEditorMessages(string? sessionPath = null)
-    {
-        var paths = EditorState.ReadFiles(sessionPath);
-        if (paths.Count == 0) return [];
-
-        var sb = new StringBuilder("# Editor\n\nThe following files reflect the exact current state on disk — treat them as ground truth.\n\n");
-        foreach (var path in paths)
-        {
-            if (!File.Exists(path)) continue;
-            try
-            {
-                var info = new FileInfo(path);
-                if (info.Length > 131_072)
-                {
-                    sb.AppendLine($"> `{path}` — file too large ({info.Length / 1024} KB), skipped.\n");
-                    continue;
-                }
-                sb.AppendLine(EditorState.FormatFileBlock(path, File.ReadAllText(path)).TrimEnd());
-                sb.AppendLine();
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine($"> `{path}` — read error: {ex.Message}\n");
-            }
-        }
-        return [sb.ToString().TrimEnd()];
-    }
-
     private static string? Git(string args, string workingDirectory)
     {
         try
@@ -220,5 +526,11 @@ public sealed class DevAgent : AgentBase
     }
 
     protected override string GetAgentMarkdown(string? sessionPath = null) =>
-        string.Join("\n\n---\n\n", GetSystemPrompt(sessionPath).Where(s => !string.IsNullOrWhiteSpace(s)));
+        string.Join("\n\n---\n\n",
+            GetSystemPrompt(sessionPath)
+                .Concat(GetContextMessages(sessionPath))
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    [GeneratedRegex(@"^\d+")]
+    private static partial Regex LeadingDigits();
 }
