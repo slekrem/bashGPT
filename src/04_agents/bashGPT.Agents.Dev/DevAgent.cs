@@ -184,6 +184,16 @@ public sealed partial class DevAgent : AgentBase
             var behind = Git("rev-list --count HEAD..@{u}", workingDirectory);
             if (ahead is not null && behind is not null)
                 sb.AppendLine($"**Sync:** {ahead} ahead, {behind} behind upstream");
+
+            // Diff stat against upstream
+            var upstreamDiff = Git("diff --stat @{u}", workingDirectory);
+            if (!string.IsNullOrWhiteSpace(upstreamDiff))
+            {
+                sb.AppendLine("\n**Diff vs upstream:**");
+                sb.AppendLine("```");
+                sb.AppendLine(upstreamDiff);
+                sb.AppendLine("```");
+            }
         }
 
         // Divergence from default branch (main/master), if different from upstream
@@ -195,6 +205,16 @@ public sealed partial class DevAgent : AgentBase
             var behindBase = Git($"rev-list --count HEAD..origin/{defaultBranch}", workingDirectory);
             if (aheadBase is not null && behindBase is not null)
                 sb.AppendLine($"**vs `{defaultBranch}`:** {aheadBase} ahead, {behindBase} behind");
+
+            // Diff stat against default branch
+            var defaultDiff = Git($"diff --stat origin/{defaultBranch}", workingDirectory);
+            if (!string.IsNullOrWhiteSpace(defaultDiff))
+            {
+                sb.AppendLine("\n**Diff vs `" + defaultBranch + "`**:");
+                sb.AppendLine("```");
+                sb.AppendLine(defaultDiff);
+                sb.AppendLine("```");
+            }
         }
 
         // Recent commits
