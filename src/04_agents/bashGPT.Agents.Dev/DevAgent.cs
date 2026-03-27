@@ -4,6 +4,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using bashGPT.Agents.Dev.Tools;
 using bashGPT.Tools.Abstractions;
+using bashGPT.Tools.GitHub.Comments;
+using bashGPT.Tools.GitHub.Issues;
+using bashGPT.Tools.GitHub.PullRequests;
 
 namespace bashGPT.Agents.Dev;
 
@@ -31,17 +34,27 @@ public sealed partial class DevAgent : AgentBase
         new WriteFileTool(_workingDirectory),
         new EditFileTool(_workingDirectory),
         new SearchTool(_workingDirectory),
-        new GhPrCreateTool(_workingDirectory),
-        new GhPrDiffTool(_workingDirectory),
-        new GhPrReviewTool(_workingDirectory),
-        new GhCommentTool(_workingDirectory),
         new GitCommitTool(_workingDirectory),
+        // GitHub Issues
+        new GhIssueListTool(),
+        new GhIssueViewTool(),
+        new GhIssueCreateTool(new bashGPT.Tools.GitHub.PermissiveGhPolicy()),
+        // GitHub Pull Requests
+        new GhPrListTool(),
+        new GhPrViewTool(),
+        new GhPrCreateTool(new bashGPT.Tools.GitHub.PermissiveGhPolicy()),
+        new GhPrDiffTool(),
+        new GhPrReviewTool(new bashGPT.Tools.GitHub.PermissiveGhPolicy()),
+        new GhPrMergeTool(new bashGPT.Tools.GitHub.PermissiveGhPolicy()),
+        new GhPrChecksTool(),
+        // GitHub Comments
+        new GhCommentTool(new bashGPT.Tools.GitHub.PermissiveGhPolicy()),
     ];
 
     // Registry tools are resolved via the plugin system at runtime.
     public override IReadOnlyList<string> EnabledTools =>
     [
-        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, git_commit, gh_pr_create, gh_pr_diff, gh_pr_review, gh_comment
+        .. base.EnabledTools,   // owned: read_file, write_file, edit_file, search, git_commit + all gh_* tools
     ];
 
     public override AgentLlmConfig LlmConfig => new(
@@ -131,21 +144,46 @@ public sealed partial class DevAgent : AgentBase
           {"query": "BuildGitContext"}
           {"query": "BuildGitContext", "path": "src", "max_results": 20}
 
-        gh_pr_create — creates a GitHub pull request for the current branch.
+        gh_issue_list   — lists issues in the repository.
+          {"state": "open"}  or  {"state": "closed", "limit": 10}
+          state: 'open', 'closed', or 'all'. label and limit are optional.
+
+        gh_issue_view   — returns full details of an issue.
+          {"number": 42}
+
+        gh_issue_create — creates a new issue.
+          {"title": "bug: something is wrong", "body": "## Description\n...", "label": "bug"}
+          Only call this when explicitly asked to create an issue.
+
+        gh_pr_list      — lists pull requests in the repository.
+          {"state": "open"}  or  {"state": "merged", "limit": 5}
+
+        gh_pr_view      — returns full details of a PR (defaults to the current branch's PR).
+          {"number": 42}  or  {}
+
+        gh_pr_create    — creates a GitHub pull request for the current branch.
           {"title": "feat: my feature", "body": "## Summary\n...", "draft": false}
           Only call this when explicitly asked to create a PR or when the task is fully complete.
 
-        gh_pr_diff   — returns the diff of a PR (defaults to the current branch's PR).
+        gh_pr_diff      — returns the diff of a PR (defaults to the current branch's PR).
           {"number": 42}  or  {}
 
-        gh_pr_review — submits a PR review: approve, request changes, or comment.
+        gh_pr_review    — submits a PR review: approve, request changes, or comment.
           {"event": "approve"}
           {"event": "request-changes", "body": "Please fix the indentation.", "number": 42}
           {"event": "comment", "body": "Looks good overall, one minor note.", "number": 42}
           event must be 'approve', 'request-changes', or 'comment'.
           body is required for 'request-changes' and 'comment'.
 
-        gh_comment   — adds a comment to a GitHub issue or PR.
+        gh_pr_merge     — merges a PR (defaults to the current branch's PR).
+          {"method": "squash"}  or  {"number": 42, "method": "merge"}
+          method: 'merge', 'squash', or 'rebase'. Defaults to 'merge'.
+          Only call this when explicitly asked to merge.
+
+        gh_pr_checks    — returns CI check results for a PR.
+          {"number": 42}  or  {}
+
+        gh_comment      — adds a comment to a GitHub issue or PR.
           {"number": 42, "body": "Done — implemented in commit abc123.", "type": "issue"}
           type is either "issue" or "pr" (defaults to "issue").
 

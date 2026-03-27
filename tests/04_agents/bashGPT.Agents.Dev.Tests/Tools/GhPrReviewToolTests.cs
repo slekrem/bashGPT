@@ -1,4 +1,5 @@
-using bashGPT.Agents.Dev.Tools;
+using bashGPT.Tools.GitHub;
+using bashGPT.Tools.GitHub.PullRequests;
 
 namespace bashGPT.Agents.Dev.Tests.Tools;
 
@@ -7,7 +8,7 @@ public class GhPrReviewToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnMissingEvent()
     {
-        var tool = new GhPrReviewTool(Dir);
+        var tool = new GhPrReviewTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_review", """{"body":"looks good"}"""),
@@ -20,7 +21,7 @@ public class GhPrReviewToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidEvent()
     {
-        var tool = new GhPrReviewTool(Dir);
+        var tool = new GhPrReviewTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_review", """{"event":"merge"}"""),
@@ -33,7 +34,7 @@ public class GhPrReviewToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsWhenBodyMissingForRequestChanges()
     {
-        var tool = new GhPrReviewTool(Dir);
+        var tool = new GhPrReviewTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_review", """{"event":"request-changes"}"""),
@@ -46,7 +47,7 @@ public class GhPrReviewToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsWhenBodyMissingForComment()
     {
-        var tool = new GhPrReviewTool(Dir);
+        var tool = new GhPrReviewTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_review", """{"event":"comment"}"""),
@@ -59,7 +60,7 @@ public class GhPrReviewToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidJson()
     {
-        var tool = new GhPrReviewTool(Dir);
+        var tool = new GhPrReviewTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_review", "not-json"),
