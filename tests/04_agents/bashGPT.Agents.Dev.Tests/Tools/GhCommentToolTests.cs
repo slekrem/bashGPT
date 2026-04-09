@@ -1,4 +1,5 @@
-using bashGPT.Agents.Dev.Tools;
+using bashGPT.Tools.GitHub;
+using bashGPT.Tools.GitHub.Comments;
 
 namespace bashGPT.Agents.Dev.Tests.Tools;
 
@@ -7,7 +8,7 @@ public class GhCommentToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnMissingNumber()
     {
-        var tool = new GhCommentTool(Dir);
+        var tool = new GhCommentTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_comment", """{"body":"hello"}"""),
@@ -20,7 +21,7 @@ public class GhCommentToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnMissingBody()
     {
-        var tool = new GhCommentTool(Dir);
+        var tool = new GhCommentTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_comment", """{"number":42}"""),
@@ -33,7 +34,7 @@ public class GhCommentToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidType()
     {
-        var tool = new GhCommentTool(Dir);
+        var tool = new GhCommentTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_comment", """{"number":42,"body":"hi","type":"discussion"}"""),
@@ -46,7 +47,7 @@ public class GhCommentToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidJson()
     {
-        var tool = new GhCommentTool(Dir);
+        var tool = new GhCommentTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_comment", "nope"),

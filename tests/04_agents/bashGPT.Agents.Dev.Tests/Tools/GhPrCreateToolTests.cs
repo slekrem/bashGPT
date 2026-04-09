@@ -1,4 +1,5 @@
-using bashGPT.Agents.Dev.Tools;
+using bashGPT.Tools.GitHub;
+using bashGPT.Tools.GitHub.PullRequests;
 
 namespace bashGPT.Agents.Dev.Tests.Tools;
 
@@ -7,7 +8,7 @@ public class GhPrCreateToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnMissingTitle()
     {
-        var tool = new GhPrCreateTool(Dir);
+        var tool = new GhPrCreateTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_create", """{"body":"description"}"""),
@@ -20,7 +21,7 @@ public class GhPrCreateToolTests : ToolTestBase
     [Fact]
     public async Task ExecuteAsync_FailsOnInvalidJson()
     {
-        var tool = new GhPrCreateTool(Dir);
+        var tool = new GhPrCreateTool(new PermissiveGhPolicy());
 
         var result = await tool.ExecuteAsync(
             Call("gh_pr_create", "bad"),
