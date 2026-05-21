@@ -15,7 +15,7 @@
   "dependencies": {
     "dompurify": "^3.3.3",
     "highlight.js": "^11.11.1",
-    "lit": "^3.3.1",
+    "lit": "^3.3.3",
     "marked": "^17.0.5"
   },
   "devDependencies": {
